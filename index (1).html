@@ -1,0 +1,1061 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Radio de ruta</title>
+<meta name="theme-color" content="#1b1e23">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --asphalt:#1b1e23; --panel:#262a31; --line:#f2c230; --sign:#1b4f9c; --signtext:#f4f6f8;
+  --text:#e6e9ed; --muted:#8d96a3; --alert:#e5604d;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--asphalt);color:var(--text);font-family:Barlow,system-ui,sans-serif;font-size:1rem;line-height:1.45}
+html{font-size:17px}
+[hidden]{display:none!important}
+#ctl button{flex:1;min-height:56px}
+body{padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));max-width:520px;margin:0 auto}
+h1{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:28px;margin:4px 0 16px;letter-spacing:.01em}
+
+/* Cartel de ruta: lo memorable de la pantalla */
+.sign{background:var(--sign);color:var(--signtext);border:3px solid var(--signtext);border-radius:10px;
+  outline:3px solid var(--sign);outline-offset:3px;padding:14px 16px 16px;margin:0 3px 22px}
+.sign small{display:block;font-size:14px;opacity:.85}
+.sign strong{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:34px;line-height:1.1;margin-top:2px;word-break:break-word}
+
+.now{border-left:5px solid var(--line);padding:2px 0 2px 14px;margin-bottom:18px}
+.now .t{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:26px;line-height:1.15}
+.now .a{color:var(--muted)}
+.next{color:var(--muted);margin:0 0 18px}
+.next b{color:var(--text);font-weight:500}
+
+.voice{background:var(--panel);border-radius:10px;padding:14px 16px;min-height:96px;margin-bottom:18px;color:var(--text)}
+.voice.live{box-shadow:inset 0 0 0 2px var(--line)}
+.voice .who{font-family:'Barlow Condensed',sans-serif;font-weight:600;color:var(--line);font-size:18px;margin-bottom:4px}
+.voice p{margin:0}
+
+.status{color:var(--muted);font-size:15px;min-height:22px;margin-bottom:14px}
+.status.err{color:var(--alert)}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px}
+button{font:inherit;font-weight:500;border:0;border-radius:8px;padding:13px 18px;background:var(--line);color:#1b1e23;min-height:48px;cursor:pointer}
+button.alt{background:var(--panel);color:var(--text)}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--signtext);outline-offset:2px}
+button[hidden]{display:none}
+
+details{background:var(--panel);border-radius:10px;padding:4px 16px}
+summary{padding:12px 0;font-weight:500;cursor:pointer}
+label{display:block;margin:12px 0 4px;color:var(--muted);font-size:15px}
+input,select,textarea{width:100%;font:inherit;background:var(--asphalt);color:var(--text);border:1px solid #3a404a;border-radius:8px;padding:11px 12px;min-height:46px}
+.hint{font-size:14px;color:var(--muted);margin:6px 0 14px}
+code{background:var(--asphalt);padding:1px 5px;border-radius:4px;font-size:14px;word-break:break-all}
+.chk{display:flex;gap:10px;align-items:center;color:var(--text)}.chk input{width:auto;min-height:0}
+.tr{display:flex;gap:8px;align-items:center;padding:10px 0;border-top:1px solid #3a404a}.tr div{flex:1;min-width:0;word-break:break-word}.tr span{color:var(--muted);font-size:15px}.tr button{padding:8px 12px;min-height:40px}
+.now{display:flex;gap:12px;align-items:center}.now img{width:72px;height:72px;border-radius:6px;object-fit:cover}.now .tx{flex:1;min-width:0}#fav{padding:8px 12px;font-size:24px;min-height:44px}
+details{margin-bottom:14px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js" defer></script>
+</head>
+<body>
+<h1>Radio de ruta</h1>
+
+<div class="sign" aria-live="polite">
+  <small>Cerca de</small>
+  <strong id="place">Esperando ubicación</strong>
+</div>
+
+<div class="now">
+  <img id="cover" alt="Carátula del álbum" hidden>
+  <div class="tx"><div class="t" id="title">Nada sonando</div><div class="a" id="artist">Pon música en Spotify</div></div>
+  <button id="fav" class="alt" aria-label="Marcar como favorita">♡</button>
+</div>
+<p class="next" id="next" hidden>Sigue: <b id="nextName"></b></p>
+
+<div class="voice" id="voiceBox" aria-live="polite">
+  <div class="who" id="hostLabel">Locutora</div>
+  <p id="script">Aquí aparecerá lo que diga entre canciones.</p>
+</div>
+
+<div class="status" id="status" role="status"></div>
+
+<div class="voice" id="diagBox" hidden>
+  <div class="who">Guía de sonido</div>
+  <div id="diagList"></div>
+  <div id="wiz" aria-live="polite"></div>
+  <div class="row" style="margin:10px 0 0"><button class="alt" id="wizBtn">Prueba guiada</button></div>
+</div>
+
+<div class="row">
+  <button id="login">Conectar con Spotify</button>
+  <button id="start" hidden>Iniciar radio</button>
+  <button id="test" class="alt">Probar voz</button>
+  <button id="testBreak" class="alt">Probar intervención</button>
+  <button id="share" class="alt">Compartir</button>
+  <button id="diagToggle" class="alt">Guía de sonido</button>
+</div>
+<div class="row" id="ctl" hidden><button id="pp" class="alt">Pausa / seguir</button><button id="skip" class="alt">Siguiente</button><button id="stop" class="alt">Detener</button></div>
+
+<details id="lib">
+  <summary>Biblioteca local</summary>
+  <input id="files" type="file" accept="audio/*" multiple hidden>
+  <div class="row" style="margin:6px 0 4px"><button class="alt" id="addBtn">Agregar canciones</button></div>
+  <p class="hint">Se guardan en este celular. Toca Editar para corregir título, artista o álbum: Luna usa esos datos.</p>
+  <div id="libList"></div>
+</details>
+
+<details id="stats">
+  <summary>Favoritas y más escuchadas</summary>
+  <p class="hint"><b>Favoritas</b></p><div id="favList"></div>
+  <p class="hint"><b>Más escuchadas</b></p><div id="topList"></div>
+  <p class="hint"><b>Más escuchadas por ubicación</b></p><div id="placeList"></div>
+</details>
+
+<details id="settings">
+  <summary>Ajustes</summary>
+  <label class="chk"><input id="diag" data-k="diag" type="checkbox"> Mostrar la guía de sonido (diagnóstico)</label>
+
+  <label for="clientId">Client ID de Spotify</label>
+  <input id="clientId" data-k="clientId" autocomplete="off" autocapitalize="off" spellcheck="false">
+
+  <label for="source">Fuente de música</label>
+  <select id="source" data-k="source">
+    <option value="local">Mi biblioteca (en este celular)</option>
+    <option value="spotify">Spotify (requiere Premium)</option>
+  </select>
+  <label class="chk"><input id="shuffle" data-k="shuffle" type="checkbox" checked> Orden aleatorio (biblioteca)</label>
+
+  <label for="gender">Locutor o locutora</label>
+  <select id="gender" data-k="gender"><option value="locutora">Locutora</option><option value="locutor">Locutor</option></select>
+
+  <label for="accent">Acento del español</label>
+  <select id="accent" data-k="accent"><option value="neutro">Neutro</option><option value="mx">México</option><option value="ar">Argentina</option><option value="es">España</option><option value="co">Colombia</option><option value="cl">Chile</option></select>
+
+  <label for="style">Estilo</label>
+  <select id="style" data-k="style"><option value="">Natural</option><option value="noche">Radio FM nocturna</option><option value="deporte">Deportiva y enérgica</option><option value="humor">Cómica</option><option value="docu">Documental</option></select>
+
+  <label for="me">Tu nombre (para saludarte)</label>
+  <input id="me" data-k="me" autocomplete="off">
+
+  <label for="len">Largo de cada intervención</label>
+  <select id="len" data-k="len"><option value="corta">Corta</option><option value="media" selected>Media</option><option value="larga">Larga</option></select>
+
+  <label for="tEvery">Hablar cada cuántas canciones</label>
+  <input id="tEvery" data-k="tEvery" type="number" min="1" max="10" value="1">
+
+  <label for="nomEmail">Correo para Nominatim (opcional)</label>
+  <input id="nomEmail" data-k="nomEmail" type="email" autocomplete="off">
+
+  <label for="avoid">Temas a evitar</label>
+  <input id="avoid" data-k="avoid" placeholder="Ej: política, chistes">
+
+  <label for="persona">Personalidad de la locutora (opcional)</label>
+  <textarea id="persona" data-k="persona" rows="3" placeholder="Ej: divertida, con humor, habla de rock en español"></textarea>
+
+  <label for="contextoMusical">Contexto musical de tu biblioteca (para la locutora)</label>
+  <textarea id="contextoMusical" data-k="contextoMusical" rows="4" placeholder="Si lo dejas vacío uso el contexto de tu biblioteca por defecto"></textarea>
+
+  <label class="chk"><input id="memoria" data-k="memoria" type="checkbox" checked> Usar mi historial de escucha para que la locutora personalice</label>
+
+  <label for="rate">Velocidad de la voz</label>
+  <input id="rate" data-k="rate" type="range" min="0.7" max="1.4" step="0.05" value="1">
+
+  <label for="pitch">Tono de la voz</label>
+  <input id="pitch" data-k="pitch" type="range" min="0.5" max="1.5" step="0.05" value="1">
+
+  <label for="vol">Volumen de la voz</label>
+  <input id="vol" data-k="vol" type="range" min="0.3" max="1" step="0.05" value="1">
+
+  <label for="units">Temperatura</label>
+  <select id="units" data-k="units"><option value="c">Grados Celsius</option><option value="f">Grados Fahrenheit</option></select>
+
+  <label for="h12">Formato de hora</label>
+  <select id="h12" data-k="h12"><option value="auto">Según el teléfono</option><option value="1">12 horas</option><option value="0">24 horas</option></select>
+
+  <label for="accentColor">Color de acento</label>
+  <select id="accentColor" data-k="accentColor"><option value="#f2c230">Amarillo</option><option value="#ff8a3d">Naranja</option><option value="#4cd18a">Verde</option><option value="#5bc0ff">Celeste</option><option value="#ff7eb6">Rosa</option></select>
+
+  <label for="fsize">Tamaño de letra</label>
+  <input id="fsize" data-k="fsize" type="range" min="15" max="24" step="1" value="17">
+
+  <label for="provider">Quién escribe los textos</label>
+  <select id="provider" data-k="provider">
+    <option value="gemini">Gemini (gratis)</option>
+    <option value="claude">Claude (de pago)</option>
+  </select>
+
+  <label for="geminiKey">API key de Gemini</label>
+  <input id="geminiKey" data-k="geminiKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+
+  <label for="geminiModel">Modelo de Gemini</label>
+  <input id="geminiModel" data-k="geminiModel" value="gemini-3.8-flash" autocapitalize="off" spellcheck="false">
+
+  <label for="apiKey">API key de Anthropic</label>
+  <input id="apiKey" data-k="apiKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <p class="hint">Se guarda solo en este celular. Úsala únicamente en tu propio dispositivo.</p>
+
+  <label for="model">Modelo de Claude</label>
+  <input id="model" data-k="model" value="claude-sonnet-5-5" autocapitalize="off" spellcheck="false">
+
+  <label for="host">Nombre de la locutora</label>
+  <input id="host" data-k="host" value="Luna">
+
+  <label for="wEvery">Hora y clima cada cuántas intervenciones</label>
+  <input id="wEvery" data-k="wEvery" type="number" min="1" max="20" value="3">
+
+  <label for="pEvery">Zona o ruta cada cuántas intervenciones</label>
+  <input id="pEvery" data-k="pEvery" type="number" min="1" max="20" value="2">
+
+  <label for="voice">Voz del teléfono</label>
+  <select id="voice" data-k="voice"></select>
+
+  <label for="voiceEngine">Motor de voz</label>
+  <select id="voiceEngine" data-k="voiceEngine"><option value="auto">Automático (Gemini si el teléfono no tiene voz en español)</option><option value="gemini">Voz de Gemini</option><option value="device">Voz del teléfono</option></select>
+
+  <label for="gVoice">Voz de Gemini</label>
+  <select id="gVoice" data-k="gVoice"><option value="Kore">Kore · femenina, firme</option><option value="Aoede">Aoede · femenina, suave</option><option value="Leda">Leda · femenina, joven</option><option value="Zephyr">Zephyr · femenina, luminosa</option><option value="Puck">Puck · masculina, animada</option><option value="Charon">Charon · masculina, informativa</option><option value="Orus">Orus · masculina, firme</option><option value="Fenrir">Fenrir · masculina, entusiasta</option></select>
+
+  <label for="ttsModel">Modelo de voz de Gemini</label>
+  <input id="ttsModel" data-k="ttsModel" placeholder="gemini-3.1-flash-tts-preview" autocomplete="off">
+
+  <p class="hint">Sin clave de IA la locutora igual habla, pero con textos simples (canción, hora, clima y zona). Cada persona que abra el enlace usa su propia copia, con su biblioteca y sus claves.</p>
+  <p class="hint"><b>Registro de errores</b></p>
+  <div id="errList"></div>
+  <div class="row" style="margin-top:10px"><button class="alt" id="errCopy">Copiar</button><button class="alt" id="errClear">Borrar registro</button></div>
+
+  <div class="row" style="margin-top:10px"><button class="alt" id="cfgExp">Exportar ajustes</button><button class="alt" id="cfgImp">Importar ajustes</button></div>
+  <p class="hint">Redirect URI que debes registrar en Spotify: <code id="redir"></code></p>
+</details>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d = '') { try { const v = localStorage.getItem('rr_' + k); return v === null ? d : v; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('rr_' + k, v); } catch {} }
+};
+const redirectUri = location.origin + location.pathname;
+$('redir').textContent = redirectUri;
+
+/* ---------- Ajustes ---------- */
+document.querySelectorAll('[data-k]').forEach(el => {
+  const saved = store.get(el.dataset.k, null);
+  if (saved !== null && el.id !== 'voice') { if (el.type === 'checkbox') el.checked = saved === '1'; else el.value = saved; }
+  el.addEventListener('change', () => { store.set(el.dataset.k, el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value); if (el.id === 'host') $('hostLabel').textContent = el.value; applyLook(); syncProvider(); syncDiag(); });
+});
+$('hostLabel').textContent = $('host').value || 'Locutora';
+const setting = (id, d) => ($(id).value || '').trim() || d;
+function applyLook() {
+  document.documentElement.style.setProperty('--line', setting('accentColor', '#f2c230'));
+  document.documentElement.style.fontSize = setting('fsize', '17') + 'px';
+}
+function syncProvider() {
+  const g = setting('provider', 'gemini') === 'gemini';
+  [['geminiKey', g || setting('voiceEngine', 'auto') !== 'device'], ['geminiModel', g], ['apiKey', !g], ['model', !g]].forEach(([id, show]) => {
+    $(id).hidden = !show;
+    const l = document.querySelector('label[for="' + id + '"]'); if (l) l.hidden = !show;
+  });
+}
+
+let errAt = 0;
+function status(msg, err = false) {
+  if (err) { errAt = Date.now(); logErr(msg); }
+  else if (Date.now() - errAt < 30000) return; // deja el error visible 30 s
+  const s = $('status'); s.textContent = msg; s.classList.toggle('err', err);
+}
+
+/* ---------- Spotify (PKCE, sin servidor) ---------- */
+const SCOPES = 'user-read-playback-state user-modify-playback-state';
+const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+async function login() {
+  const clientId = setting('clientId', '');
+  if (!clientId) { $('settings').open = true; return status('Falta el Client ID de Spotify en Ajustes.', true); }
+  store.set('clientId', clientId);
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  store.set('verifier', verifier);
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  location.href = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({
+    client_id: clientId, response_type: 'code', redirect_uri: redirectUri,
+    scope: SCOPES, code_challenge_method: 'S256', code_challenge: challenge
+  });
+}
+async function tokenRequest(params) {
+  const r = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: store.get('clientId'), ...params })
+  });
+  const j = await jsonOf(r);
+  if (!r.ok) throw new Error(j.error_description || j.error || 'Error de Spotify');
+  store.set('access', j.access_token);
+  store.set('exp', String(Date.now() + j.expires_in * 1000 - 60000));
+  if (j.refresh_token) store.set('refresh', j.refresh_token);
+}
+async function handleRedirect() {
+  const q = new URLSearchParams(location.search), code = q.get('code');
+  if (q.get('error')) { history.replaceState(null, '', location.pathname); return status('Spotify no autorizó la conexión (' + q.get('error') + ').', true); }
+  if (!code) return;
+  history.replaceState(null, '', location.pathname);
+  try {
+    await tokenRequest({ grant_type: 'authorization_code', code, redirect_uri: redirectUri, code_verifier: store.get('verifier') });
+  } catch (e) { status('No se pudo conectar: ' + e.message, true); }
+}
+async function token() {
+  if (Date.now() > Number(store.get('exp', '0'))) await tokenRequest({ grant_type: 'refresh_token', refresh_token: store.get('refresh') });
+  return store.get('access');
+}
+let holdUntil = 0, spErr = null;
+async function spot(path, method = 'GET') {
+  const r = await fetch('https://api.spotify.com/v1' + path, { method, headers: { Authorization: 'Bearer ' + await token() } });
+  if (r.status === 204 || r.status === 202) return null;
+  const t = await r.text();
+  let j = null; try { j = t ? JSON.parse(t) : null; } catch {}
+  if (r.status === 429) { holdUntil = Date.now() + (Number(r.headers.get('Retry-After')) || 5) * 1000; throw new Error('Spotify pidió esperar unos segundos'); }
+  if (!r.ok) {
+    const msg = j?.error?.message || '';
+    const m = r.status === 403 ? 'Spotify respondió 403: para controlar la música se necesita Premium, tanto en tu cuenta como en la cuenta dueña de la app de Spotify' + (msg && !/^forbidden\.?$/i.test(msg) ? ' (' + msg + ')' : '')
+      : r.status === 409 ? 'Spotify está reproduciendo en otro dispositivo. Ciérralo y reintenta.'
+      : r.status === 404 ? 'Spotify no tiene un dispositivo activo: abre la app de Spotify en este celular y pon una canción'
+      : 'Spotify ' + r.status + (msg ? ': ' + msg : '');
+    spErr = { m, t: Date.now() };
+    throw new Error(m);
+  }
+  return j;
+}
+
+/* ---------- Ubicación, zona y clima ---------- */
+let pos = null;
+let geoId = null;
+function startGeo() {
+  if (geoId !== null) return;
+  if (!navigator.geolocation) return status('Este navegador no tiene ubicación.', true);
+  geoId = navigator.geolocation.watchPosition(
+    p => { const first = !pos; pos = { lat: p.coords.latitude, lon: p.coords.longitude, heading: p.coords.heading }; if (first) getPlace(); },
+    () => status('Sin permiso de ubicación: no se mencionará la ruta ni el clima.', true),
+    { enableHighAccuracy: true, maximumAge: 10000 }
+  );
+}
+const CARD = ['norte', 'noreste', 'este', 'sureste', 'sur', 'suroeste', 'oeste', 'noroeste'];
+let placeCache = { t: 0, text: '' };
+async function getPlace() {
+  if (!pos) return null;
+  if (Date.now() - placeCache.t < 90000 && placeCache.text) return placeCache.text;
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=17&accept-language=es&lat=${pos.lat}&lon=${pos.lon}${setting('nomEmail', '') ? '&email=' + encodeURIComponent(setting('nomEmail', '')) : ''}`);
+    const a = (await jsonOf(r)).address || {};
+    const road = a.road || a.pedestrian || a.highway;
+    const area = a.neighbourhood || a.suburb || a.city_district;
+    const city = a.city || a.town || a.village || a.municipality;
+    const text = [road, area, city].filter((v, i, arr) => v && arr.indexOf(v) === i).join(', ');
+    if (text) { placeCache = { t: Date.now(), text, area: area || city || '' }; $('place').textContent = text; }
+    return text || null;
+  } catch { return null; }
+}
+function heading() {
+  return pos && typeof pos.heading === 'number' && !isNaN(pos.heading) ? CARD[Math.round(pos.heading / 45) % 8] : null;
+}
+function wmo(c) {
+  if (c === 0) return 'despejado';
+  if (c <= 2) return 'parcialmente nublado';
+  if (c === 3) return 'nublado';
+  if (c === 45 || c === 48) return 'con niebla';
+  if (c >= 51 && c <= 57) return 'con llovizna';
+  if (c >= 61 && c <= 67) return 'con lluvia';
+  if (c >= 71 && c <= 77) return 'con nieve';
+  if (c >= 80 && c <= 82) return 'con chubascos';
+  if (c === 85 || c === 86) return 'con nevadas';
+  if (c >= 95) return 'con tormenta';
+  return 'variable';
+}
+async function getWeather() {
+  if (!pos) return null;
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${pos.lat}&longitude=${pos.lon}&current=temperature_2m,weather_code&timezone=auto${setting('units', 'c') === 'f' ? '&temperature_unit=fahrenheit' : ''}`);
+    const c = (await jsonOf(r)).current;
+    return `${Math.round(c.temperature_2m)} grados${setting('units', 'c') === 'f' ? ' Fahrenheit' : ''}, ${wmo(c.weather_code)}`;
+  } catch { return null; }
+}
+
+/* ---------- Claude escribe la intervención ---------- */
+function plainScript(p, n, x) {
+  const a = t => t.artistas.join(' y ');
+  let t = n ? `Eso fue ${p.titulo}, de ${a(p)}. ` : `Estás escuchando ${p.titulo}, de ${a(p)}. `;
+  if (x.hora_local) t += `Son las ${x.hora_local}. `;
+  if (x.clima) t += `Afuera tenemos ${x.clima}. `;
+  if (x.lugar_cercano) t += `Pasamos cerca de ${x.lugar_cercano}. `;
+  return n ? t + `Ahora sigue ${n.titulo}, de ${a(n)}.` : t;
+}
+async function jsonOf(r) {
+  const t = await r.text();
+  try { return JSON.parse(t); } catch { throw new Error('Respuesta no válida (' + r.status + '): ' + t.slice(0, 80)); }
+}
+async function fetchRetry(url, opt, tries = 3) {
+  for (let i = 1; ; i++) {
+    try {
+      const r = await fetch(url, opt);
+      if (![429, 500, 502, 503, 504].includes(r.status) || i >= tries) return r;
+    } catch (e) { if (i >= tries) throw e; }
+    await new Promise(ok => setTimeout(ok, 1500 * i));
+  }
+}
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('timeout ' + ms + ' ms')), ms))]);
+const ACC = { neutro: 'neutro', mx: 'de México', ar: 'de Argentina', es: 'de España', co: 'de Colombia', cl: 'de Chile' };
+const LEN = { corta: '25 y 45', media: '50 y 90', larga: '90 y 140' };
+const STY = { noche: 'Estilo radio FM nocturna: voz suave, pausada e íntima.', deporte: 'Estilo de locutor deportivo: enérgico, rápido y entusiasta.', humor: 'Estilo cómico: ligero, con humor sano y juegos de palabras.', docu: 'Estilo documental: sereno, curioso y narrativo.' };
+const BLOCK_A = h => `Eres ${h}, ${setting('gender', 'locutora')} de una radio personal de indie y rock en español. Hablas como una amiga que sabe de música pero no presume: frases cortas, sin solemnidad, con humor seco de vez en cuando. No eres una IA ni lo mencionas. Nunca dices "colaboraron" si no estás segura. Cuando el mismo artista suena dos veces seguidas, no lo presentas de nuevo: comentas el disco, la época o cómo cambió su sonido.`;
+const CTX_DEFAULT = 'Contexto de esta biblioteca: indie y rock alternativo en español (2004–2026), con seis proyectos dominantes: Shaman Herrera, Love of Lesbian, Porter, Tobogán Andaluz, Shaman y los Pilares de la Creación y Shaman Y Los Hombres En Llamas. Los tres "Shaman" son el mismo músico (Emmanuel Herrera) en distintas etapas; trátalos como el mismo proyecto, no como artistas que colaboran entre sí. También suenan Carlos Sadness, Young Tender, Dorian, Vetusta Morla, IZAL, La Habitación Roja y Zahara, entre otros. Las colaboraciones que ya aparecen en la lista de artistas de la canción son seguras; las demás, verifícalas antes de afirmarlas.';
+const BLOCK_D = 'Al nombrar canciones y artistas:\n- Limpia los títulos de sufijos como "- 2017 Remastered version", "- Exclusiva Spotify", "- Con Zahara", "(with Bebe)", "(feat. Leiva)".\n- Cuando haya varios artistas, nómbralos como "Carlos Sadness, con Santi Balmes", no como "Carlos Sadness y Santi Balmes".\n- Si un título o artista llega con "Artista desconocido", no lo menciones por nombre; comenta el estilo o la época.';
+function resumenMemoria() {
+  const st = Object.values(J('stats', {})).slice(0, 500);
+  if (!st.length) return '';
+  const fv = Object.values(J('favs', {})).slice(0, 100);
+  const art = {}, pl = {};
+  st.forEach(e => {
+    const a = String(e.a || '').split(',')[0].trim();
+    if (a) art[a] = (art[a] || 0) + (e.c || 0);
+    Object.entries(e.p || {}).forEach(([k, c]) => { if (k !== 'Sin ubicación') pl[k] = (pl[k] || 0) + c; });
+  });
+  const top = o => Object.entries(o).sort((x, y) => y[1] - x[1]);
+  const o = [];
+  const a3 = top(art).slice(0, 3).map(x => x[0]); if (a3.length) o.push('Artistas que más escucha: ' + a3.join(', ') + '.');
+  const c3 = st.filter(e => e.c >= 2).sort((x, y) => y.c - x.c).slice(0, 3).map(e => e.n + ' (' + e.a + ')'); if (c3.length) o.push('Canciones que repite: ' + c3.join('; ') + '.');
+  const f4 = fv.slice(0, 4).map(e => e.n + ' (' + e.a + ')'); if (f4.length) o.push('Favoritas: ' + f4.join('; ') + '.');
+  const l1 = top(pl)[0]; if (l1) o.push('Donde más escucha: ' + l1[0] + '.');
+  const t = o.join(' ');
+  return t.length > 800 ? t.slice(0, 797) + '…' : t;
+}
+function extraStyle() {
+  const o = [], st = STY[setting('style', '')], p = setting('persona', ''), me = setting('me', ''), av = setting('avoid', '');
+  if (st) o.push(st);
+  o.push(p ? 'Estilo pedido por la persona: ' + p : BLOCK_A(setting('host', 'Luna')));
+  o.push(`La persona que escucha${me ? ' se llama ' + me : ''} y suele viajar en auto o en transporte público. Su música es indie y rock en español de España, México y Argentina, con cierta melancolía y energía media. Le gustan las colaboraciones y los discos conceptuales.${me ? ' Salúdala por su nombre de vez en cuando, sin abusar.' : ''}`);
+  o.push(setting('contextoMusical', CTX_DEFAULT));
+  o.push(BLOCK_D);
+  if (av) o.push('Evita por completo estos temas: ' + av + '.');
+  o.push('Si te doy el rumbo, puedes mencionarlo de forma natural (por ejemplo, que van hacia el norte), sin insistir.');
+  return '\\n' + o.join('\\n');
+}
+async function writeScript(prev, next, extras, history) {
+  if (!setting(setting('provider', 'gemini') === 'gemini' ? 'geminiKey' : 'apiKey', '')) return plainScript(prev, next, extras);
+  const host = setting('host', 'Luna');
+  const system =
+`Eres ${host}, ${setting('gender', 'locutora')} de una radio personal que acompaña a una persona mientras viaja. Hablas en español ${ACC[setting('accent', 'neutro')] || 'neutro'}, cercano y relajado, como en una radio FM de noche.
+Tu texto se lee en voz alta: sin emojis, sin markdown, sin listas, sin paréntesis; escribe horas y números como se dicen.
+Entre ${LEN[setting('len', 'media')] || LEN.media} palabras. ${next ? 'Cierra la canción que terminó con un dato curioso del artista o del disco y presenta la que viene.' : 'Comenta la canción que está sonando ahora con un dato curioso del artista o del disco; no hables de la que viene.'}
+${next ? 'Si realmente sabes que ambos artistas colaboraron, compartieron escenario o festival, o tienen una conexión clara, cuéntalo. Si no estás segura, no lo inventes ni lo insinúes.' : ''}
+Afirma solo datos de los que estés muy segura. Si no tienes uno bueno, comenta el estilo o la época de forma general.
+Si te doy hora, clima o lugar, menciónalos de forma natural y breve, sin añadir nada que no esté en los datos. Si no te los doy, no los menciones.
+Nunca digas que eres una IA y nunca menciones la velocidad. No repitas ideas de tus intervenciones anteriores.
+Si te doy "memoria_de_la_persona", úsala con naturalidad: puedes decir "como te gusta", "la que más has escuchado" o "sé que te gusta X", pero no recites la lista ni la menciones completa. Si no hay memoria, no la inventes.
+Responde solo con el texto a leer.` + extraStyle();
+  const memo = $('memoria').checked ? resumenMemoria() : '';
+  const user = JSON.stringify({
+    ...(next ? { cancion_que_termino: prev, cancion_que_viene: next } : { cancion_que_suena_ahora: prev }), ...extras,
+    ...(memo ? { memoria_de_la_persona: memo } : {}),
+    intervenciones_anteriores: history
+  });
+  if (setting('provider', 'gemini') === 'gemini') {
+    const g = await fetchRetry(`https://generativelanguage.googleapis.com/v1beta/models/${setting('geminiModel', 'gemini-3.8-flash')}:generateContent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': setting('geminiKey', '') },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: 'user', parts: [{ text: user }] }],
+        generationConfig: { maxOutputTokens: 4000 }
+      })
+    });
+    const gj = await jsonOf(g);
+    if (!g.ok) throw new Error(gj.error?.message || 'Error de Gemini');
+    return (gj.candidates?.[0]?.content?.parts || []).map(x => x.text || '').join(' ').trim();
+  }
+  const r = await fetchRetry('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': setting('apiKey', ''),
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({ model: setting('model', 'claude-sonnet-5-5'), max_tokens: 400, system, messages: [{ role: 'user', content: user }] })
+  });
+  const j = await jsonOf(r);
+  if (!r.ok) throw new Error(j.error?.message || 'Error de Claude');
+  return j.content.filter(b => b.type === 'text').map(b => b.text).join(' ').trim();
+}
+
+/* ---------- Voz ---------- */
+const isEs = v => /^(es|spa)/i.test(v.lang);
+function loadVoices() {
+  const sel = $('voice');
+  const es = speechSynthesis.getVoices().filter(isEs);
+  if (!es.length) return;
+  const saved = store.get('voice', '');
+  const rank = v => /natural|premium|enhanced|google/i.test(v.name) ? 0 : 1;
+  es.sort((a, b) => rank(a) - rank(b));
+  sel.innerHTML = ''; es.forEach(v => sel.add(new Option(`${v.name} (${v.lang})`, v.name)));
+  sel.value = es.some(v => v.name === saved) ? saved : es[0].name;
+}
+if ('speechSynthesis' in window) { speechSynthesis.onvoiceschanged = loadVoices; loadVoices(); }
+
+const TTS_MODEL = 'gemini-3.1-flash-tts-preview';
+const deviceHasEs = () => 'speechSynthesis' in window && speechSynthesis.getVoices().some(isEs);
+const useCloud = () => { const e = setting('voiceEngine', 'auto'); return e === 'gemini' || (e === 'auto' && !deviceHasEs() && !!setting('geminiKey', '')); };
+function wavUrl(pcm, rate) {
+  const b = new DataView(new ArrayBuffer(44 + pcm.length));
+  const w = (o, t) => [...t].forEach((c, i) => b.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); b.setUint32(4, 36 + pcm.length, true); w(8, 'WAVEfmt '); b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 1, true);
+  b.setUint32(24, rate, true); b.setUint32(28, rate * 2, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true); w(36, 'data'); b.setUint32(40, pcm.length, true);
+  new Uint8Array(b.buffer, 44).set(pcm);
+  return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+}
+async function geminiAudio(text) {
+  const key = setting('geminiKey', '');
+  if (!key) throw new Error('falta la clave de Gemini');
+  const acc = ACC[setting('accent', 'neutro')] || 'neutro';
+  const g = await fetchRetry(`https://generativelanguage.googleapis.com/v1beta/models/${setting('ttsModel', TTS_MODEL)}:generateContent`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: `Di con voz cálida y natural, como locutora de radio, en español ${acc}: ${text}` }] }],
+      generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: setting('gVoice', 'Kore') } } } }
+    })
+  });
+  const j = await jsonOf(g);
+  if (!g.ok) throw new Error(j.error?.message || 'error de la voz de Gemini');
+  const part = (j.candidates?.[0]?.content?.parts || []).find(p => p.inlineData);
+  if (!part) throw new Error('Gemini no devolvió audio');
+  const rate = Number(/rate=(\d+)/.exec(part.inlineData.mimeType || '')?.[1]) || 24000;
+  const bin = atob(part.inlineData.data), pcm = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) pcm[i] = bin.charCodeAt(i);
+  return wavUrl(pcm, rate);
+}
+let cloud = null;
+function playCloud(url, my) {
+  return new Promise((ok, no) => {
+    const a = cloud = new Audio(url);
+    V.started = false; V.warn = '';
+    const chk = setTimeout(() => { if (cloud === a && !V.started) V.warn = 'La voz de Gemini no arrancó en 6 segundos.'; }, 6000);
+    const iv = setInterval(() => { if (my !== speakId || cloud !== a) { a.pause(); end(); } }, 200);
+    const end = () => { clearInterval(iv); clearTimeout(chk); URL.revokeObjectURL(url); if (cloud === a) cloud = null; ok(); };
+    a.onplaying = () => { V.started = true; V.warn = ''; V.lastOk = Date.now(); };
+    a.onended = end;
+    a.onerror = () => { clearInterval(iv); clearTimeout(chk); no(new Error('no se pudo reproducir el audio')); };
+    a.play().catch(e => { clearInterval(iv); clearTimeout(chk); no(e); });
+  });
+}
+async function speak(text, pre) {
+  if (pre !== false && useCloud()) {
+    const my = ++speakId;
+    try { speechSynthesis.cancel(); } catch {}
+    try {
+      const url = pre || await withTimeout(geminiAudio(text), 15000);
+      if (my !== speakId) { URL.revokeObjectURL(url); return; }
+      return await playCloud(url, my);
+    } catch (e) { status('Voz de Gemini no disponible (' + e.message + '). Uso la del teléfono.', true); }
+  }
+  return speakDevice(text);
+}
+
+let speakId = 0;
+function speakDevice(text) {
+  return new Promise(resolve => {
+    text = text || '';
+    if (!('speechSynthesis' in window)) return resolve();
+    const my = ++speakId;
+    V.calls++; V.started = false; V.warn = '';
+    const chk = setTimeout(() => { if (my === speakId && !V.started) V.warn = 'La voz no arrancó en 5 segundos.'; }, 5000);
+    speechSynthesis.cancel();
+    const voice = speechSynthesis.getVoices().find(v => v.name === $('voice').value);
+    const sentences = text.match(/[^.!?¿]+[.!?]*/g) || [text];
+    const chunks = [];
+    let cur = '';
+    for (const s of sentences) {
+      if ((cur + s).length > 170 && cur) { chunks.push(cur); cur = s; } else cur += s;
+    }
+    if (cur.trim()) chunks.push(cur);
+    let i = 0;
+    const done = () => { clearTimeout(safety); clearTimeout(chk); resolve(); };
+    const safety = setTimeout(() => { if (my === speakId) speechSynthesis.cancel(); resolve(); }, 120000);
+    const next = () => {
+      if (my !== speakId || i >= chunks.length) return done();
+      const u = new SpeechSynthesisUtterance(chunks[i++].trim());
+      u.lang = voice?.lang || 'es-ES';
+      if (voice) u.voice = voice;
+      u.rate = Number(setting('rate', 1));
+      u.pitch = Number(setting('pitch', 1));
+      u.volume = Number(setting('vol', 1));
+      u.onstart = () => { V.started = true; V.warn = ''; V.lastOk = Date.now(); };
+      u.onend = next;
+      u.onerror = next;
+      speechSynthesis.speak(u);
+    };
+    setTimeout(next, 80);
+  });
+}
+
+/* ---------- Pantalla encendida ---------- */
+let lock = null;
+async function keepAwake() { try { lock = await navigator.wakeLock.request('screen'); } catch {} }
+document.addEventListener('visibilitychange', () => { if (running && document.visibilityState === 'visible') keepAwake(); });
+
+/* ---------- Bucle de la radio ---------- */
+const S = { track: null, at: 0, prog: 0, dur: 0, playing: false, state: 'idle', breakNo: 0, script: null, next: null, history: [] };
+let running = false, polling = false;
+
+function render() {
+  $('title').textContent = S.track ? S.track.name : 'Nada sonando';
+  $('artist').textContent = S.track ? S.track.artists.map(a => a.name).join(', ') + ' · ' + S.track.album.name : 'Pon música en Spotify';
+  const cv = S.track && (S.track.cover || S.track.album.images?.[0]?.url);
+  $('cover').hidden = !cv; if (cv) $('cover').src = cv;
+  const fv = !!(S.track && isFav(S.track));
+  $('fav').textContent = fv ? '♥' : '♡'; $('fav').setAttribute('aria-pressed', String(fv));
+  if (S.track && S.track.id !== lastId) { lastId = S.track.id; clearTimeout(playT); const t = S.track; playT = setTimeout(() => tryCount(t), 30000); if (local()) setMedia(t, cv); }
+  $('next').hidden = !S.next;
+  if (S.next) $('nextName').textContent = S.next.name + ' — ' + S.next.artists.map(a => a.name).join(', ');
+}
+const limpiarTitulo = (t, artistas = []) => {
+  let r = String(t)
+    .replace(/\s*[-–]\s*(?:\d{4}\s+)?Remaster(?:ed)?.*$/i, '')
+    .replace(/\s*[\(\[][^\)\]]*remaster[^\)\]]*[\)\]]\s*$/i, '')
+    .replace(/\s*[-–]\s*Exclusiva Spotify.*$/i, '')
+    .replace(/\s*[\(\[](?:with|feat\.?|ft\.?).+[\)\]]\s*$/i, '');
+  const m = r.match(/\s*[-–]\s*Con (.+)$/i);
+  if (m && artistas.some(a => a.toLowerCase().includes(m[1].trim().toLowerCase()))) r = r.slice(0, m.index);
+  return r.trim() || String(t);
+};
+const info = t => ({ titulo: limpiarTitulo(t.name, t.artists.map(a => a.name)), artistas: t.artists.map(a => a.name), album: t.album.name, ano: (t.album.release_date || '').slice(0, 4) });
+
+async function poll() {
+  if (polling) return;
+  polling = true;
+  try {
+    const d = await spot('/me/player');
+    S.at = Date.now();
+    if (!d || !d.item || d.currently_playing_type !== 'track') {
+      S.playing = false; S.dev = (d && d.device) || null;
+      status('Abre Spotify en este celular y pon un álbum o playlist.');
+      return;
+    }
+    S.prog = d.progress_ms; S.dur = d.item.duration_ms; S.playing = d.is_playing; S.dev = d.device || null;
+    if (!S.track || S.track.id !== d.item.id) {
+      S.track = d.item; S.next = null; S.script = null;
+      if (S.state !== 'break') S.state = 'playing';
+      render();
+    }
+    if (S.state !== 'break') status(S.playing ? 'Radio en el aire.' : 'En pausa.');
+  } catch (e) { status(e.message, true); }
+  finally { polling = false; }
+}
+
+async function prepare() {
+  const id = S.track.id;
+  S.songNo = (S.songNo || 0) + 1;
+  if ((S.songNo - 1) % (Number(setting('tEvery', 1)) || 1) !== 0) { S.state = 'skip'; return; }
+  let next = null;
+  if (local()) next = L.peek();
+  else {
+    try { next = ((await spot('/me/player/queue'))?.queue || []).find(t => t.type === 'track') || null; }
+    catch (e) { if (/403|Premium/.test(e.message)) { if (!S.noCtl) status('Sin Premium: la locutora hablará sobre la música, sin pausarla.', true); S.noCtl = true; } else throw e; }
+  }
+  if (!next && !(S.noCtl && !local())) { S.state = 'skip'; return; }
+  S.breakNo++;
+  const n = S.breakNo;
+  const extras = {};
+  S.extras = extras;
+  if ((n - 1) % (Number(setting('wEvery', 3)) || 3) === 0) {
+    extras.hora_local = new Date().toLocaleTimeString('es', Object.assign({ hour: 'numeric', minute: '2-digit' }, setting('h12', 'auto') === 'auto' ? {} : { hour12: setting('h12', 'auto') === '1' }));
+    const w = await withTimeout(getWeather(), 8000).catch(() => null);
+    if (w) extras.clima = w;
+  }
+  if ((n - 1) % (Number(setting('pEvery', 2)) || 2) === 0) {
+    const p = await withTimeout(getPlace(), 8000).catch(() => null);
+    if (p) { extras.lugar_cercano = p; const h = heading(); if (h) extras.rumbo = h; }
+  }
+  let script = '';
+  try { script = await withTimeout(writeScript(info(S.track), next && info(next), extras, S.history), 20000); S.ai = setting(setting('provider', 'gemini') === 'gemini' ? 'geminiKey' : 'apiKey', '') ? 'ok' : 'sin clave: uso texto simple'; } catch (e) { S.ai = 'falló: ' + e.message; status('IA no disponible, uso un texto simple: ' + e.message, true); }
+  script = script || plainScript(info(S.track), next && info(next), extras);
+  let pre;
+  if (useCloud()) { try { pre = await withTimeout(geminiAudio(script), 15000); } catch (e) { pre = false; status('Voz de Gemini no disponible (' + e.message + '). Uso la del teléfono.', true); } }
+  if (!S.track || S.track.id !== id) { if (pre) URL.revokeObjectURL(pre); return; }
+  S.pre = pre;
+  S.next = next; S.script = script; S.state = 'ready';
+  render();
+}
+
+async function doBreak() {
+  S.state = 'break';
+  const script = S.script, pre = S.pre; S.pre = undefined;
+  $('voiceBox').classList.add('live');
+  $('script').textContent = script;
+  status('Locutora al aire.');
+  try {
+    if (!S.noCtl) { try { await spot('/me/player/pause', 'PUT'); } catch (e) { if (/403|Premium/.test(e.message)) S.noCtl = true; else throw e; } }
+    await speak(script, pre);
+    if (!running) { S.state = 'idle'; return; }
+    if (!S.noCtl) {
+      await spot('/me/player/next', 'POST');
+      await new Promise(r => setTimeout(r, 700));
+      await spot('/me/player/play', 'PUT').catch(() => {});
+    }
+  } catch (e) { status(e.message, true); if (!S.noCtl) await spot('/me/player/play', 'PUT').catch(() => {}); }
+  S.history = [...S.history, script].slice(-4);
+  S.script = null; S.at = 0; S.state = 'playing';
+  $('voiceBox').classList.remove('live');
+  await poll();
+}
+
+async function tick() {
+  if (!running || S.state === 'break' || local() || Date.now() < holdUntil) return;
+  const near = S.track && S.playing && S.dur - (S.prog + Date.now() - S.at) < 8000;
+  if (Date.now() - S.at > (near ? 1500 : 5000)) await poll();
+  if (!S.track || !S.playing) return;
+  const remaining = S.dur - (S.prog + Date.now() - S.at);
+  const early = S.noCtl && S.prog + Date.now() - S.at > 8000 && remaining > 20000;
+  if ((remaining < 120000 || early) && S.state === 'playing') {
+    S.state = 'writing';
+    prepare().catch(e => { S.state = 'skip'; status('Error al preparar la intervención: ' + e.message, true); $('script').textContent = 'Error: ' + e.message; });
+  }
+  if ((remaining < 3000 || S.noCtl) && S.state === 'ready') doBreak();
+}
+
+/* ---------- Biblioteca local ---------- */
+const local = () => setting('source', 'local') === 'local';
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const dbp = new Promise((ok, no) => {
+  const q = indexedDB.open('radio-ruta', 1);
+  q.onupgradeneeded = () => q.result.createObjectStore('t', { keyPath: 'id', autoIncrement: true });
+  q.onsuccess = () => ok(q.result); q.onerror = () => no(q.error);
+});
+const tx = async (mode, f) => { const d = await dbp; return new Promise((ok, no) => { const r = f(d.transaction('t', mode).objectStore('t')); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); }); };
+const readTags = f => new Promise(ok => window.jsmediatags ? jsmediatags.read(f, { onSuccess: t => ok(t.tags), onError: () => ok({}) }) : ok({}));
+async function addFiles(files) {
+  for (const f of files) {
+    if (!/^audio\//.test(f.type) && !/\.(mp3|m4a|aac|flac|ogg|wav)$/i.test(f.name)) continue;
+    const t = await readTags(f), base = f.name.replace(/\.[^.]+$/, ''), k = base.indexOf(' - '), m = k > 0 ? [base.slice(0, k), base.slice(k + 3)] : [base];
+    await tx('readwrite', st => st.add({ blob: f, cover: t.picture ? new Blob([new Uint8Array(t.picture.data)], { type: t.picture.format }) : null, name: t.title || m[1] || base, artist: t.artist || (m[1] ? m[0] : 'Artista desconocido'), album: t.album || '', year: String(t.year || '') }));
+    await renderLib();
+  }
+}
+async function renderLib() {
+  const a = await tx('readonly', st => st.getAll());
+  $('libList').innerHTML = a.length ? a.map(r => `<div class="tr">${r.cover ? `<img src="${coverUrl(r)}" width="44" height="44" style="border-radius:4px;object-fit:cover" alt="">` : ''}<div><b>${esc(r.name)}</b><br><span>${esc(r.artist)}${r.album ? ' · ' + esc(r.album) : ''}</span></div><button class="alt" data-e="${r.id}">Editar</button><button class="alt" data-d="${r.id}">Borrar</button></div>`).join('') : '<p class="hint">Aún no hay canciones.</p>';
+}
+$('addBtn').onclick = () => $('files').click();
+$('files').onchange = async e => { await addFiles([...e.target.files]); e.target.value = ''; };
+$('libList').onclick = async e => {
+  const ed = e.target.dataset.e, del = e.target.dataset.d;
+  if (del && confirm('¿Borrar esta canción?')) { await tx('readwrite', st => st.delete(Number(del))); dropCover(Number(del)); renderLib(); }
+  if (ed) {
+    const r = await tx('readonly', st => st.get(Number(ed)));
+    const name = prompt('Título', r.name); if (name === null) return;
+    const artist = prompt('Artista', r.artist); if (artist === null) return;
+    const album = prompt('Álbum', r.album); if (album === null) return;
+    await tx('readwrite', st => st.put({ ...r, name, artist, album })); renderLib();
+  }
+};
+const covers = new Map();
+const coverUrl = r => { if (!r.cover) return ''; if (!covers.has(r.id)) covers.set(r.id, URL.createObjectURL(r.cover)); return covers.get(r.id); };
+const dropCover = id => { const u = covers.get(id); if (u) URL.revokeObjectURL(u); covers.delete(id); };
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const toTrack = r => ({ id: 'l' + r.id, cover: coverUrl(r), name: r.name, artists: [{ name: r.artist }], album: { name: r.album || '', release_date: r.year || '' } });
+const audio = new Audio();
+const L = { list: [], order: [], i: -1, peek() { const r = this.list[this.order[(this.i + 1) % this.order.length]]; return r && toTrack(r); } };
+async function startLocal() {
+  L.list = await tx('readonly', st => st.getAll());
+  if (!L.list.length) { stopRadio(); $('lib').open = true; return status('Agrega canciones a la biblioteca primero.', true); }
+  L.order = L.list.map((_, k) => k);
+  if ($('shuffle').checked) shuffle(L.order);
+  L.i = -1; playNext();
+}
+async function playNext() {
+  L.i = (L.i + 1) % L.order.length;
+  const r = L.list[L.order[L.i]];
+  const old = audio.src; audio.src = URL.createObjectURL(r.blob); if (old && old.startsWith('blob:')) URL.revokeObjectURL(old);
+  lastId = '';
+  S.track = toTrack(r); S.next = null; S.script = null; S.state = 'playing'; render();
+  try { await audio.play(); status('Radio en el aire.'); } catch (e) { status(e.message, true); }
+}
+audio.ontimeupdate = () => {
+  if (running && local() && S.state === 'playing' && audio.currentTime > 3 && audio.currentTime < audio.duration - 3 && audio.duration - audio.currentTime < 120) {
+    S.state = 'writing';
+    prepare().catch(e => { S.state = 'skip'; status(e.message, true); });
+  }
+};
+audio.onended = async () => {
+  if (!running || !local()) return;
+  for (let i = 0; i < 120 && S.state === 'writing'; i++) { await new Promise(r => setTimeout(r, 500)); if (!running) return; }
+  let script = null, pre;
+  if (S.state === 'ready' && S.script) { script = S.script; pre = S.pre; S.pre = undefined; }
+  else if (S.state === 'writing') { const nx = L.peek(); script = plainScript(info(S.track), nx && info(nx), S.extras || {}); pre = false; }
+  if (script) {
+    S.state = 'break';
+    $('voiceBox').classList.add('live'); $('script').textContent = script;
+    await speak(script, pre);
+    if (!running) return;
+    S.history = [...S.history, script].slice(-4);
+    $('voiceBox').classList.remove('live');
+  }
+  playNext();
+};
+let badRun = 0;
+audio.onplaying = () => { badRun = 0; };
+audio.onerror = () => {
+  if (!running || !local()) return;
+  status('No se pudo reproducir «' + (S.track?.name || 'el archivo') + '». Paso a la siguiente.', true);
+  if (++badRun > L.list.length) return stopRadio('Ninguna canción se pudo reproducir.');
+  playNext();
+};
+$('source').addEventListener('change', () => location.reload());
+$('share').onclick = async () => {
+  try { if (navigator.share) await navigator.share({ title: 'Radio de ruta', url: location.href }); else { await navigator.clipboard.writeText(location.href); status('Enlace copiado.'); } } catch {}
+};
+
+/* ---------- Favoritas, estadísticas y errores ---------- */
+const J = (k, d) => { try { return JSON.parse(store.get(k, '')) || d; } catch { return d; } };
+const keyOf = t => (t.name + '|' + t.artists.map(a => a.name).join(', ')).toLowerCase();
+const isFav = t => !!J('favs', {})[keyOf(t)];
+let lastId = '', playT = 0;
+function tryCount(t) {
+  if (!S.track || S.track.id !== t.id) return;
+  if (local() ? !audio.paused : S.playing) countPlay(t); else playT = setTimeout(() => tryCount(t), 5000);
+}
+function countPlay(t) {
+  const st = J('stats', {}), k = keyOf(t), pl = placeCache.area || 'Sin ubicación';
+  const e = st[k] || (st[k] = { n: t.name, a: t.artists.map(x => x.name).join(', '), c: 0, p: {} });
+  e.c++; e.p[pl] = (e.p[pl] || 0) + 1;
+  store.set('stats', JSON.stringify(st)); renderStats();
+}
+function renderStats() {
+  const f = Object.entries(J('favs', {}));
+  const st = Object.values(J('stats', {}));
+  const li = (a, b, x = '') => `<div class="tr"><div><b>${esc(a)}</b><br><span>${esc(b)}</span></div>${x}</div>`;
+  const veces = c => c + (c === 1 ? ' vez' : ' veces');
+  const TOP = 10, TOP_LUGAR = 5;
+  const places = {};
+  st.forEach(e => Object.entries(e.p || {}).forEach(([pl, c]) => { (places[pl] = places[pl] || []).push([e.n + ' — ' + e.a, c]); }));
+  $('favList').innerHTML = f.length
+    ? f.slice(0, TOP).map(([k, v]) => li(v.n, v.a, `<button class="alt" data-f="${esc(k)}">Quitar</button>`)).join('')
+      + (f.length > TOP ? `<p class="hint">Y ${f.length - TOP} más guardadas.</p>` : '')
+    : '<p class="hint">Toca el corazón junto a la canción que suena.</p>';
+  $('topList').innerHTML = st.length
+    ? [...st].sort((x, y) => y.c - x.c).slice(0, TOP).map(e => li(e.n, e.a + ' · ' + veces(e.c))).join('')
+      + (st.length > TOP ? `<p class="hint">Y ${st.length - TOP} más con alguna escucha.</p>` : '')
+    : '<p class="hint">Una canción cuenta después de 30 segundos sonando.</p>';
+  const lugares = Object.entries(places)
+    .sort((x, y) => y[1].reduce((n, [, c]) => n + c, 0) - x[1].reduce((n, [, c]) => n + c, 0))
+    .slice(0, TOP);
+  $('placeList').innerHTML = lugares.length
+    ? lugares.map(([pl, a]) => `<p class="hint"><b>${esc(pl)}</b></p>` + a.sort((x, y) => y[1] - x[1]).slice(0, TOP_LUGAR).map(([n, c]) => li(n, veces(c))).join('')).join('')
+    : '<p class="hint">Aún no hay datos por ubicación.</p>';
+}
+$('fav').onclick = () => {
+  if (!S.track) return;
+  const f = J('favs', {}), k = keyOf(S.track);
+  if (f[k]) delete f[k]; else f[k] = { n: S.track.name, a: S.track.artists.map(a => a.name).join(', ') };
+  store.set('favs', JSON.stringify(f)); render(); renderStats();
+};
+$('favList').onclick = e => { const k = e.target.dataset.f; if (!k) return; const f = J('favs', {}); delete f[k]; store.set('favs', JSON.stringify(f)); renderStats(); render(); };
+
+function logErr(m) {
+  const l = J('errors', []);
+  if (l[0] && l[0].m === String(m)) return;
+  l.unshift({ t: new Date().toLocaleString('es'), m: String(m) });
+  store.set('errors', JSON.stringify(l.slice(0, 50))); renderErrs();
+}
+function renderErrs() {
+  const el = $('errList'); if (!el) return;
+  const l = J('errors', []);
+  el.innerHTML = l.length ? l.map(x => `<div class="tr"><div><b>${esc(x.m)}</b><br><span>${esc(x.t)}</span></div></div>`).join('') : '<p class="hint">Sin errores registrados.</p>';
+}
+addEventListener('error', e => logErr(e.message));
+addEventListener('unhandledrejection', e => logErr(e.reason?.message || e.reason));
+$('errClear').onclick = () => { store.set('errors', '[]'); renderErrs(); };
+$('errCopy').onclick = () => navigator.clipboard.writeText(J('errors', []).map(x => x.t + ' ' + x.m).join('\n')).then(() => status('Registro copiado.'), () => {});
+
+/* ---------- Guía de sonido ---------- */
+const V = { started: false, warn: '', lastOk: 0, calls: 0 };
+let ctSeen = -1, ctAt = 0, diagT = null;
+const ICON = { ok: '✓', warn: '⚠', bad: '✗', info: '•' };
+const dRow = (st, title, text, tip) => `<div class="tr"><div><b style="${st === 'bad' ? 'color:var(--alert)' : st === 'warn' ? 'color:var(--line)' : ''}">${ICON[st]} ${esc(title)}</b><br><span>${esc(text)}${tip && st !== 'ok' ? '<br><i>' + esc(tip) + '</i>' : ''}</span></div></div>`;
+const mmss = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+function renderDiag() {
+  const o = [], isL = local();
+  o.push(dRow('info', 'Volumen y salida', 'No puedo leer el volumen del teléfono.', 'Sube el volumen multimedia con los botones laterales mientras suena algo. Apaga el modo silencio (iPhone) y revisa si el sonido sale por Bluetooth o audífonos.'));
+  if (isL) {
+    const n = L.list.length;
+    o.push(running && !n ? dRow('bad', 'Biblioteca', 'No hay canciones.', 'Agrega canciones en Biblioteca local.') : dRow('ok', 'Biblioteca', n + ' canciones cargadas'));
+    if (!running) o.push(dRow('info', 'Reproductor', 'Aún no iniciaste la radio.'));
+    else if (audio.muted) o.push(dRow('bad', 'Reproductor', 'Está silenciado.', 'Quita el silencio del navegador.'));
+    else if (audio.paused) o.push(dRow('warn', 'Reproductor', 'En pausa.'));
+    else {
+      if (audio.currentTime !== ctSeen) { ctSeen = audio.currentTime; ctAt = Date.now(); }
+      o.push(Date.now() - ctAt > 3000 ? dRow('bad', 'Reproductor', 'Dice que suena, pero el tiempo no avanza.', 'El navegador bloqueó el audio. Toca Siguiente o Iniciar radio otra vez.') : dRow('ok', 'Reproductor', 'Sonando · ' + mmss(audio.currentTime)));
+    }
+  } else {
+    o.push(store.get('refresh') ? dRow('ok', 'Cuenta de Spotify', 'Conectada') : dRow('bad', 'Cuenta de Spotify', 'No conectada.', 'Toca Conectar con Spotify.'));
+    if (spErr && Date.now() - spErr.t < 60000) o.push(dRow('bad', 'Último aviso de Spotify', spErr.m, 'Sin Premium, usa la fuente "Mi biblioteca" en Ajustes.'));
+    if (S.dev) {
+      const vp = S.dev.volume_percent;
+      o.push(vp === 0 ? dRow('bad', 'Dispositivo', S.dev.name + ' con volumen 0%.', 'Sube el volumen de Spotify.') : dRow('ok', 'Dispositivo', S.dev.name + ' (' + S.dev.type + ')' + (typeof vp === 'number' ? ' · volumen ' + vp + '%' : '')));
+    } else o.push(dRow('bad', 'Dispositivo', 'Spotify no reporta un dispositivo activo.', 'Abre la app de Spotify en este celular y pon una canción.'));
+    if (S.noCtl) o.push(dRow('info', 'Modo acompañante', 'Spotify no deja pausar, así que la locutora habla encima de la música.', 'Para que pause la música y presente la siguiente canción se necesita Premium.'));
+    o.push(S.playing ? dRow('ok', 'Reproducción', 'Spotify está sonando') : dRow('warn', 'Reproducción', 'Spotify no está sonando.'));
+  }
+  const nv = 'speechSynthesis' in window ? speechSynthesis.getVoices().filter(isEs).length : -1;
+  if (useCloud()) o.push(V.warn ? dRow('bad', 'Voz de Gemini', V.warn, 'Revisa tu clave y el modelo de voz en Ajustes.') : dRow('ok', 'Voz', 'Gemini · ' + setting('gVoice', 'Kore') + (V.lastOk ? ' · última hace ' + Math.round((Date.now() - V.lastOk) / 1000) + ' s' : '')));
+  else if (nv < 0) o.push(dRow('bad', 'Voz', 'Este navegador no puede hablar.', 'Prueba en Chrome o Safari.'));
+  else if (!nv) o.push(dRow('bad', 'Voz', 'No hay voces en español.', 'Instala una en los ajustes de voz de tu teléfono.'));
+  else if (V.warn) o.push(dRow('bad', 'Voz', V.warn, 'Toca Probar voz. Si sigue igual, cambia de voz en Ajustes.'));
+  else if ('speechSynthesis' in window && speechSynthesis.speaking) o.push(dRow('ok', 'Voz', 'Hablando ahora'));
+  else if (V.lastOk) o.push(dRow('ok', 'Voz', 'Última voz iniciada hace ' + Math.round((Date.now() - V.lastOk) / 1000) + ' s'));
+  else o.push(dRow('info', 'Voz', nv + ' voces en español. Aún no ha hablado.', 'Usa la Prueba guiada.'));
+  o.push(pos ? dRow('ok', 'Ubicación', placeCache.text || 'Recibida') : dRow('warn', 'Ubicación', 'Aún sin ubicación.', 'Acepta el permiso al iniciar la radio.'));
+  o.push(S.ai ? dRow(S.ai === 'ok' ? 'ok' : 'warn', 'Textos de la locutora', S.ai) : dRow('info', 'Textos de la locutora', 'Aún no se ha escrito ninguno.'));
+  o.push(lock && !lock.released ? dRow('ok', 'Pantalla encendida', 'Activa') : dRow('warn', 'Pantalla encendida', 'No activa.', 'Si la pantalla se apaga, la voz puede cortarse.'));
+  const e = J('errors', [])[0];
+  if (e) o.push(dRow('warn', 'Último error', e.m + ' (' + e.t + ')'));
+  $('diagList').innerHTML = o.join('');
+}
+function syncDiag() {
+  const on = $('diag').checked;
+  $('diagBox').hidden = !on;
+  clearInterval(diagT); diagT = null;
+  if (on) { renderDiag(); diagT = setInterval(renderDiag, 1000); }
+}
+$('diagToggle').onclick = () => { $('diag').checked = !$('diag').checked; $('diag').dispatchEvent(new Event('change')); };
+function toneUrl(f = 660, sec = 1) {
+  const sr = 22050, n = sr * sec, b = new DataView(new ArrayBuffer(44 + n * 2));
+  const w = (o, t) => [...t].forEach((c, i) => b.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); b.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 1, true);
+  b.setUint32(24, sr, true); b.setUint32(28, sr * 2, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true); w(36, 'data'); b.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) b.setInt16(44 + i * 2, Math.sin(2 * Math.PI * f * i / sr) * 12000 * Math.min(1, i / 800, (n - i) / 800), true);
+  return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+}
+function playTone() {
+  return new Promise(ok => {
+    const a = new Audio(toneUrl());
+    a.onended = () => { URL.revokeObjectURL(a.src); ok(); };
+    a.onerror = ok;
+    a.play().catch(e => { logErr('Tono: ' + e.message); ok(); });
+  });
+}
+const WIZ = [
+  { name: 'Tono', say: 'Paso 1: sonará un tono (el mismo canal que tu música).', run: playTone, q: '¿Escuchaste el tono?',
+    tip: 'Sube el volumen multimedia con los botones laterales, apaga el modo silencio (iPhone) y revisa si el sonido sale por Bluetooth o audífonos.' },
+  { name: 'Voz', say: 'Paso 2: hablará la locutora.', run: () => speak(`Hola, soy ${setting('host', 'Luna')}. ¿Me escuchas bien?`), q: '¿Escuchaste la voz?',
+    tip: 'Si el tono sí sonó, el volumen está bien y falta una voz en español. Android: Ajustes > Accesibilidad > Salida de texto a voz. iPhone: Ajustes > Accesibilidad > Contenido hablado > Voces. Luego elige la voz en Ajustes de esta página.' }
+];
+let wizI = -1; const wizRes = [];
+function wizStep() {
+  const el = $('wiz');
+  if (wizI >= WIZ.length) { el.innerHTML = `<p><b>${WIZ.map((w, i) => (wizRes[i] ? '✓ ' : '✗ ') + w.name).join(' · ')}</b></p><p class="hint">${WIZ.every((w, i) => wizRes[i]) ? 'Todo se escucha bien.' : 'Corrige lo marcado con ✗ y repite la prueba.'}</p>`; return; }
+  const w = WIZ[wizI];
+  el.innerHTML = `<p>${esc(w.say)}</p>`;
+  Promise.resolve(w.run()).then(() => { el.innerHTML = `<p>${esc(w.q)}</p><div class="row"><button data-w="1">Sí</button><button class="alt" data-w="0">No</button></div>`; });
+}
+$('wiz').onclick = e => {
+  const v = e.target.dataset.w; if (v === undefined) return;
+  if (v === 'n') { wizI++; return wizStep(); }
+  wizRes[wizI] = v === '1';
+  if (v === '1') { wizI++; return wizStep(); }
+  $('wiz').innerHTML = `<p>${esc(WIZ[wizI].tip)}</p><div class="row"><button class="alt" data-w="n">Seguir</button></div>`;
+};
+$('wizBtn').onclick = () => { wizI = 0; wizRes.length = 0; wizStep(); };
+
+/* ---------- Botones ---------- */
+$('login').onclick = login;
+$('testBreak').onclick = async () => {
+  const box = $('voiceBox'), log = [], t0 = Date.now();
+  box.classList.add('live');
+  const paso = txt => { log.push(`${((Date.now() - t0) / 1000).toFixed(1)}s · ${txt}`); $('script').textContent = log.join('\n'); };
+  paso('Inicio');
+  const extras = {};
+  try { const w = await withTimeout(getWeather(), 8000); if (w) extras.clima = w; paso('Clima: ' + (w || 'no')); } catch (e) { paso('Clima falló: ' + e.message); }
+  try { const p = await withTimeout(getPlace(), 8000); if (p) extras.lugar_cercano = p; paso('Zona: ' + (p || 'no')); } catch (e) { paso('Zona falló: ' + e.message); }
+  const actual = S.track ? info(S.track) : { titulo: 'Canción de ejemplo', artistas: ['Artista'], album: 'Álbum' };
+  const siguiente = S.next ? info(S.next) : null;
+  let texto = '';
+  try { texto = await withTimeout(writeScript(actual, siguiente, extras, S.history), 20000); paso('IA: ' + (texto ? 'ok (' + texto.length + ' car.)' : 'vacío')); }
+  catch (e) { paso('IA falló: ' + e.message); }
+  if (!texto) texto = plainScript(actual, siguiente, extras);
+  let pre = null;
+  if (useCloud()) {
+    try { pre = await withTimeout(geminiAudio(texto), 15000); paso('Voz de Gemini: ok'); }
+    catch (e) { paso('Voz de Gemini falló: ' + e.message); }
+  }
+  try { await speak(texto, pre || false); paso('Voz: ok'); } catch (e) { paso('Voz falló: ' + e.message); }
+  box.classList.remove('live');
+};
+$('test').onclick = async () => { if (useCloud()) status('Generando la voz de Gemini…'); await speak(`Hola, soy ${setting('host', 'Luna')}. Así voy a sonar entre canciones.`); };
+const timers = [];
+function stopRadio(msg) {
+  errAt = 0; running = false;
+  timers.forEach(clearInterval); timers.length = 0;
+  speakId++; try { speechSynthesis.cancel(); } catch {}
+  if (geoId !== null) { navigator.geolocation.clearWatch(geoId); geoId = null; }
+  try { lock && lock.release(); } catch {}
+  audio.pause();
+  if (!local() && store.get('refresh')) spot('/me/player/pause', 'PUT').catch(() => {});
+  S.state = 'idle'; S.script = null; S.next = null; S.songNo = 0; S.history = [];
+  $('voiceBox').classList.remove('live'); $('ctl').hidden = true; $('start').hidden = false;
+  status(msg || 'Radio detenida.');
+}
+$('start').onclick = () => {
+  if (running) return;
+  $('start').hidden = true; $('ctl').hidden = false;
+  running = true;
+  if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }
+  startGeo();
+  keepAwake();
+  timers.push(setInterval(() => { if (pos) getPlace(); }, 120000), setInterval(tick, 700));
+  if (local()) startLocal(); else { status('Radio lista. Pon música en Spotify.'); speak(`Hola, soy ${setting('host', 'Luna')}. Empezamos.`); }
+};
+$('stop').onclick = () => stopRadio();
+$('pp').onclick = async () => {
+  try {
+    if (local()) { if (audio.paused) await audio.play(); else audio.pause(); }
+    else { await spot(S.playing ? '/me/player/pause' : '/me/player/play', 'PUT'); S.at = 0; }
+  } catch (e) { status(e.message, true); }
+};
+$('skip').onclick = async () => {
+  try {
+    if (S.state === 'break') { speakId++; speechSynthesis.cancel(); return; }
+    if (local()) playNext(); else { await spot('/me/player/next', 'POST'); S.at = 0; }
+  } catch (e) { status(e.message, true); }
+};
+function setMedia(t, cover) {
+  if (!('mediaSession' in navigator)) return;
+  try { navigator.mediaSession.metadata = new MediaMetadata({ title: t.name, artist: t.artists.map(a => a.name).join(', '), album: t.album.name || '', artwork: cover ? [{ src: cover }] : [] }); } catch {}
+}
+if ('mediaSession' in navigator) {
+  const h = (a, f) => { try { navigator.mediaSession.setActionHandler(a, f); } catch {} };
+  h('play', () => { if (local() && audio.paused) $('pp').click(); });
+  h('pause', () => { if (local() && !audio.paused) $('pp').click(); });
+  h('nexttrack', () => $('skip').click());
+}
+const SECRET = ['geminiKey', 'apiKey'];
+$('cfgExp').onclick = () => {
+  const o = {};
+  document.querySelectorAll('[data-k]').forEach(el => { if (!SECRET.includes(el.dataset.k)) o[el.dataset.k] = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value; });
+  navigator.clipboard.writeText(JSON.stringify(o)).then(() => status('Ajustes copiados (sin claves).'), () => status('No se pudo copiar.', true));
+};
+$('cfgImp').onclick = () => {
+  const t = prompt('Pega los ajustes copiados'); if (!t) return;
+  try { Object.entries(JSON.parse(t)).forEach(([k, v]) => { if (!SECRET.includes(k) && typeof v === 'string') store.set(k, v); }); location.reload(); }
+  catch { status('Esos ajustes no son válidos.', true); }
+};
+
+(async function init() {
+  await handleRedirect();
+  applyLook(); syncProvider(); syncDiag();
+  renderLib(); renderStats(); renderErrs();
+  const connected = !!store.get('refresh');
+  $('login').hidden = local() || connected;
+  $('start').hidden = !(local() || connected);
+  status(local() ? 'Agrega canciones en Biblioteca local y toca Iniciar radio.' : connected ? 'Spotify conectado.' : 'Primero conecta Spotify (necesitas Premium).');
+})();
+</script>
+</body>
+</html>

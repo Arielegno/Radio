@@ -1,5 +1,6 @@
 # Radio de ruta
 
+
 Una radio personal que corre en el navegador (PWA). Reproduce tu música y, entre canción y canción, una locutora con IA (por defecto «Luna») comenta lo que suena: datos del artista, el clima, la zona por la que viajas, efemérides y más.
 
 ## Qué hace

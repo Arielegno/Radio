@@ -185,11 +185,13 @@ html[data-card=large] .card-grid{grid-template-columns:repeat(2,1fr)}
 #bioContent{white-space:pre-wrap}
 /* Fondo difuminado global */
 #app-background {
-  position: fixed; top: -50px; left: -50px; width: 100%; height: 100%;
-  transform: scale(2); transform-origin: 0 0; will-change: transform;
-  background-size: cover; background-position: center;
-  filter: blur(30px) brightness(0.25); z-index: -1;
-  transition: background-image 1s ease; pointer-events: none;
+  position: fixed; inset: 0; overflow: hidden; z-index: -1; pointer-events: none;
+  background-size: 0 0; background-repeat: no-repeat;
+}
+#app-background::before {
+  content: ''; position: absolute; inset: -60px; background-image: inherit;
+  background-size: cover; background-position: center; transform: scale(1.6); will-change: transform;
+  filter: blur(30px) brightness(0.25); transition: background-image 1s ease;
 }
 
 /* Nueva vista de Artista (Hero) */
@@ -4370,7 +4372,7 @@ const REV_KEY = 'sb_publishable_VWLMFbw4lhkV6lW4-DQ2FA_x6E9lVLT'; // clave públ
 // en otra dirección, la revista pide su propio proyecto de Supabase. Si algún día cambias de dominio, agrégalo aquí.
 const REV_HOME = ['arielegno.github.io'];
 const revMine = () => REV_HOME.includes(location.hostname.toLowerCase());
-const REV_VER = 'rr63'; // súbelo junto con CACHE de sw.js cuando cambie revista.js
+const REV_VER = 'rr64'; // súbelo junto con CACHE de sw.js cuando cambie revista.js
 let revLoadP = null;
 function revLoad() {
   return revLoadP || (revLoadP = new Promise((ok, no) => {

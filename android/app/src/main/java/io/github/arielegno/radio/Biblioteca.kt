@@ -129,6 +129,7 @@ class Biblioteca(private val ctx: Context) {
         }
         val final = lista.sortedBy { it.id }
         guardar(final); publicar(final); avisar(null)
+        if (ok.get() > 0) RadioApp.scope.launchSafe { Guia.mantener(false) }
         Triple(ok.get(), rep.get(), mal.get())
     }
 
@@ -181,11 +182,56 @@ class Biblioteca(private val ctx: Context) {
             if (t.id in ids) { File(dirMusica, t.file).delete(); if (t.cover.isNotEmpty()) File(dirCaratulas, t.cover).delete(); false } else true
         }
         guardar(quedan); publicar(quedan)
+        withContext(Dispatchers.Main) { listas.quitarDeTodas(ids); guardarListas() }
     }
 
-    suspend fun editar(t: Track) = withContext(Dispatchers.IO) {
-        val l = pistas.map { if (it.id == t.id) t else it }; guardar(l); publicar(l)
+    /** Guarda cambios de varias canciones a la vez; las escuchas y favoritas siguen al nombre nuevo. */
+    suspend fun actualizar(cambios: List<Track>) = withContext(Dispatchers.IO) {
+        if (cambios.isEmpty()) return@withContext
+        val porId = cambios.associateBy { it.id }
+        var migro = false
+        val l = pistas.map { v -> porId[v.id]?.also { n -> if (n.name != v.name || n.artist != v.artist) { RadioApp.stats.migrar(v.name, v.artist, n.name, n.artist); migro = true } } ?: v }
+        guardar(l); publicar(l)
+        if (migro) Datos.guardarStats()
     }
+
+    /** Edición a mano: lo que cambies queda protegido para que la guía no lo vuelva a tocar. */
+    suspend fun editar(t: Track) {
+        val v = porId(t.id) ?: return
+        val campos = buildSet {
+            if (t.name != v.name) add("name"); if (t.artist != v.artist) add("artist"); if (t.album != v.album) add("album")
+            if (t.year != v.year) add("year"); if (t.genre != v.genre) add("genre"); if (t.cover != v.cover) add("cover")
+        }
+        actualizar(listOf(t.copy(manual = v.manual + campos)))
+    }
+
+    /** Carátula elegida desde la galería. */
+    suspend fun cambiarCaratula(t: Track, uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        val bytes = try { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } } catch (e: Exception) { null } ?: return@withContext false
+        val nombre = guardarCaratula(bytes, t.id).ifEmpty { return@withContext false }
+        val v = porId(t.id) ?: return@withContext false
+        actualizar(listOf(v.copy(cover = nombre, manual = v.manual + "cover")))
+        true
+    }
+
+    /** Guarda una carátula descargada de internet (para la guía). */
+    fun guardarCaratulaDe(bytes: ByteArray, id: Long): String = guardarCaratula(bytes, id)
+
+    /** Espacio que ocupa tu música y el que queda libre en el teléfono. */
+    fun espacio(): Pair<Long, Long> {
+        val usado = (dirMusica.listFiles()?.sumOf { it.length() } ?: 0L) + (dirCaratulas.listFiles()?.sumOf { it.length() } ?: 0L)
+        val libre = try { android.os.StatFs(ctx.filesDir.path).availableBytes } catch (e: Exception) { 0L }
+        return usado to libre
+    }
+
+    // ---------- Playlists (mismo formato que la web) ----------
+    var listas by mutableStateOf(io.github.arielegno.radio.core.Playlists(RadioApp.prefs.str("playlists", "")))
+        private set
+    /** Sube cada vez que cambian las playlists (para que la pantalla se redibuje). */
+    var versionListas by mutableStateOf(0)
+        private set
+    fun guardarListas() { RadioApp.prefs.set("playlists", listas.toJson()); versionListas++ }
+    fun recargarListas() { listas = io.github.arielegno.radio.core.Playlists(RadioApp.prefs.str("playlists", "")); versionListas++ }
 
     /** Copia de seguridad con audios en la carpeta que elija la persona. */
     suspend fun exportar(carpeta: Uri): String = withContext(Dispatchers.IO) {

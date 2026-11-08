@@ -15,13 +15,21 @@ data class Track(
     val mime: String = "",
     val size: Long = 0,
     val cover: String = "",     // nombre de la carátula dentro de covers/ ("" si no tiene)
-    val addedAt: Long = 0
+    val addedAt: Long = 0,
+    /** Campos que la persona corrigió a mano: la guía no los vuelve a cambiar. */
+    val manual: Set<String> = emptySet(),
+    /** true cuando la guía ya revisó esta canción (para no consultarla otra vez). */
+    val revisada: Boolean = false
 ) {
     val key: String get() = keyOf(name, artist)
+    /** FLAC, WAV, ALAC o AIFF: sin pérdida. */
+    val sinPerdida: Boolean get() = Regex("flac|wav|x-wav|alac|aiff|x-aiff").containsMatchIn(mime.lowercase()) ||
+        file.substringAfterLast('.', "").lowercase() in setOf("flac", "wav", "alac", "aiff", "aif")
 
     fun toMap(): Map<String, Any?> = linkedMapOf(
         "id" to id, "name" to name, "artist" to artist, "album" to album, "year" to year, "genre" to genre,
-        "durMs" to durMs, "file" to file, "mime" to mime, "size" to size, "cover" to cover, "addedAt" to addedAt
+        "durMs" to durMs, "file" to file, "mime" to mime, "size" to size, "cover" to cover, "addedAt" to addedAt,
+        "manual" to manual.toList(), "revisada" to revisada
     )
 
     companion object {
@@ -29,7 +37,8 @@ data class Track(
             val id = m.num("id", -1); val name = m.str("name").trim()
             if (id < 0 || name.isEmpty() || m.str("file").isEmpty()) return null
             return Track(id, name, m.str("artist").trim().ifEmpty { "Artista desconocido" }, m.str("album"), m.num("year").toInt(), m.str("genre"),
-                m.num("durMs"), m.str("file"), m.str("mime"), m.num("size"), m.str("cover"), m.num("addedAt"))
+                m.num("durMs"), m.str("file"), m.str("mime"), m.num("size"), m.str("cover"), m.num("addedAt"),
+                m.list("manual").mapNotNull { it as? String }.toSet(), m.bool("revisada"))
         }
     }
 }

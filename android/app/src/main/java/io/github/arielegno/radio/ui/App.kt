@@ -76,6 +76,7 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
     var mapa by remember { mutableStateOf(false) }
     var recorrido by remember { mutableStateOf(!p.bool("tourDone", false) && RadioApp.stats.stats.isEmpty()) }
     var destinoRevista by remember { mutableStateOf("") }
+    var pedirAgregar by remember { mutableStateOf(false) }
     val vistaRevista = remember { VistaRevista(ctx) { pestana = "radio" } }
 
     val permisoUbicacion = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
@@ -89,7 +90,7 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
 
     val acc = AccionesPortada(
         carro = { carro = true }, resumen = { resumen = true }, mapa = { mapa = true },
-        revista = { d -> destinoRevista = d; pestana = "revista" }, biblioteca = { pestana = "biblioteca" },
+        revista = { d -> destinoRevista = d; pestana = "revista" }, biblioteca = { pedirAgregar = true; pestana = "biblioteca" },
         ubicacion = { pedirUbicacion() },
         compartir = {
             ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain")
@@ -107,6 +108,7 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
     FondoCristal()
     Scaffold(
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onBackground,
         bottomBar = {
             Column {
                 MiniReproductor { pestana = "radio" }
@@ -123,10 +125,10 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
         Box(Modifier.fillMaxSize().padding(pad)) {
             when (pestana) {
                 "radio" -> Portada(acc)
-                "biblioteca" -> BibliotecaPantalla()
+                "biblioteca" -> BibliotecaPantalla(pedirAgregar, { pedirAgregar = false }) { d -> destinoRevista = d; pestana = "revista" }
                 "stats" -> EstadisticasPantalla({ resumen = true }, { mapa = true })
                 "revista" -> RevistaPantalla(vistaRevista, destinoRevista) { pestana = "radio" }
-                else -> AjustesPantalla(tema, cambiarTema, { recorrido = true }, { pedirUbicacion() })
+                else -> AjustesPantalla(tema, cambiarTema, { recorrido = true }, { pedirUbicacion() }) { pedirAgregar = true; pestana = "biblioteca" }
             }
         }
     }

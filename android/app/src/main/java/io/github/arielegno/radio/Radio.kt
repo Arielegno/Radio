@@ -82,12 +82,14 @@ class Radio(private val ctx: Context) {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED) { mensaje = "Fin de la lista."; activa = false }
             }
+            override fun onAudioSessionIdChanged(audioSessionId: Int) { Efectos.aplicar(audioSessionId) }
             override fun onPlayerError(error: PlaybackException) {
                 mensaje = "No se pudo reproducir «${actual?.name ?: "la canción"}». Paso a la siguiente."
                 if (player.hasNextMediaItem()) { player.seekToNextMediaItem(); player.prepare(); player.play() }
             }
         })
         reloj = RadioApp.scope.launchSafe { while (true) { delay(1000); tic() } }
+        try { Efectos.aplicar(player.audioSessionId) } catch (e: Exception) {}
     }
 
     // ---------- Controles ----------
@@ -299,7 +301,8 @@ class Radio(private val ctx: Context) {
         return LunaAjustes(
             host = p.str("host", "Luna"), genero = p.str("genero", "locutora"), acento = p.str("acento", "neutro"), largo = p.str("largo", "media"),
             modo = m, modoTexto = p.str("modo_$m", ""), persona = p.str("persona", ""), evitar = p.str("evitar", ""), nombre = p.str("me", ""),
-            frasesPropias = p.str("frases_$m", "").lines().map { it.trim() }.filter { it.isNotEmpty() }
+            frasesPropias = p.str("frases_$m", "").lines().map { it.trim() }.filter { it.isNotEmpty() },
+            estilo = p.str("estilo", ""), contexto = p.str("contexto", "")
         )
     }
 
@@ -311,12 +314,17 @@ class Radio(private val ctx: Context) {
             Programas.Estado(p.bool("progRec", false), p.int("progRecH", 20), p.str("progRecHecho", ""), p.bool("progSem", false), p.str("progSemHecho", "")),
             prev?.year ?: 0, RadioApp.stats.resumen("month", LocalDate.now())).also { r -> r.marcarRec?.let { p.set("progRecHecho", it) }; r.marcarSem?.let { p.set("progSemHecho", it) } }
         val memoria = if (p.bool("memoria", true)) RadioApp.stats.resumen("all", LocalDate.now())?.topArtistas(3)?.joinToString(", ") { it.first }?.let { "Sus artistas más escuchados: $it" } ?: "" else ""
-        entorno.actualizarClima()
+        // Hora y clima cada «wMin» minutos; la zona cada «pEvery» intervenciones (como en la web)
+        intervenciones++
+        val tocaClima = System.currentTimeMillis() - ultimoClima > p.int("wMin", 30).coerceIn(5, 180) * 60_000L
+        if (tocaClima) { entorno.actualizarClima(); if (entorno.clima.isNotEmpty() || entorno.lat != null) ultimoClima = System.currentTimeMillis() }
+        val tocaLugar = (intervenciones - 1) % p.int("pEvery", 2).coerceIn(1, 20) == 0
         val c = LunaContexto(prev, next,
-            hora = String.format(Locale.ROOT, "%d:%02d", now.hour, now.minute),
-            clima = entorno.clima, lugar = entorno.zona,
+            hora = if (tocaClima) horaTexto(now) else "",
+            clima = if (tocaClima) entorno.clima else "", lugar = if (tocaLugar) entorno.zona else "",
             efemeride = Efemerides.propias(p.str("efemerides", ""), LocalDate.now()),
             dedicatoria = ded, programa = prog?.texto ?: "", memoria = memoria, anteriores = anteriores.toList())
+        if (p.str("proveedor", "gemini") == "claude") return escribirClaude(a, c, next != null, now.hour)
         val clave = p.str("geminiKey", "").trim()
         if (clave.isEmpty() || !Red.hayInternet(ctx)) return Luna.sinIA(c, a)
         return try {
@@ -328,6 +336,31 @@ class Radio(private val ctx: Context) {
             mensaje = when (e.codigo) { 400, 403 -> "Gemini rechazó la clave: revísala en Ajustes."; 404 -> "Ese modelo de Gemini no existe: cámbialo en Ajustes."; 429 -> "Gemini llegó a su límite gratis por ahora: Luna usa frases sencillas."; else -> "Gemini falló (${e.codigo}): Luna usa frases sencillas." }
             Luna.sinIA(c, a)
         } catch (e: Exception) { Luna.sinIA(c, a) }
+    }
+
+    private var intervenciones = 0
+    private var ultimoClima = 0L
+
+    /** «8:15» o «8:15 p. m.» según Ajustes › Apariencia › Formato de hora. */
+    fun horaTexto(t: LocalDateTime = LocalDateTime.now()): String {
+        val h12 = when (p.str("h12", "auto")) { "1" -> true; "0" -> false; else -> !android.text.format.DateFormat.is24HourFormat(ctx) }
+        if (!h12) return String.format(Locale.ROOT, "%d:%02d", t.hour, t.minute)
+        val h = if (t.hour % 12 == 0) 12 else t.hour % 12
+        return String.format(Locale.ROOT, "%d:%02d %s", h, t.minute, if (t.hour < 12) "a. m." else "p. m.")
+    }
+
+    /** Claude (de pago, con tu propia clave de Anthropic). */
+    private suspend fun escribirClaude(a: io.github.arielegno.radio.core.LunaAjustes, c: LunaContexto, conSiguiente: Boolean, hora: Int): String {
+        val clave = p.str("claudeKey", "").trim()
+        if (clave.isEmpty() || !Red.hayInternet(ctx)) return Luna.sinIA(c, a)
+        val modelo = p.str("claudeModel", "claude-sonnet-5-5").trim().filter { it.isLetterOrDigit() || it == '-' || it == '.' }.ifEmpty { "claude-sonnet-5-5" }
+        val (cod, txt) = try {
+            Red.crudo("POST", "https://api.anthropic.com/v1/messages", Luna.peticionClaude(modelo, Luna.sistema(a, conSiguiente, hora), Luna.usuario(c)),
+                mapOf("x-api-key" to clave, "anthropic-version" to "2023-06-01"), timeoutMs = 25_000)
+        } catch (e: Exception) { return Luna.sinIA(c, a) }
+        if (cod in 200..299) return Luna.textoClaude(txt) ?: Luna.sinIA(c, a)
+        mensaje = when (cod) { 401, 403 -> "Claude rechazó la clave: revísala en Ajustes."; 404 -> "Ese modelo de Claude no existe: cámbialo en Ajustes."; 429, 529 -> "Claude está ocupado o llegaste a tu límite: Luna usa frases sencillas."; else -> "Claude falló ($cod): Luna usa frases sencillas." }
+        return Luna.sinIA(c, a)
     }
 
     /** Para «Probar intervención» en Ajustes. */
@@ -358,6 +391,10 @@ class Radio(private val ctx: Context) {
             if (contadoId != t.id) { segundos++; if (segundos >= 30) { contadoId = t.id; contar(t) } }
         }
         if (t != null && contadoId == t.id && segundos == 0) contadoId = -1L
+        // Transición suave: baja el volumen en los últimos segundos de la canción
+        if (!fuenteSpotify && p.bool("fundido", false) && pl.isPlaying && durMs > 8000 && durMs - posMs in 1..2500 && fundido?.isActive != true) {
+            fundido = RadioApp.scope.launchSafe { for (i in 9 downTo 2) { player.volume = i / 10f; delay(220) } }
+        }
         if (apagarEn > 0 && System.currentTimeMillis() >= apagarEn) { apagarEn = 0; pausar(); mensaje = "Temporizador: la radio se apagó. Buenas noches." }
     }
 

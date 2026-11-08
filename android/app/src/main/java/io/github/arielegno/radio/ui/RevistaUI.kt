@@ -81,10 +81,18 @@ private val CAPA_APP = """
     var st = document.createElement('style'); st.id = 'rrAppCss';
     st.textContent = '.topbar,#sidebar,#sidebarOverlay,#ctl,#miniNow,#installBtn,#tourOv{display:none!important}' +
       '.view:not(#view-revista){display:none!important}#view-revista{display:block!important}' +
-      'body{padding-top:env(safe-area-inset-top,0)!important}#uiDlg .dlg-card{max-height:86vh!important;overflow-y:auto!important}';
+      'body{padding-top:env(safe-area-inset-top,0)!important}' +
+      '#uiDlg{overflow-y:auto!important;padding:16px!important}#uiDlg .dlg-card{overflow-y:auto!important}';
     document.head.appendChild(st);
   }
   var t = document.getElementById('tourOv'); if (t) t.remove();
+  // Las medidas «vh» de la página fallan dentro de la app: se calculan con la altura real de la pantalla
+  var alto = document.getElementById('rrAppVh'); if (!alto) { alto = document.createElement('style'); alto.id = 'rrAppVh'; document.head.appendChild(alto); }
+  var medir = function(){ var h = window.innerHeight || document.documentElement.clientHeight || 700;
+    alto.textContent = '#uiDlg .dlg-card{max-height:' + Math.round(h * .9 - 32) + 'px!important}.dlg-opts{max-height:' + Math.round(h * .5) + 'px!important}' +
+      '.rv-pview img{max-height:' + Math.round(h * .78) + 'px!important;min-height:120px}.rv-lb img{max-height:' + Math.round(h * .92) + 'px!important}' +
+      '.rv-map{height:' + Math.round(h * .6) + 'px!important}body{min-height:' + h + 'px!important}'; };
+  medir(); window.addEventListener('resize', medir); setTimeout(medir, 400); setTimeout(medir, 1500);
   if (window.__rrApp) return; window.__rrApp = 1;
   // Voz de la app para «Escuchar artículo»
   var cb = {}, n = 0;
@@ -121,6 +129,8 @@ class VistaRevista(ctx: Context, irRadio: () -> Unit) {
         settings.mediaPlaybackRequiresUserGesture = false
         settings.userAgentString = settings.userAgentString + " RadioDeRutaApp/1.0"
         setBackgroundColor(android.graphics.Color.parseColor("#14161A"))
+        // Ocupa toda la pantalla de verdad (si no, la página mide mal la altura y las ventanas salen aplastadas)
+        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val u = request.url
@@ -170,7 +180,11 @@ fun RevistaPantalla(vr: VistaRevista, destino: String, alSalir: () -> Unit) {
         }
         return
     }
-    LaunchedEffect(destino) { if (destino.isNotEmpty() || !vr.cargada) vr.abrir(destino) else vr.refrescar() }
+    LaunchedEffect(destino) {
+        // Espera a que la vista tenga su tamaño antes de cargar la página
+        var n = 0; while ((vr.web.width == 0 || vr.web.height == 0) && n++ < 60) kotlinx.coroutines.delay(25)
+        if (destino.isNotEmpty() || !vr.cargada) vr.abrir(destino) else vr.refrescar()
+    }
     BackHandler { if (vr.web.canGoBack()) vr.web.goBack() else alSalir() }
     AndroidView(factory = { (vr.web.parent as? ViewGroup)?.removeView(vr.web); vr.web }, modifier = Modifier.fillMaxSize())
 }

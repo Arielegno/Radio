@@ -66,10 +66,11 @@ fun EstadisticasPantalla(abrirResumen: () -> Unit, abrirMapa: () -> Unit) {
     val favs = remember(version) { st.favs.entries.toList() }
     val top = remember(version) { st.masEscuchadas(20) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-        Text("Estadísticas", style = MaterialTheme.typography.headlineLarge)
+        Text("Tu resumen", style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(12.dp))
         BotonGrande("Tus viajes musicales", "El mapa de dónde sonó cada canción", Icons.Filled.Map, listOf(androidx.compose.ui.graphics.Color(0xFF3ECF8E), androidx.compose.ui.graphics.Color(0xFF2B8FD6)), abrirMapa)
         BotonGrande("Tu resumen", "Tus artistas y canciones del mes, del año o de siempre", Icons.Filled.AutoAwesome, listOf(Amarillo, Naranja, Rosa), abrirResumen)
+        Tarjeta(Modifier.padding(bottom = 14.dp)) {
         Titulo("Favoritas (${favs.size})")
         if (favs.isEmpty()) Text("Toca el corazón mientras suena una canción para guardarla aquí.", color = LocalExtra.current.tenue)
         favs.forEach { (k, v) ->
@@ -81,7 +82,8 @@ fun EstadisticasPantalla(abrirResumen: () -> Unit, abrirMapa: () -> Unit) {
                 IconButton(onClick = { st.favs.remove(k); Datos.guardarStats(); version++ }) { Icon(Icons.Filled.Close, "Quitar de favoritas") }
             }
         }
-        Spacer(Modifier.height(16.dp))
+        }
+        Tarjeta(Modifier.padding(bottom = 14.dp)) {
         Titulo("Más escuchadas")
         if (top.isEmpty()) Text("Cada canción cuenta después de 30 segundos sonando.", color = LocalExtra.current.tenue)
         top.forEachIndexed { i, s ->
@@ -93,6 +95,26 @@ fun EstadisticasPantalla(abrirResumen: () -> Unit, abrirMapa: () -> Unit) {
                     Text(listOf(s.a, if (lugar != "Sin ubicación") lugar else "").filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = LocalExtra.current.tenue)
                 }
                 Text("${s.c}", fontWeight = FontWeight.Bold)
+            }
+        }
+        }
+        val lugares = remember(version) { st.porUbicacion(5) }
+        Tarjeta(Modifier.padding(bottom = 14.dp)) {
+            Titulo("Más escuchadas por ubicación")
+            if (lugares.isEmpty()) Text("Activa la ubicación y aquí verás qué suena más en cada lugar: en casa, en el trabajo, en la carretera…", color = LocalExtra.current.tenue)
+            lugares.take(8).forEachIndexed { i, (lugar, canciones) ->
+                if (i > 0) androidx.compose.material3.HorizontalDivider(color = LocalExtra.current.borde, modifier = Modifier.padding(vertical = 8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Map, null, tint = Amarillo, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp))
+                    Text(lugar, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${canciones.sumOf { it.third }}", color = LocalExtra.current.tenue)
+                }
+                canciones.take(3).forEach { (n, a, c) ->
+                    Row(Modifier.fillMaxWidth().padding(start = 26.dp, top = 4.dp)) {
+                        Text("$n — $a", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("$c", style = MaterialTheme.typography.bodyMedium, color = LocalExtra.current.tenue)
+                    }
+                }
             }
         }
         Spacer(Modifier.height(24.dp))

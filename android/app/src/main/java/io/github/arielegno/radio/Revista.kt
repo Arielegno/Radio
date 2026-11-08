@@ -16,6 +16,19 @@ object Revista {
     /** La Revista completa (artículos, Bóveda, club, muros…) se abre desde tu página. */
     const val WEB = "https://arielegno.github.io/Radio/index.html#revista"
 
+    /** Otro proyecto de Supabase si lo pusiste en Ajustes (si no, el tuyo). */
+    fun url(): String = RadioApp.prefs.str("sbUrl", "").trim().trimEnd('/').takeIf { Regex("^https://[a-z0-9-]+\\.supabase\\.co$").matches(it) } ?: URL
+    fun clave(): String = RadioApp.prefs.str("sbKey", "").trim().takeIf { url() != URL && it.length > 20 } ?: CLAVE
+
+    /** Conciertos de la Bóveda de un artista (los que están en cartelera). */
+    suspend fun conciertosDe(artista: String, hoy: LocalDate = LocalDate.now()): List<Concierto> {
+        val q = artista.trim().replace(Regex("[*,()%]"), " ").trim(); if (q.length < 2) return emptyList()
+        val t = hoy.toString()
+        val j = leer("/rest/v1/vault?select=id,title,artist,festival,year,provider,video_id,cover,starts_on,ends_on,featured_on,created_at&hidden=eq.false&starts_on=lte.$t&ends_on=gt.$t&artist=ilike.*" +
+            java.net.URLEncoder.encode(q, "UTF-8").replace("+", "%20") + "*&limit=12", 3_600_000L) ?: return emptyList()
+        return Json.arr(j).mapNotNull { it.asObj()?.let(Concierto::from) }
+    }
+
     data class Club(val id: String, val album: String, val artista: String, val anio: Int, val portada: String)
 
     private val cache = HashMap<String, Pair<Long, String>>()
@@ -24,7 +37,7 @@ object Revista {
         cache[ruta]?.let { (t, v) -> if (System.currentTimeMillis() - t < (if (v == "[]") minOf(ttlMs, 300_000L) else ttlMs)) return v }
         if (!Red.hayInternet(RadioApp.app)) return cache[ruta]?.second
         return try {
-            val v = Red.get(URL + ruta, mapOf("apikey" to CLAVE, "Authorization" to "Bearer $CLAVE"), 8000)
+            val v = Red.get(url() + ruta, mapOf("apikey" to clave(), "Authorization" to "Bearer ${clave()}"), 8000)
             cache[ruta] = System.currentTimeMillis() to v; v
         } catch (e: Exception) { cache[ruta]?.second }
     }

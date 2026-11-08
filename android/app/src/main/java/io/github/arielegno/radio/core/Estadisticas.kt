@@ -97,6 +97,30 @@ class Estadisticas {
 
     fun masEscuchadas(k: Int): List<SongStat> = stats.values.sortedByDescending { it.c }.take(k)
 
+    /** Cuando cambia el nombre o el artista de una canción, sus escuchas y su favorita la siguen. */
+    fun migrar(nombreAnt: String, artistaAnt: String, nombre: String, artista: String) {
+        val ka = keyOf(nombreAnt, artistaAnt); val kn = keyOf(nombre, artista)
+        if (ka == kn) return
+        stats.remove(ka)?.let { e ->
+            val d = stats.getOrPut(kn) { SongStat(nombre, artista) }
+            d.n = nombre; d.a = artista; d.c += e.c; for ((pl, c) in e.p) d.p[pl] = (d.p[pl] ?: 0) + c
+        }
+        for (h in hist.values) {
+            h.s.remove(ka)?.let { h.s[kn] = (h.s[kn] ?: 0) + it }
+            h.n.remove(ka); if (h.s.containsKey(kn)) h.n[kn] = nombre to artista
+            if (artistaAnt != artista) h.a.remove(artistaAnt)?.let { h.a[artista] = (h.a[artista] ?: 0) + it }
+            for (g in h.g.values) g.s.remove(ka)?.let { g.s[kn] = (g.s[kn] ?: 0) + it }
+        }
+        if (favs.remove(ka) != null) favs[kn] = nombre to artista
+    }
+
+    /** Lugares donde más sonó tu música y sus canciones más escuchadas ahí. */
+    fun porUbicacion(k: Int = 5): List<Pair<String, List<Triple<String, String, Int>>>> {
+        val m = linkedMapOf<String, MutableList<Triple<String, String, Int>>>()
+        for (e in stats.values) for ((pl, c) in e.p) if (pl != "Sin ubicación") m.getOrPut(pl) { mutableListOf() } += Triple(e.n, e.a, c)
+        return m.entries.sortedByDescending { en -> en.value.sumOf { it.third } }.map { (pl, l) -> pl to l.sortedByDescending { it.third }.take(k) }
+    }
+
     fun clear() { stats.clear(); hist.clear() }
 
     fun toJson(): String = Json.write(linkedMapOf(

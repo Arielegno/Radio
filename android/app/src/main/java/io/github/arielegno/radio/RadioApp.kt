@@ -34,9 +34,22 @@ class RadioApp : Application() {
 
 /** Ajustes guardados en el teléfono. */
 class Prefs(private val sp: SharedPreferences) {
-    fun str(k: String, d: String = ""): String = sp.getString(k, null)?.takeIf { it.isNotEmpty() } ?: d
-    fun int(k: String, d: Int): Int = sp.getInt(k, d)
-    fun bool(k: String, d: Boolean): Boolean = sp.getBoolean(k, d)
+    // Si un ajuste se guardó con otro tipo (por ejemplo, al importar una copia), se lee igual sin cerrar la app.
+    fun str(k: String, d: String = ""): String = try { sp.getString(k, null) } catch (e: ClassCastException) { sp.all[k]?.toString() }?.takeIf { it.isNotEmpty() } ?: d
+    fun int(k: String, d: Int): Int = try { sp.getInt(k, d) } catch (e: ClassCastException) {
+        when (val v = sp.all[k]) { is Long -> v.toInt(); is Float -> v.toInt(); is String -> v.toIntOrNull() ?: d; else -> d }
+    }
+    fun bool(k: String, d: Boolean): Boolean = try { sp.getBoolean(k, d) } catch (e: ClassCastException) {
+        when (val v = sp.all[k]) { is String -> v == "1" || v == "true"; is Int -> v != 0; else -> d }
+    }
+    /** Todos los ajustes (para la copia de ajustes). */
+    fun todo(): Map<String, Any?> = sp.all.toMap()
+    /** Restaura ajustes de una copia (sin tocar los que no vienen). */
+    fun ponerTodo(m: Map<String, Any?>) {
+        val e = sp.edit()
+        m.forEach { (k, v) -> when (v) { is Boolean -> e.putBoolean(k, v); is Number -> if (v is Double && v != Math.floor(v)) e.putFloat(k, v.toFloat()) else e.putInt(k, v.toInt()); is String -> e.putString(k, v); else -> {} } }
+        e.apply()
+    }
     fun set(k: String, v: String) = sp.edit().putString(k, v).apply()
     fun set(k: String, v: Int) = sp.edit().putInt(k, v).apply()
     fun set(k: String, v: Boolean) = sp.edit().putBoolean(k, v).apply()

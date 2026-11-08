@@ -23,6 +23,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         recibir(intent)
+        io.github.arielegno.radio.ui.aplicarApariencia(RadioApp.prefs.str("acentoColor", "#f2c230"), RadioApp.prefs.int("letra", 17))
         setContent {
             var tema by remember { mutableStateOf(RadioApp.prefs.str("tema", "system")) }
             TemaRadio(tema) {

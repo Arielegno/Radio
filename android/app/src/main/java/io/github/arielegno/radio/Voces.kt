@@ -73,8 +73,12 @@ class VozLuna(private val ctx: Context) {
         if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) tts.setLanguage(Locale("es"))
         val nombreVoz = p.str("voz", "")
         if (nombreVoz.isNotEmpty()) tts.voices?.firstOrNull { it.name == nombreVoz }?.let { tts.setVoice(it) }
-        tts.setSpeechRate(p.int("velocidad", 100) / 100f)
-        tts.setPitch(p.int("tono", 100) / 100f)
+        // Estilos de voz como en la web; «manual» usa los controles de velocidad y tono
+        val (vel, ton) = when (p.str("vozPreset", "natural")) {
+            "radio" -> 88 to 85; "narrador" -> 100 to 95; "energico" -> 110 to 105; "manual" -> p.int("velocidad", 100) to p.int("tono", 100); else -> 95 to 90
+        }
+        tts.setSpeechRate(vel / 100f)
+        tts.setPitch(ton / 100f)
         return true
     }
 
@@ -94,7 +98,7 @@ class VozLuna(private val ctx: Context) {
         return suspendCancellableCoroutine { cont ->
             pendientes[id] = { ok -> if (cont.isActive) cont.resume(ok) }
             cont.invokeOnCancellation { pendientes.remove(id); tts.stop() }
-            val r = tts.speak(texto.take(TextToSpeech.getMaxSpeechInputLength() - 1), TextToSpeech.QUEUE_FLUSH, Bundle(), id)
+            val r = tts.speak(texto.take(TextToSpeech.getMaxSpeechInputLength() - 1), TextToSpeech.QUEUE_FLUSH, Bundle().apply { putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, RadioApp.prefs.int("volVoz", 100).coerceIn(10, 100) / 100f) }, id)
             if (r != TextToSpeech.SUCCESS) { pendientes.remove(id); if (cont.isActive) cont.resume(false) }
         }
     }

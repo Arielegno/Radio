@@ -15,7 +15,9 @@ data class LunaAjustes(
     val persona: String = "",         // estilo pedido por la persona
     val evitar: String = "",
     val nombre: String = "",
-    val frasesPropias: List<String> = emptyList()
+    val frasesPropias: List<String> = emptyList(),
+    val estilo: String = "",          // "", noche, deporte, humor, docu
+    val contexto: String = ""         // contexto musical de tu biblioteca
 )
 
 /** Lo que Luna sabe en ese momento. */
@@ -35,6 +37,9 @@ data class LunaContexto(
 object Luna {
     val ACENTOS = linkedMapOf("neutro" to "neutro", "mx" to "de México", "ar" to "de Argentina", "es" to "de España", "co" to "de Colombia", "cl" to "de Chile", "hn" to "de Honduras")
     val LARGOS = linkedMapOf("corta" to "25 y 45", "media" to "50 y 90", "larga" to "90 y 140")
+    val ESTILOS = linkedMapOf("" to "Natural", "noche" to "Radio FM nocturna", "deporte" to "Deportiva y enérgica", "humor" to "Cómica", "docu" to "Documental")
+    private val STY = mapOf("noche" to "Estilo radio FM nocturna: voz suave, pausada e íntima.", "deporte" to "Estilo de locutor deportivo: enérgico, rápido y entusiasta.",
+        "humor" to "Estilo cómico: ligero, con humor sano y juegos de palabras.", "docu" to "Estilo documental: sereno, curioso y narrativo.")
 
     fun animoHora(h: Int) = when { h < 6 -> "madrugada, voz baja y tranquila"; h < 12 -> "mañana, energía suave y fresca"; h < 19 -> "tarde, ritmo normal"; else -> "noche, ritmo calmado" }
 
@@ -50,7 +55,9 @@ object Luna {
         o += "Nunca digas que eres una IA y nunca menciones la velocidad. No repitas ideas de tus intervenciones anteriores."
         o += "La persona que escucha" + (if (a.nombre.isNotBlank()) " se llama ${a.nombre.trim()}" else "") + "."
         o += "Situación: " + (a.modoTexto.ifBlank { Modos.DESCRIPCION.getValue(modo) }) + if (prohibidos.isNotEmpty()) " No hables de: $prohibidos." else ""
+        STY[a.estilo]?.let { o += it }
         if (a.persona.isNotBlank()) o += "Estilo pedido por la persona: ${a.persona.trim()}"
+        if (a.contexto.isNotBlank()) o += "Contexto musical de la biblioteca de la persona: ${a.contexto.trim()}"
         if (a.evitar.isNotBlank()) o += "Evita por completo estos temas: ${a.evitar.trim()}."
         o += "Ánimo según la hora: ${animoHora(hora)}."
         o += "Si te doy efemeride_de_hoy, menciónala en una frase: es un dato real. Si te doy dedicatoria, léela con tus palabras y cariño, una sola vez. Si te doy programa, preséntalo como una sección especial de la radio, con su nombre, en pocas frases y con calidez."
@@ -89,6 +96,16 @@ object Luna {
         "contents" to listOf(linkedMapOf("role" to "user", "parts" to listOf(linkedMapOf("text" to usuario)))),
         "generationConfig" to linkedMapOf("maxOutputTokens" to 4000)
     ))
+
+    /** Cuerpo de la petición a Claude (Anthropic Messages). */
+    fun peticionClaude(modelo: String, sistema: String, usuario: String): String = Json.write(linkedMapOf(
+        "model" to modelo, "max_tokens" to 1000, "system" to sistema,
+        "messages" to listOf(linkedMapOf("role" to "user", "content" to usuario))
+    ))
+
+    /** Saca el texto de la respuesta de Claude; null si no trae texto. */
+    fun textoClaude(respuesta: String): String? =
+        limpiar(Json.obj(respuesta).list("content").mapNotNull { it.asObj() }.filter { it.str("type") == "text" }.joinToString("") { it.str("text") }).ifBlank { null }
 
     /** Saca el texto de la respuesta de Gemini; null si no trae texto. */
     fun textoGemini(respuesta: String): String? {

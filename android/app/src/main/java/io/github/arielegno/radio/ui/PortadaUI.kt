@@ -372,7 +372,7 @@ private fun ParaTi(acc: AccionesPortada) {
         Titulo("Para ti")
         if (lib.isEmpty()) {
             Text("Agrega tu música y aquí aparecerán tus artistas, tus favoritas y lo que hace rato no suena.", color = LocalExtra.current.tenue)
-            OutlinedButton(onClick = acc.biblioteca, modifier = Modifier.padding(top = 10.dp)) { Text("Agregar canciones") }
+            FilledTonalButton(onClick = acc.biblioteca, modifier = Modifier.padding(top = 10.dp)) { Text("Agregar música") }
             return@Tarjeta
         }
         val st = RadioApp.stats

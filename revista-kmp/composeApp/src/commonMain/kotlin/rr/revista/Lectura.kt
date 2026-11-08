@@ -78,8 +78,8 @@ private class Look(a: Articulo) {
 
 @Composable
 fun Lectura(id: String, cerrar: () -> Unit) {
-    val datos by produceState<Result<Articulo?>?>(null, id) { value = runCatching { Supa.articulo(id) } }
-    val coms by produceState<List<Comentario>>(emptyList(), id) { value = runCatching { Supa.comentarios(id) }.getOrDefault(emptyList()) }
+    val datos by produceState<Result<Articulo?>?>(null, id) { value = runCatching { if (id.startsWith("ejemplo-")) Ejemplos.uno(id) else Supa.articulo(id) } }
+    val coms by produceState<List<Comentario>>(emptyList(), id) { value = if (id.startsWith("ejemplo-")) listOf(Comentario("Ejemplo", "Así se ven los comentarios de la comunidad.", ahoraIso())) else runCatching { Supa.comentarios(id) }.getOrDefault(emptyList()) }
     val r = datos
     Box(Modifier.fillMaxSize().background(Asfalto)) {
         when {

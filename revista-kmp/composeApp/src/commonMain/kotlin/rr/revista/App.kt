@@ -74,7 +74,7 @@ fun App() {
     LaunchedEffect(Unit) { Fuentes.cargar(); listo() }
     val h = remember { hashInicial() }
     var seccion by remember { mutableStateOf(when { h.startsWith("#posters") -> "posters"; h.startsWith("#boveda") -> "boveda"; else -> "inicio" }) }
-    var leyendo by remember { mutableStateOf(Regex("^#post=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1)) }
+    var leyendo by remember { mutableStateOf(Regex("^#post=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1) ?: Regex("^#ejemplo=(\\d)$").find(h)?.groupValues?.get(1)?.let { "ejemplo-$it" }) }
     val listaInicio = rememberLazyListState()
     if (!Fuentes.cargadas) return
     val base = Fuentes.de("barlow")
@@ -136,6 +136,7 @@ private fun Cargando(texto: String = "Cargando…") {
 private fun Inicio(lista: androidx.compose.foundation.lazy.LazyListState, abrir: (String) -> Unit) {
     var filtro by remember { mutableStateOf("todo") }
     val datos by produceState<Result<List<Articulo>>?>(null) { value = runCatching { Supa.portada() } }
+    val ejemplos by produceState<List<Articulo>>(emptyList(), datos) { val d = datos; if (d != null && d.getOrNull().isNullOrEmpty()) value = Ejemplos.lista() }
     LazyColumn(Modifier.fillMaxSize(), state = lista) {
         item { Cabecera("Revista", "Artículos, reseñas e historias de la comunidad de Radio de ruta") }
         item {
@@ -154,7 +155,14 @@ private fun Inicio(lista: androidx.compose.foundation.lazy.LazyListState, abrir:
             r.isFailure -> item { Text("No se pudo cargar la Revista: ${r.exceptionOrNull()?.message ?: ""}", color = Tenue, modifier = Modifier.padding(18.dp)) }
             else -> {
                 val l = r.getOrThrow().filter { filtro == "todo" || it.resena != null }
-                if (l.isEmpty()) item { Text("Todavía no hay artículos aquí.", color = Tenue, modifier = Modifier.padding(18.dp)) }
+                if (l.isEmpty()) {
+                    item { Text("Todavía no hay artículos publicados.", color = Tenue, modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp)) }
+                    if (ejemplos.isNotEmpty()) {
+                        item { Text("ASÍ SE VERÁN · EJEMPLOS", color = Amarillo, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 1.5.sp, modifier = Modifier.padding(start = 18.dp, top = 18.dp)) }
+                        ejemplos.firstOrNull()?.let { a -> item(key = "ej-hero") { Destacado(a) { abrir(a.id) } } }
+                        items(ejemplos.drop(1), key = { it.id }) { a -> Tarjeta(a) { abrir(a.id) } }
+                    }
+                }
                 l.firstOrNull()?.let { a -> item(key = "hero") { Destacado(a) { abrir(a.id) } } }
                 items(l.drop(1), key = { it.id }) { a -> Tarjeta(a) { abrir(a.id) } }
             }

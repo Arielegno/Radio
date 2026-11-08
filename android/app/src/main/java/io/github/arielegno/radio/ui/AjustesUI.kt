@@ -89,6 +89,7 @@ import io.github.arielegno.radio.Efectos
 import io.github.arielegno.radio.Guia
 import io.github.arielegno.radio.RadioApp
 import io.github.arielegno.radio.Spotify
+import io.github.arielegno.radio.core.AjustesWeb
 import io.github.arielegno.radio.core.Estadisticas
 import io.github.arielegno.radio.core.Json
 import io.github.arielegno.radio.core.Luna
@@ -145,7 +146,14 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
             aviso = try {
                 val t = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } } ?: ""
                 val o = Json.obj(t)
-                if (o["app"] != "radio-de-ruta") "Ese archivo no es una copia de ajustes de Radio de ruta."
+                val deLaWeb = if (o["app"] != "radio-de-ruta") AjustesWeb.convertir(o) else null
+                if (deLaWeb != null) {
+                    // Archivo exportado desde la página web (radio_ruta_config.txt)
+                    p.ponerTodo(deLaWeb)
+                    r.ponerFuente(p.str("fuente", "local") == "spotify"); r.ponerModo(p.str("modo", "carretera")); r.ponerMezclar(p.bool("mezclar", true))
+                    aplicarApariencia(p.str("acentoColor", "#f2c230"), p.int("letra", 17))
+                    "Ajustes de la página web importados (${deLaWeb.size}). Las claves no vienen en ese archivo: pégalas en Inteligencia artificial."
+                } else if (o["app"] != "radio-de-ruta") "Ese archivo no es una copia de ajustes de Radio de ruta."
                 else {
                     @Suppress("UNCHECKED_CAST")
                     (o["ajustes"] as? Map<String, Any?>)?.let { m -> p.ponerTodo(m.filterKeys { it !in SECRETAS }) }
@@ -156,6 +164,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     }
                     RadioApp.biblioteca.recargarListas()
                     aplicarApariencia(p.str("acentoColor", "#f2c230"), p.int("letra", 17)); Efectos.aplicar()
+                    r.ponerFuente(p.str("fuente", "local") == "spotify"); r.ponerModo(p.str("modo", "carretera")); r.ponerMezclar(p.bool("mezclar", true))
                     "Ajustes restaurados."
                 }
             } catch (e: Exception) { "No se pudo leer esa copia." }
@@ -183,7 +192,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     if (i < CATEGORIAS.size - 1) HorizontalDivider(color = LocalExtra.current.borde, modifier = Modifier.padding(start = 58.dp))
                 }
             }
-            Text("Radio de ruta para Android · versión 1.2", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
+            Text("Radio de ruta para Android · versión 1.2.1", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 14.dp).align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(24.dp))
             return@Column
@@ -397,7 +406,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
             }
             "datos" -> {
                 Grupo("Copia de ajustes") {
-                    Ayuda("Guarda tus ajustes, favoritas, playlists y estadísticas en un archivo, sin tus claves ni tus audios (para los audios usa «Guardar copia de mi música» en Biblioteca).")
+                    Ayuda("Guarda tus ajustes, favoritas, playlists y estadísticas en un archivo, sin tus claves ni tus audios (para los audios usa «Guardar copia de mi música» en Biblioteca). También puedes importar el archivo que exporta la página web (radio_ruta_config.txt).")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Boton("Exportar copia") { exportar.launch("radio-de-ruta-ajustes.json") }
                         Boton("Importar copia") { importar.launch(arrayOf("application/json", "text/*", "*/*")) }
@@ -419,7 +428,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                 Ayuda("No manipules la app mientras conduces.")
             }
             else -> Grupo("Radio de ruta para Android") {
-                Text("Versión 1.2 · por Arielegno", fontWeight = FontWeight.SemiBold)
+                Text("Versión 1.2.1 · por Arielegno", fontWeight = FontWeight.SemiBold)
                 Ayuda("No manipules la app mientras conduces: configúrala antes de arrancar.")
                 TextButton(onClick = { abrir(ctx, "https://arielegno.github.io/Radio/legal.html") }) { Text("Aviso legal y privacidad") }
                 Ayuda("Usa Media3 (Apache 2.0), Jetpack Compose (Apache 2.0), Leaflet (BSD-2) y datos de OpenStreetMap (ODbL), Open-Meteo, Wikipedia (CC BY-SA), MusicBrainz (CC0), iTunes Search, Spotify, Google Gemini y Anthropic Claude.")

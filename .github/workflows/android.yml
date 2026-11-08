@@ -1,0 +1,67 @@
+# Compila la app de Android (carpeta android/ o el archivo radio-android.zip) y publica el APK en «Releases».
+name: App Android
+
+on:
+  push:
+    paths:
+      - 'android/**'
+      - 'radio-android.zip'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      # Si subiste el proyecto como radio-android.zip (más fácil desde el celular), aquí se descomprime.
+      - name: Descomprimir el proyecto
+        working-directory: .
+        run: |
+          if [ -f radio-android.zip ]; then rm -rf android && unzip -q -o radio-android.zip; fi
+          test -f android/settings.gradle.kts || { echo "No encuentro la carpeta android/ ni radio-android.zip"; exit 1; }
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Pruebas de la lógica
+        run: gradle --no-daemon --stacktrace testDebugUnitTest
+
+      - name: Compilar el APK
+        run: gradle --no-daemon --stacktrace assembleRelease
+
+      - name: Preparar el APK
+        run: cp app/build/outputs/apk/release/app-release.apk radio-de-ruta.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: radio-de-ruta-apk
+          path: android/radio-de-ruta.apk
+
+      - name: Publicar en Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view android --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create android --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+              --title "Radio de ruta para Android" \
+              --notes "Descarga radio-de-ruta.apk desde tu celular Android e instálala. Se actualiza sola cada vez que cambia el código."
+          gh release upload android radio-de-ruta.apk --repo "$GITHUB_REPOSITORY" --clobber

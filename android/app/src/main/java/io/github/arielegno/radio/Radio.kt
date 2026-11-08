@@ -125,6 +125,15 @@ class Radio(private val ctx: Context) {
         if (lunaHablando) { voz.callar(); return }
         if (player.isPlaying) player.pause() else { player.play() }
     }
+    /** Mientras suena un video en la Revista la radio se queda en pausa (y Luna no sigue sola); al cerrarlo vuelve. */
+    var retenida = false; private set
+    private var reanudarTras = false
+    fun retener(on: Boolean) {
+        if (on == retenida) return
+        retenida = on
+        if (on) { reanudarTras = sonando || lunaHablando || enPausaLuna || (!fuenteSpotify && player.isPlaying); if (reanudarTras) { pausar(); mensaje = "Pausé la radio mientras ves el video." } }
+        else if (reanudarTras) { reanudarTras = false; seguir() }
+    }
     fun pausar() { if (lunaHablando) voz.callar(); if (fuenteSpotify) { sp("/me/player/pause", "PUT") { sonando = false }; return }; if (player.isPlaying) player.pause() }
     fun seguir() { if (fuenteSpotify) { if (!activa) iniciarSpotify() else sp("/me/player/play", "PUT") { sonando = true }; return }; if (!activa) iniciar() else if (!player.isPlaying) player.play() }
     fun siguienteCancion() { voz.callar(); if (fuenteSpotify) { sp("/me/player/next", "POST"); return }; if (player.hasNextMediaItem()) { player.seekToNextMediaItem(); player.play() } else mensaje = "No hay más canciones en la lista." }
@@ -283,7 +292,7 @@ class Radio(private val ctx: Context) {
                 if (aire && activa) hablar(texto)
             } finally {
                 enPausaLuna = false
-                if (activa && (apagarEn == 0L || apagarEn > System.currentTimeMillis())) player.play()
+                if (activa && !retenida && (apagarEn == 0L || apagarEn > System.currentTimeMillis())) player.play()
             }
         }
     }

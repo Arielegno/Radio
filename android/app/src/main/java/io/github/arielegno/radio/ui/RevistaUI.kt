@@ -69,6 +69,9 @@ class PuenteRevista(private val web: () -> WebView, private val irRadio: () -> U
     fun callar() { RadioApp.scope.launch(Dispatchers.Main) { RadioApp.radio.voz.callar() } }
 
     @JavascriptInterface
+    fun videoActivo(on: Boolean) { RadioApp.scope.launch(Dispatchers.Main) { RadioApp.radio.retener(on) } }
+
+    @JavascriptInterface
     fun irALaRadio() { RadioApp.scope.launch(Dispatchers.Main) { irRadio() } }
 }
 
@@ -99,6 +102,12 @@ private val CAPA_APP = """
   // Personalización: el color de acento de la app también en la Revista
   try { if (window.__rrAcento) document.documentElement.style.setProperty('--line', window.__rrAcento); } catch(e) {}
   if (window.__rrApp) return; window.__rrApp = 1;
+  // Videos de la Bóveda y de los artículos: la radio de la app se pausa mientras suenan
+  try {
+    var vidOn = false, SEL = '#view-revista iframe[src*="youtube"],#view-revista iframe[src*="vimeo"],#view-revista iframe[src*="archive.org"]';
+    var chk = function(){ var on = !!document.querySelector(SEL); if (on !== vidOn) { vidOn = on; try { RadioNativa.videoActivo(on); } catch(e) {} } };
+    new MutationObserver(chk).observe(document.body, { childList: true, subtree: true }); chk();
+  } catch(e) {}
   // Voz de la app para «Escuchar artículo»
   var cb = {}, n = 0;
   window.__rrHablo = function(id){ var f = cb[id]; delete cb[id]; if (f) f(); };
@@ -199,5 +208,12 @@ fun RevistaPantalla(vr: VistaRevista, destino: String, alSalir: () -> Unit) {
         if (destino.isNotEmpty() || !vr.cargada) vr.abrir(destino) else vr.refrescar()
     }
     BackHandler { if (vr.web.canGoBack()) vr.web.goBack() else alSalir() }
+    // Al salir de la Revista se detiene el video que estuviera sonando (y la radio vuelve)
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            vr.web.evaluateJavascript("document.querySelectorAll('#view-revista iframe').forEach(function(f){ if (/youtube|vimeo|archive\\.org/.test(f.src)) { var b = f.closest('#bvPlay'); f.remove(); if (b) b.innerHTML = '<p class=\"hint\">Toca de nuevo el concierto para verlo.</p>'; } })", null)
+            RadioApp.radio.retener(false)
+        }
+    }
     AndroidView(factory = { (vr.web.parent as? ViewGroup)?.removeView(vr.web); vr.web }, modifier = Modifier.fillMaxSize())
 }

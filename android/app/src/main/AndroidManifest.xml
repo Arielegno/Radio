@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <queries>
+        <package android:name="com.spotify.music" />
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
@@ -37,6 +38,13 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Spotify vuelve aquí después de iniciar sesión -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="radioderuta" android:host="spotify" />
             </intent-filter>
         </activity>
 

@@ -45,6 +45,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.arielegno.radio.Datos
 import io.github.arielegno.radio.RadioApp
+import io.github.arielegno.radio.Spotify
 import io.github.arielegno.radio.core.Luna
 import io.github.arielegno.radio.core.Modos
 import io.github.arielegno.radio.launchSafe
@@ -57,6 +58,28 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
     var borrarStats by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Text("Ajustes", style = MaterialTheme.typography.headlineLarge)
+
+        Seccion("De dónde sale la música")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(false to "Mi biblioteca", true to "Spotify").forEach { (sp, n) ->
+                if (r.fuenteSpotify == sp) androidx.compose.material3.Button(onClick = {}) { Text(n) } else OutlinedButton(onClick = { r.ponerFuente(sp) }) { Text(n) }
+            }
+        }
+        if (r.fuenteSpotify) {
+            Text("Spotify necesita Premium. La música suena en la app oficial de Spotify y Radio de ruta la controla: Luna habla entre canciones igual que con tu biblioteca.",
+                color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 6.dp))
+            CampoTexto("spClientId", "Client ID de Spotify", "")
+            Text("En developer.spotify.com › tu app › Settings › Redirect URIs agrega: radioderuta://spotify",
+                color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+                if (Spotify.conectado) {
+                    Text("✓ Conectado", color = Amarillo, fontWeight = FontWeight.SemiBold)
+                    TextButton(onClick = { Spotify.desconectar() }) { Text("Desconectar") }
+                } else androidx.compose.material3.Button(onClick = { Spotify.entrar(ctx) }) { Text("Conectar con Spotify") }
+                TextButton(onClick = { abrir(ctx, "https://developer.spotify.com/dashboard") }) { Text("Abrir panel") }
+            }
+            if (Spotify.aviso.isNotEmpty()) Text(Spotify.aviso, color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall)
+        }
 
         Seccion("Luna, tu locutora")
         CampoTexto("host", "Nombre de la locutora", "Luna")
@@ -90,8 +113,19 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
         CampoTexto("efemerides", "Efemérides propias (una por línea: MM-DD: texto)", "", lineas = 3, ayuda = "Ej: 03-14: Hoy cumple años mi mamá")
 
         Seccion("Voz")
-        val voces by produceState<List<Voice>>(emptyList()) { value = r.voz.vocesEspanol() }
-        if (voces.isNotEmpty()) Opciones("voz", "Voz del teléfono", linkedMapOf("" to "La de siempre") + voces.associate { it.name to (it.locale.displayName + " · " + it.name.substringAfterLast('#').takeLast(18)) }, "")
+        var versionVoz by remember { mutableStateOf(0) }
+        val motores by produceState<List<Pair<String, String>>>(emptyList(), versionVoz) { value = r.voz.motores() }
+        val voces by produceState<List<Voice>>(emptyList(), versionVoz) { value = r.voz.vocesEspanol() }
+        if (motores.size > 1) Opciones("motorVoz", "Motor de voz", linkedMapOf("" to "El del teléfono") + motores.toMap(), "") { m -> r.voz.cambiarMotor(m); versionVoz++ }
+        if (voces.isNotEmpty()) androidx.compose.runtime.key(versionVoz) {
+            Opciones("voz", "Voz", linkedMapOf("" to "La de siempre") + voces.associate { it.name to (it.locale.displayName + " · " + it.name.substringAfterLast('#').takeLast(18)) }, "")
+        }
+        Text("Voces gratis que funcionan sin internet: instala «SherpaTTS» (voces Piper y Kokoro, código abierto) o «RHVoice» desde F-Droid o la Play Store, descarga una voz en español y elígela aquí arriba como motor de voz.",
+            color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { abrir(ctx, "https://search.f-droid.org/?q=SherpaTTS&lang=es") }) { Text("SherpaTTS") }
+            OutlinedButton(onClick = { abrir(ctx, "https://rhvoice.org/") }) { Text("RHVoice") }
+        }
         Deslizador("velocidad", "Velocidad", 100, 60, 150)
         Deslizador("tono", "Tono", 100, 60, 150)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -118,7 +152,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
         Text("Tu música, tus claves y tus estadísticas se guardan solo en este celular.", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
 
         Seccion("Acerca de")
-        Text("Radio de ruta para Android · versión 1.0 · por Arielegno", fontWeight = FontWeight.SemiBold)
+        Text("Radio de ruta para Android · versión 1.1 · por Arielegno", fontWeight = FontWeight.SemiBold)
         Text("No manipules la app mientras conduces: configúrala antes de arrancar.", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://arielegno.github.io/Radio/legal.html"))) }) { Text("Aviso legal y privacidad") }
         Text("Usa Media3 (Apache 2.0), Jetpack Compose (Apache 2.0), Leaflet (BSD-2) y datos de OpenStreetMap (ODbL), Open-Meteo, Wikipedia (CC BY-SA) y Google Gemini.",
@@ -129,6 +163,10 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
         text = { Text("Se borran las más escuchadas, tu resumen y el mapa de viajes. Tus favoritas y tu música se quedan.") },
         confirmButton = { TextButton(onClick = { RadioApp.stats.clear(); Datos.guardarStats(); borrarStats = false }) { Text("Borrar") } },
         dismissButton = { TextButton(onClick = { borrarStats = false }) { Text("Cancelar") } })
+}
+
+private fun abrir(ctx: android.content.Context, url: String) {
+    try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (e: Exception) {}
 }
 
 @Composable
@@ -161,7 +199,7 @@ private fun Interruptor(k: String, t: String, d: Boolean, alCambiar: (Boolean) -
 }
 
 @Composable
-private fun Opciones(k: String, t: String, ops: Map<String, String>, d: String, entero: Boolean = false) {
+private fun Opciones(k: String, t: String, ops: Map<String, String>, d: String, entero: Boolean = false, alCambiar: (String) -> Unit = {}) {
     val p = RadioApp.prefs
     var v by remember(k) { mutableStateOf(if (entero) p.int(k, d.toInt()).toString() else p.str(k, d)) }
     var abierto by remember { mutableStateOf(false) }
@@ -174,6 +212,7 @@ private fun Opciones(k: String, t: String, ops: Map<String, String>, d: String, 
                 DropdownMenuItem(text = { Text(n) }, onClick = {
                     v = k2; abierto = false
                     if (entero) p.set(k, k2.toInt()) else p.set(k, k2)
+                    alCambiar(k2)
                 })
             }
         }

@@ -80,10 +80,11 @@ fun CarroPantalla(cerrar: () -> Unit) {
             VozCmd.SoloMusica -> r.ponerAire(false)
             VozCmd.Luna -> r.ponerAire(true)
             VozCmd.Salir -> cerrar()
-            is VozCmd.Poner -> { val ids = c.ids.toSet(); r.iniciar({ ids.contains(it.id) }) }
-            is VozCmd.NoEncontrado, is VozCmd.NoEntendi -> {}
+            is VozCmd.Poner -> if (r.fuenteSpotify) r.ponerEnSpotify(c.etiqueta) else { val ids = c.ids.toSet(); r.iniciar({ ids.contains(it.id) }) }
+            is VozCmd.NoEncontrado -> if (r.fuenteSpotify) r.ponerEnSpotify(c.busqueda)
+            is VozCmd.NoEntendi -> {}
         }
-        oido = Voz.respuesta(c)
+        oido = if (r.fuenteSpotify && c is VozCmd.NoEncontrado) "Buscando «${c.busqueda}» en Spotify…" else Voz.respuesta(c)
     }
 
     val escuchar = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->

@@ -19,6 +19,14 @@ import io.github.arielegno.radio.core.normNombre
 import io.github.arielegno.radio.core.num
 import io.github.arielegno.radio.core.str
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -55,41 +63,73 @@ class Biblioteca(private val ctx: Context) {
         return MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "mp3"
     }
 
-    /** Agrega archivos de audio elegidos por la persona. Devuelve (agregadas, repetidas, fallidas). */
+    /** Busca todos los audios dentro de una carpeta (y sus subcarpetas) elegida por la persona. */
+    suspend fun audiosDeCarpeta(carpeta: Uri): List<Uri> = withContext(Dispatchers.IO) {
+        val cr = ctx.contentResolver
+        val out = mutableListOf<Uri>()
+        val pendientes = ArrayDeque<String>().apply { add(DocumentsContract.getTreeDocumentId(carpeta)) }
+        val exts = setOf("mp3", "m4a", "aac", "flac", "ogg", "oga", "opus", "wav", "wma", "alac", "aiff", "aif", "mka", "weba", "webm", "3gp", "amr")
+        var vistas = 0
+        while (pendientes.isNotEmpty() && vistas < 200) {
+            val doc = pendientes.removeFirst(); vistas++
+            avisar("Buscando música… ${out.size} canciones encontradas")
+            val hijos = DocumentsContract.buildChildDocumentsUriUsingTree(carpeta, doc)
+            try {
+                cr.query(hijos, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)?.use { c ->
+                    while (c.moveToNext()) {
+                        val id = c.getString(0) ?: continue
+                        val mime = c.getString(1).orEmpty(); val nombre = c.getString(2).orEmpty()
+                        if (mime == DocumentsContract.Document.MIME_TYPE_DIR) { if (!nombre.startsWith(".")) pendientes.add(id) }
+                        else if (mime.startsWith("audio/") || nombre.substringAfterLast('.', "").lowercase() in exts) out += DocumentsContract.buildDocumentUriUsingTree(carpeta, id)
+                    }
+                }
+            } catch (e: Exception) { /* carpeta sin permiso: se salta */ }
+        }
+        avisar(null)
+        out
+    }
+
+    /** Agrega archivos de audio elegidos por la persona (varios a la vez). Devuelve (agregadas, repetidas, fallidas). */
     suspend fun importar(uris: List<Uri>): Triple<Int, Int, Int> = withContext(Dispatchers.IO) {
         val cr = ctx.contentResolver
+        val candado = Mutex()
         val lista = pistas.toMutableList()
         val dups = lista.map { claveDup(it.name, it.artist, it.size) }.toMutableSet()
         var sig = (lista.maxOfOrNull { it.id } ?: 0L) + 1
-        var ok = 0; var rep = 0; var mal = 0
-        uris.forEachIndexed { i, uri ->
-            avisar("Agregando ${i + 1} de ${uris.size}…")
-            var copia: File? = null
-            try {
-                var nombre = "cancion"; var tam = -1L
-                cr.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
-                    if (c.moveToFirst()) {
-                        val ni = c.getColumnIndex(OpenableColumns.DISPLAY_NAME); val si = c.getColumnIndex(OpenableColumns.SIZE)
-                        if (ni >= 0 && !c.isNull(ni)) nombre = c.getString(ni)
-                        if (si >= 0 && !c.isNull(si)) tam = c.getLong(si)
+        val ok = AtomicInteger(); val rep = AtomicInteger(); val mal = AtomicInteger(); val hechas = AtomicInteger()
+        val turnos = Semaphore(3)
+        coroutineScope {
+            uris.map { uri ->
+                async {
+                    turnos.withPermit {
+                        var copia: File? = null
+                        try {
+                            var nombre = "cancion"
+                            cr.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                                if (c.moveToFirst()) { val ni = c.getColumnIndex(OpenableColumns.DISPLAY_NAME); if (ni >= 0 && !c.isNull(ni)) nombre = c.getString(ni) }
+                            }
+                            val mime = cr.getType(uri) ?: "audio/mpeg"
+                            val id = candado.withLock { sig++ }
+                            val f = File(dirMusica, "$id.${extDe(nombre, mime)}"); copia = f
+                            val input = cr.openInputStream(uri) ?: throw IllegalStateException("No se pudo abrir")
+                            input.use { inp -> FileOutputStream(f).use { out -> inp.copyTo(out, 128 * 1024) } }
+                            val t = leerEtiquetas(f, id, nombre, mime)
+                            val k = claveDup(t.name, t.artist, f.length())
+                            val nueva = candado.withLock { if (k in dups) false else { dups += k; lista += t; true } }
+                            if (nueva) ok.incrementAndGet() else { f.delete(); if (t.cover.isNotEmpty()) File(dirCaratulas, t.cover).delete(); rep.incrementAndGet() }
+                        } catch (e: Exception) {
+                            copia?.delete(); mal.incrementAndGet()
+                        }
+                        val n = hechas.incrementAndGet()
+                        avisar("Agregando $n de ${uris.size}…")
+                        if (n % 15 == 0) { val copiaLista = candado.withLock { lista.toList() }; publicar(copiaLista) }
                     }
                 }
-                val mime = cr.getType(uri) ?: "audio/mpeg"
-                val id = sig++
-                val f = File(dirMusica, "$id.${extDe(nombre, mime)}"); copia = f
-                val input = cr.openInputStream(uri) ?: throw IllegalStateException("No se pudo abrir")
-                input.use { inp -> FileOutputStream(f).use { out -> inp.copyTo(out, 64 * 1024) } }
-                val t = leerEtiquetas(f, id, nombre, mime)
-                val k = claveDup(t.name, t.artist, f.length())
-                if (k in dups) { f.delete(); File(dirCaratulas, t.cover).takeIf { t.cover.isNotEmpty() }?.delete(); rep++ }
-                else { dups += k; lista += t; ok++ }
-            } catch (e: Exception) {
-                copia?.delete(); mal++
-            }
-            if ((i + 1) % 10 == 0) { guardar(lista); publicar(lista.toList()) }
+            }.awaitAll()
         }
-        guardar(lista); publicar(lista.toList()); avisar(null)
-        Triple(ok, rep, mal)
+        val final = lista.sortedBy { it.id }
+        guardar(final); publicar(final); avisar(null)
+        Triple(ok.get(), rep.get(), mal.get())
     }
 
     /** Lee título, artista, álbum, año, género, duración y carátula del archivo. */

@@ -61,7 +61,7 @@ import io.github.arielegno.radio.launchSafe
 private data class Pestana(val id: String, val nombre: String, val icono: ImageVector)
 private val PESTANAS = listOf(
     Pestana("radio", "Radio", Icons.Filled.Radio), Pestana("biblioteca", "Biblioteca", Icons.Filled.LibraryMusic),
-    Pestana("stats", "Estadísticas", Icons.Filled.BarChart), Pestana("revista", "Revista", Icons.Filled.Newspaper),
+    Pestana("stats", "Resumen", Icons.Filled.BarChart), Pestana("revista", "Revista", Icons.Filled.Newspaper),
     Pestana("ajustes", "Ajustes", Icons.Filled.Settings)
 )
 
@@ -76,7 +76,7 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
     var mapa by remember { mutableStateOf(false) }
     var recorrido by remember { mutableStateOf(!p.bool("tourDone", false) && RadioApp.stats.stats.isEmpty()) }
     var destinoRevista by remember { mutableStateOf("") }
-    val vistaRevista = remember { VistaRevista(ctx) }
+    val vistaRevista = remember { VistaRevista(ctx) { pestana = "radio" } }
 
     val permisoUbicacion = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
         if (res.values.any { it }) { p.set("ubicacion", true); r.entorno.iniciar() }
@@ -103,12 +103,14 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
 
     BackHandler(enabled = pestana != "radio" && pestana != "revista") { pestana = "radio" }
 
+    Box(Modifier.fillMaxSize()) {
+    FondoCristal()
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         bottomBar = {
             Column {
                 MiniReproductor { pestana = "radio" }
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f), tonalElevation = 0.dp) {
                     PESTANAS.forEach { t ->
                         NavigationBarItem(selected = pestana == t.id, onClick = { if (t.id == "revista") destinoRevista = ""; pestana = t.id },
                             icon = { Icon(t.icono, null) }, label = { Text(t.nombre, maxLines = 1) },
@@ -128,6 +130,7 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
             }
         }
     }
+    }
     if (resumen) ResumenDialogo { resumen = false }
     if (mapa) MapaPantalla { mapa = false }
     if (recorrido) Recorrido { quiereUbicacion ->
@@ -141,7 +144,7 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
 private fun MiniReproductor(irRadio: () -> Unit) {
     val r = RadioApp.radio; val t = r.actual ?: return
     if (!r.activa) return
-    Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)).padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Caratula(RadioApp.biblioteca.caratula(t), t.album + t.artist, 40.dp, 6.dp)
         Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
             Text(t.name, maxLines = 1, style = MaterialTheme.typography.bodyMedium)

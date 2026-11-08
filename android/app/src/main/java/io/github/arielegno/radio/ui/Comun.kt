@@ -24,6 +24,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -59,7 +61,7 @@ object Imagenes {
     }
 
     private val permitidas = listOf(Regex("^https://i\\.ytimg\\.com/vi/[\\w-]+/hqdefault\\.jpg$"), Regex("^https://archive\\.org/services/img/[\\w.-]+$"),
-        Regex("^https://[a-z0-9-]+\\.supabase\\.co/storage/v1/object/public/revista/[\\w/.-]+$", RegexOption.IGNORE_CASE), Regex("^https://upload\\.wikimedia\\.org/\\S+$"))
+        Regex("^https://[a-z0-9-]+\\.supabase\\.co/storage/v1/object/public/revista/[\\w/.-]+$", RegexOption.IGNORE_CASE), Regex("^https://upload\\.wikimedia\\.org/\\S+$"), Regex("^https://(i|mosaic|image-cdn-[a-z0-9-]+)\\.(scdn\\.co|spotifycdn\\.com)/\\S+$"))
 
     fun deInternet(url: String): Bitmap? {
         if (permitidas.none { it.matches(url) }) return null
@@ -114,14 +116,48 @@ fun Caratula(f: File?, semilla: String, tam: Dp, radio: Dp = 12.dp, icono: Image
     else Relleno(semilla, icono, Modifier.size(tam), forma)
 }
 
-/** Tarjeta redondeada de la app. */
+/** Tarjeta de cristal: translúcida, con borde brillante arriba. */
 @Composable
 fun Tarjeta(modifier: Modifier = Modifier, contenido: @Composable ColumnScope.() -> Unit) {
     val ex = LocalExtra.current
+    val forma = RoundedCornerShape(22.dp)
+    val brillo = if (ex.oscuro) listOf(Color.White.copy(alpha = 0.26f), Color.White.copy(alpha = 0.05f)) else listOf(Color.White, Color.Black.copy(alpha = 0.08f))
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(ex.tarjeta).border(1.dp, ex.borde, RoundedCornerShape(20.dp)).padding(16.dp),
+        modifier.fillMaxWidth().clip(forma)
+            .background(Brush.verticalGradient(listOf(ex.tarjeta.copy(alpha = if (ex.oscuro) 0.72f else 0.86f), ex.tarjeta.copy(alpha = if (ex.oscuro) 0.52f else 0.74f))))
+            .border(1.dp, Brush.verticalGradient(brillo), forma).padding(16.dp),
         content = contenido
     )
+}
+
+/** Primera letra (o emoji completo) de un nombre. */
+fun inicial(s: String, d: String = "L"): String {
+    val t = s.trim(); if (t.isEmpty()) return d
+    val bi = java.text.BreakIterator.getCharacterInstance(); bi.setText(t)
+    val fin = bi.next().let { if (it == java.text.BreakIterator.DONE) t.length else it }
+    return t.substring(0, fin).uppercase()
+}
+
+/** Fondo de la app: la carátula de lo que suena, muy difuminada, bajo una capa oscura (efecto cristal). */
+@Composable
+fun FondoCristal() {
+    val r = io.github.arielegno.radio.RadioApp.radio
+    val bib = io.github.arielegno.radio.RadioApp.biblioteca
+    val bg = MaterialTheme.colorScheme.background
+    val oscuro = LocalExtra.current.oscuro
+    val idUltima = androidx.compose.runtime.remember(r.actual?.id, r.activa) { r.ultima()?.first ?: -1L }
+    val pista = r.actual ?: bib.porId(idUltima)
+    val img = if (r.fuenteSpotify && r.portadaUrl.isNotEmpty()) cargarImagenUrl(r.portadaUrl) else cargarImagen(pista?.let { bib.caratula(it) }, 300)
+    Box(Modifier.fillMaxSize().background(bg)) {
+        if (img != null) {
+            Image(img, contentDescription = null, contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().then(if (android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(80.dp) else Modifier).alpha(if (oscuro) 0.6f else 0.4f))
+        } else {
+            Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Amarillo.copy(alpha = 0.16f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(0f, 0f), radius = 1400f)))
+            Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Rosa.copy(alpha = 0.10f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(1400f, 2200f), radius = 1600f)))
+        }
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(bg.copy(alpha = 0.30f), bg.copy(alpha = 0.78f), bg.copy(alpha = 0.94f)))))
+    }
 }
 
 @Composable

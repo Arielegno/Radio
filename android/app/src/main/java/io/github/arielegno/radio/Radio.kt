@@ -18,6 +18,7 @@ import io.github.arielegno.radio.core.LunaAjustes
 import io.github.arielegno.radio.core.LunaContexto
 import io.github.arielegno.radio.core.Modos
 import io.github.arielegno.radio.core.Programas
+import io.github.arielegno.radio.core.SpotifyAhora
 import io.github.arielegno.radio.core.Track
 import io.github.arielegno.radio.core.num
 import io.github.arielegno.radio.core.str
@@ -50,6 +51,10 @@ class Radio(private val ctx: Context) {
     var repetir by mutableStateOf(p.int("repetir", 0)); private set   // 0 no, 1 lista, 2 canción
     var apagarEn by mutableStateOf(0L); private set                   // hora (ms) del temporizador; 0 = apagado
     var modo by mutableStateOf(Modos.valido(p.str("modo", "carretera"))); private set
+    /** true = la música viene de Spotify; false = de tu biblioteca. */
+    var fuenteSpotify by mutableStateOf(p.str("fuente", "local") == "spotify"); private set
+    /** Carátula de lo que suena en Spotify. */
+    var portadaUrl by mutableStateOf(""); private set
 
     private val player get() = Reproductor.get()
     private var cola: List<Track> = emptyList()
@@ -62,6 +67,10 @@ class Radio(private val ctx: Context) {
     private var segundos = 0
     private var reloj: Job? = null
     private var fundido: Job? = null
+    private var spJob: Job? = null
+    private var spUri = ""
+    private var spSiguiente: SpotifyAhora? = null
+    private var spSaltoPropio = false
 
     init {
         player.addListener(object : Player.Listener {
@@ -85,6 +94,8 @@ class Radio(private val ctx: Context) {
 
     /** Arranca la radio con tu biblioteca (o con una parte de ella). */
     fun iniciar(filtro: ((Track) -> Boolean)? = null, desdeId: Long? = null, mezclarEsta: Boolean? = null) {
+        if (fuenteSpotify && filtro == null && desdeId == null) { iniciarSpotify(); return }
+        if (fuenteSpotify) { ponerFuente(false); mensaje = "Cambié a tu biblioteca para poner esas canciones." }
         val todas = RadioApp.biblioteca.pistas
         var lista = if (filtro == null) todas else todas.filter(filtro)
         if (lista.isEmpty()) { mensaje = if (todas.isEmpty()) "Agrega canciones en Biblioteca para empezar." else "No hay canciones para eso en tu biblioteca."; return }
@@ -107,20 +118,116 @@ class Radio(private val ctx: Context) {
     }
 
     fun alternarPausa() {
+        if (fuenteSpotify) { if (!activa) iniciarSpotify() else if (lunaHablando) voz.callar() else sp(if (sonando) "/me/player/pause" else "/me/player/play", "PUT") { sonando = !sonando }; return }
         if (!activa || player.mediaItemCount == 0) { iniciar(); return }
         if (lunaHablando) { voz.callar(); return }
         if (player.isPlaying) player.pause() else { player.play() }
     }
-    fun pausar() { if (player.isPlaying) player.pause(); if (lunaHablando) voz.callar() }
-    fun seguir() { if (!activa) iniciar() else if (!player.isPlaying) player.play() }
-    fun siguienteCancion() { voz.callar(); if (player.hasNextMediaItem()) { player.seekToNextMediaItem(); player.play() } else mensaje = "No hay más canciones en la lista." }
-    fun anteriorCancion() { voz.callar(); if (player.currentPosition > 4000 || !player.hasPreviousMediaItem()) player.seekTo(0) else player.seekToPreviousMediaItem(); player.play() }
-    fun irA(ms: Long) { player.seekTo(ms.coerceAtLeast(0)) }
-    fun detener() { voz.callar(); player.stop(); player.clearMediaItems(); activa = false; actual = null; siguiente = null; textoLuna = ""; entorno.detener() }
+    fun pausar() { if (lunaHablando) voz.callar(); if (fuenteSpotify) { sp("/me/player/pause", "PUT") { sonando = false }; return }; if (player.isPlaying) player.pause() }
+    fun seguir() { if (fuenteSpotify) { if (!activa) iniciarSpotify() else sp("/me/player/play", "PUT") { sonando = true }; return }; if (!activa) iniciar() else if (!player.isPlaying) player.play() }
+    fun siguienteCancion() { voz.callar(); if (fuenteSpotify) { sp("/me/player/next", "POST"); return }; if (player.hasNextMediaItem()) { player.seekToNextMediaItem(); player.play() } else mensaje = "No hay más canciones en la lista." }
+    fun anteriorCancion() { voz.callar(); if (fuenteSpotify) { sp("/me/player/previous", "POST"); return }; if (player.currentPosition > 4000 || !player.hasPreviousMediaItem()) player.seekTo(0) else player.seekToPreviousMediaItem(); player.play() }
+    fun irA(ms: Long) { if (fuenteSpotify) { sp("/me/player/seek?position_ms=${ms.coerceAtLeast(0)}", "PUT") { posMs = ms }; return }; player.seekTo(ms.coerceAtLeast(0)) }
+    fun detener() {
+        voz.callar()
+        if (fuenteSpotify) { spJob?.cancel(); spJob = null; if (activa) sp("/me/player/pause", "PUT") }
+        else { player.stop(); player.clearMediaItems() }
+        activa = false; actual = null; siguiente = null; textoLuna = ""; portadaUrl = ""; spUri = ""; entorno.detener()
+    }
+
+    /** Cambia entre tu biblioteca y Spotify. */
+    fun ponerFuente(spotify: Boolean) {
+        if (spotify == fuenteSpotify) return
+        if (activa) detener()
+        fuenteSpotify = spotify; p.set("fuente", if (spotify) "spotify" else "local")
+        mensaje = if (spotify) "Ahora la radio usa Spotify." else "Ahora la radio usa tu biblioteca."
+    }
+
+    /** «Pon Soda Stereo» con Spotify: busca y pone a sonar. */
+    fun ponerEnSpotify(q: String) {
+        RadioApp.scope.launchSafe {
+            if (!Spotify.conectado) { mensaje = "Conecta Spotify en Ajustes."; return@launchSafe }
+            if (Spotify.buscarYPoner(q)) { mensaje = "Poniendo $q en Spotify…"; if (!activa) iniciarSpotify() }
+            else mensaje = "No encontré «$q» en Spotify (o no hay un dispositivo activo: abre Spotify)."
+        }
+    }
+
+    private fun sp(ruta: String, metodo: String, alAcertar: () -> Unit = {}) {
+        RadioApp.scope.launchSafe {
+            val (c, _) = Spotify.api(metodo, ruta)
+            when {
+                c in 200..299 -> alAcertar()
+                c == 404 -> { mensaje = "No hay un dispositivo de Spotify activo: abre Spotify y pon algo de música."; Spotify.abrirApp(ctx) }
+                c == 403 -> mensaje = "Spotify necesita Premium para controlar la música."
+                c == 0 -> mensaje = if (Spotify.conectado) "Sin conexión con Spotify." else "Conecta Spotify en Ajustes."
+            }
+        }
+    }
+
+    // ---------- Spotify ----------
+
+    private fun iniciarSpotify() {
+        if (!Spotify.conectado) { mensaje = "Conecta tu cuenta de Spotify en Ajustes."; return }
+        activa = true; mensaje = ""; anteriores.clear(); cancionNo = 0; spUri = ""; guion = null; spSaltoPropio = false
+        player.pause()
+        entorno.iniciar()
+        spJob?.cancel()
+        spJob = RadioApp.scope.launchSafe {
+            val a = Spotify.ahora()
+            if (a == null || !a.sonando) {
+                val (c, _) = Spotify.api("PUT", "/me/player/play")
+                if (c == 404 || c == 0) { mensaje = "Abre Spotify y pon algo de música: la radio lo toma desde ahí."; Spotify.abrirApp(ctx) }
+                else if (c == 403) mensaje = "Spotify necesita Premium para controlar la música."
+            }
+            if (aire && a != null) hablar("Hola, soy ${p.str("host", "Luna")}. ${io.github.arielegno.radio.core.saludo(LocalDateTime.now().hour, p.str("me", ""))}. Seguimos con Spotify.")
+            while (activa && fuenteSpotify) {
+                try { sondearSpotify() } catch (e: Exception) {}
+                delay(if (sonando) 2500 else 4000)
+            }
+        }
+    }
+
+    private suspend fun sondearSpotify() {
+        if (enPausaLuna) return
+        val a = Spotify.ahora() ?: run { sonando = false; return }
+        posMs = a.posMs; durMs = a.durMs; sonando = a.sonando; if (a.portada.isNotEmpty()) portadaUrl = a.portada
+        if (a.uri != spUri) {
+            val primera = spUri.isEmpty()
+            spUri = a.uri; actual = a.comoTrack(); siguiente = null; spSiguiente = null; segundos = 0
+            if (!primera) cancionNo++
+            if (spSaltoPropio) { spSaltoPropio = false } else guion = null
+            return
+        }
+        // Se acerca el final: Luna prepara lo que dirá y habla justo antes de la siguiente.
+        val cada = p.int("cadaN", 1).coerceIn(1, 10)
+        val falta = a.durMs - a.posMs
+        val toca = aire && a.sonando && (cancionNo + 1) % cada == 0
+        if (toca && falta in 1..25_000 && guion == null) {
+            val sig = Spotify.siguiente(); spSiguiente = sig; siguiente = sig?.comoTrack()
+            val d = CompletableDeferred<String>(); guion = d
+            val prev = actual; val nxt = siguiente
+            RadioApp.scope.launchSafe { d.complete(escribir(prev, nxt)) }
+        }
+        val g = guion
+        if (toca && g != null && falta in 1..3_500) {
+            enPausaLuna = true
+            try {
+                delay((falta - 800).coerceAtLeast(0))
+                Spotify.api("PUT", "/me/player/pause"); sonando = false
+                val texto = withTimeoutOrNull(10_000) { g.await() } ?: Luna.sinIA(LunaContexto(actual, siguiente), ajustes())
+                if (aire && activa) hablar(texto)
+                spSaltoPropio = true
+                Spotify.api("POST", "/me/player/next"); sonando = true
+            } finally { enPausaLuna = false; guion = null }
+        }
+    }
 
     fun ponerAire(on: Boolean) { aire = on; p.set("aire", on); if (!on) { player.pauseAtEndOfMediaItems = false; guion = null } else alCambiar(player.currentMediaItem, nueva = false) }
-    fun ponerMezclar(on: Boolean) { mezclar = on; p.set("mezclar", on) }
-    fun ciclarRepetir() { repetir = (repetir + 1) % 3; p.set("repetir", repetir); player.repeatMode = repModo() }
+    fun ponerMezclar(on: Boolean) { mezclar = on; p.set("mezclar", on); if (fuenteSpotify && activa) sp("/me/player/shuffle?state=$on", "PUT") }
+    fun ciclarRepetir() {
+        repetir = (repetir + 1) % 3; p.set("repetir", repetir); player.repeatMode = repModo()
+        if (fuenteSpotify && activa) sp("/me/player/repeat?state=" + when (repetir) { 1 -> "context"; 2 -> "track"; else -> "off" }, "PUT")
+    }
     private fun repModo() = when (repetir) { 1 -> Player.REPEAT_MODE_ALL; 2 -> Player.REPEAT_MODE_ONE; else -> Player.REPEAT_MODE_OFF }
     fun ponerModo(m: String) { modo = Modos.valido(m); p.set("modo", modo); mensaje = "Modo ${Modos.ETIQUETA[modo]?.lowercase()}: Luna cambia su tono." }
     fun temporizador(min: Int) { apagarEn = if (min <= 0) 0L else System.currentTimeMillis() + min * 60_000L; mensaje = if (min <= 0) "Temporizador apagado." else "La radio se apaga en $min minutos." }
@@ -243,9 +350,11 @@ class Radio(private val ctx: Context) {
 
     private fun tic() {
         val pl = player
-        posMs = pl.currentPosition.coerceAtLeast(0); durMs = pl.duration.takeIf { it > 0 } ?: (actual?.durMs ?: 0L)
+        val suena = if (fuenteSpotify) sonando && !enPausaLuna else pl.isPlaying
+        if (fuenteSpotify) { if (suena) posMs = (posMs + 1000).coerceAtMost(durMs.coerceAtLeast(0)) }
+        else { posMs = pl.currentPosition.coerceAtLeast(0); durMs = pl.duration.takeIf { it > 0 } ?: (actual?.durMs ?: 0L) }
         val t = actual
-        if (t != null && pl.isPlaying) {
+        if (t != null && suena) {
             if (contadoId != t.id) { segundos++; if (segundos >= 30) { contadoId = t.id; contar(t) } }
         }
         if (t != null && contadoId == t.id && segundos == 0) contadoId = -1L

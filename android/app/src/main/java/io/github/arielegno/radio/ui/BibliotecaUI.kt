@@ -14,10 +14,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CreateNewFolder
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
@@ -31,6 +35,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -80,6 +85,19 @@ fun BibliotecaPantalla() {
             }
         }
     }
+    val carpetaMusica = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+        if (uri != null) scope.launchSafe {
+            val audios = b.audiosDeCarpeta(uri)
+            if (audios.isEmpty()) { aviso = "No encontré música en esa carpeta."; return@launchSafe }
+            val (ok, rep, mal) = b.importar(audios)
+            aviso = buildString {
+                append("De la carpeta: $ok canciones nuevas")
+                if (rep > 0) append(" · ya estaban: $rep")
+                if (mal > 0) append(" · no se pudieron leer: $mal")
+                append('.')
+            }
+        }
+    }
     val carpeta = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         if (uri != null) scope.launchSafe { aviso = try { b.exportar(uri) } catch (e: Exception) { "No se pudo guardar la copia: ${e.message ?: "error"}" } }
     }
@@ -102,6 +120,15 @@ fun BibliotecaPantalla() {
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
             Text("Biblioteca", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
+            IconButton(onClick = { r.iniciar(null, mezclarEsta = true) }, enabled = b.pistas.isNotEmpty()) { Icon(Icons.Filled.Shuffle, "Mezclar toda tu música") }
+            androidx.compose.foundation.layout.Box {
+                IconButton(onClick = { menuOrden = true }) { Icon(Icons.AutoMirrored.Filled.Sort, "Ordenar") }
+                DropdownMenu(expanded = menuOrden, onDismissRequest = { menuOrden = false }) {
+                    listOf("artista" to "Por artista", "titulo" to "Por título", "anio" to "Por año", "recientes" to "Recién agregadas", "escuchadas" to "Más escuchadas").forEach { (k, n) ->
+                        DropdownMenuItem(text = { Text(if (orden == k) "✓ $n" else n) }, onClick = { orden = k; menuOrden = false })
+                    }
+                }
+            }
             androidx.compose.foundation.layout.Box {
                 IconButton(onClick = { menuCopia = true }) { Icon(Icons.Filled.MoreVert, "Copia de seguridad") }
                 DropdownMenu(expanded = menuCopia, onDismissRequest = { menuCopia = false }) {
@@ -112,30 +139,21 @@ fun BibliotecaPantalla() {
         }
         Text("${b.pistas.size} canciones guardadas en este celular", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall)
         Row(Modifier.padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { elegir.launch(arrayOf("audio/*")) }, modifier = Modifier.weight(1f)) { Icon(Icons.Filled.Add, null); Spacer(Modifier.width(6.dp)); Text("Agregar canciones") }
-            OutlinedButton(onClick = { r.iniciar(null, mezclarEsta = true) }, enabled = b.pistas.isNotEmpty()) { Icon(Icons.Filled.Shuffle, "Mezclar todo") }
+            Button(onClick = { carpetaMusica.launch(null) }, enabled = b.progreso == null, modifier = Modifier.weight(1f)) { Icon(Icons.Filled.CreateNewFolder, null); Spacer(Modifier.width(6.dp)); Text("Carpeta", maxLines = 1) }
+            FilledTonalButton(onClick = { elegir.launch(arrayOf("audio/*")) }, enabled = b.progreso == null, modifier = Modifier.weight(1f)) { Icon(Icons.Filled.Add, null); Spacer(Modifier.width(6.dp)); Text("Canciones", maxLines = 1) }
         }
         b.progreso?.let { Text(it, color = Amarillo); LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 6.dp)) }
         if (aviso.isNotEmpty()) Text(aviso, color = LocalExtra.current.tenue, modifier = Modifier.padding(bottom = 6.dp))
         OutlinedTextField(value = buscar, onValueChange = { buscar = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Filled.Search, null) }, placeholder = { Text("Buscar canción, artista o álbum") },
+            leadingIcon = { Icon(Icons.Filled.Search, null) }, placeholder = { Text("Buscar en tu música", maxLines = 1) },
             trailingIcon = { if (buscar.isNotEmpty()) IconButton(onClick = { buscar = "" }) { Icon(Icons.Filled.Close, "Borrar búsqueda") } })
-        Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(vertical = 8.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             listOf("canciones" to "Canciones", "artistas" to "Artistas", "albumes" to "Álbumes").forEach { (k, n) ->
-                FilterChip(selected = vista == k, onClick = { vista = k }, label = { Text(n) }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Amarillo, selectedLabelColor = Tinta))
-            }
-            Spacer(Modifier.weight(1f))
-            androidx.compose.foundation.layout.Box {
-                TextButton(onClick = { menuOrden = true }) { Text("Ordenar") }
-                DropdownMenu(expanded = menuOrden, onDismissRequest = { menuOrden = false }) {
-                    listOf("artista" to "Por artista", "titulo" to "Por título", "anio" to "Por año", "recientes" to "Recién agregadas", "escuchadas" to "Más escuchadas").forEach { (k, n) ->
-                        DropdownMenuItem(text = { Text(if (orden == k) "✓ $n" else n) }, onClick = { orden = k; menuOrden = false })
-                    }
-                }
+                FilterChip(selected = vista == k, onClick = { vista = k }, label = { Text(n, maxLines = 1) }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Amarillo, selectedLabelColor = Tinta))
             }
         }
         if (b.pistas.isEmpty()) {
-            Text("Aún no tienes canciones. Toca «Agregar canciones» y elige tus archivos de música: se copian a la app y suenan sin internet. " +
+            Text("Aún no tienes canciones. Toca «Carpeta» y elige la carpeta donde guardas tu música (por ejemplo Música o Descargas): la app busca en todas sus subcarpetas, lee títulos, artistas y carátulas, y las copia para que suenen sin internet. " +
                 "Si tenías una copia de la versión web (.rrlib), restáurala desde el menú ⋮.", color = LocalExtra.current.tenue, modifier = Modifier.padding(top = 20.dp))
         }
         when (vista) {

@@ -139,13 +139,15 @@ fun Portada(acc: AccionesPortada) {
     val t = r.actual
     val ultima = remember(r.activa, t?.id) { r.ultima() }
     val pistaDisco: Track? = t ?: ultima?.let { u -> RadioApp.biblioteca.porId(u.first) }
-    val portadaImg = cargarImagen(pistaDisco?.let { RadioApp.biblioteca.caratula(it) }, 600)
+    val imgLocal = cargarImagen(if (r.fuenteSpotify) null else pistaDisco?.let { RadioApp.biblioteca.caratula(it) }, 600)
+    val imgSpotify = cargarImagenUrl(if (r.fuenteSpotify) r.portadaUrl else "")
+    val portadaImg = if (r.fuenteSpotify) imgSpotify else imgLocal
     val tinte = if (cfg.tinte && portadaImg != null) remember(portadaImg) { Imagenes.colorPromedio(portadaImg.asAndroidBitmap()) } else Color.Transparent
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp)) {
         if (cfg.visible("hello")) Saludo(acc)
         if (cfg.visible("place")) Zona(acc)
-        if (cfg.visible("disc")) Disco(portadaImg, cfg.disco == "cuadrada", r.sonando, tinte, if (t == null) ultima?.let { it.second to it.third } else null) {
+        if (cfg.visible("disc")) Disco(portadaImg, cfg.disco == "cuadrada", r.sonando, tinte, if (t == null && !r.fuenteSpotify) ultima?.let { it.second to it.third } else null) {
             val u = ultima ?: return@Disco
             if (RadioApp.biblioteca.porId(u.first) != null) r.iniciar(desdeId = u.first) else r.iniciar()
         }
@@ -186,7 +188,7 @@ private fun Saludo(acc: AccionesPortada) {
             Text(wx.ifEmpty { if (r.entorno.permitido()) "Buscando el clima…" else "Activa la ubicación para ver el clima." },
                 color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodyMedium)
         }
-        IconButton(onClick = acc.compartir, modifier = Modifier.clip(CircleShape).background(LocalExtra.current.tarjeta)) { Icon(Icons.Filled.Share, "Compartir la app") }
+        IconButton(onClick = acc.compartir, modifier = Modifier.clip(CircleShape).background(LocalExtra.current.tarjeta.copy(alpha = 0.6f))) { Icon(Icons.Filled.Share, "Compartir la app") }
     }
 }
 
@@ -236,10 +238,10 @@ private fun AhoraSuena(t: Track?, conCaratula: Boolean) {
     var fav by remember(t?.id) { mutableStateOf(t?.let { RadioApp.stats.isFav(it.name, it.artist) } ?: false) }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
         Box(Modifier.width(5.dp).height(56.dp).background(Amarillo)); Spacer(Modifier.width(12.dp))
-        if (conCaratula && t != null) { Caratula(RadioApp.biblioteca.caratula(t), t.album + t.artist, 64.dp, 8.dp); Spacer(Modifier.width(12.dp)) }
+        if (conCaratula && t != null && !r.fuenteSpotify) { Caratula(RadioApp.biblioteca.caratula(t), t.album + t.artist, 64.dp, 8.dp); Spacer(Modifier.width(12.dp)) }
         Column(Modifier.weight(1f)) {
             Text(t?.name ?: "Nada sonando", style = MaterialTheme.typography.headlineMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(t?.let { listOf(it.artist, it.album).filter { s -> s.isNotBlank() }.joinToString(" · ") } ?: "Toca «Iniciar radio» para escuchar tu biblioteca",
+            Text(t?.let { listOf(it.artist, it.album).filter { s -> s.isNotBlank() }.joinToString(" · ") } ?: if (r.fuenteSpotify) "Toca «Iniciar radio» para escuchar Spotify" else "Toca «Iniciar radio» para escuchar tu biblioteca",
                 color = Amarillo, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         if (t != null) IconButton(onClick = { r.alternarFavorita()?.let { fav = it } }) {
@@ -285,7 +287,7 @@ private fun Controles() {
 @Composable
 private fun InterruptorAire() {
     val r = RadioApp.radio
-    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(999.dp)).background(LocalExtra.current.tarjeta).padding(5.dp)) {
+    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(999.dp)).background(LocalExtra.current.tarjeta.copy(alpha = 0.6f)).border(1.dp, LocalExtra.current.borde, RoundedCornerShape(999.dp)).padding(5.dp)) {
         listOf(true to "Con radio", false to "Solo música").forEach { (v, n) ->
             val on = r.aire == v
             Box(Modifier.weight(1f).clip(RoundedCornerShape(999.dp)).background(if (on) Amarillo.copy(alpha = 0.22f) else Color.Transparent)
@@ -321,7 +323,7 @@ private fun TarjetaLuna() {
         Row(verticalAlignment = Alignment.Top) {
             Box(Modifier.size(52.dp).graphicsLayer { val s = if (r.lunaHablando) escala else 1f; scaleX = s; scaleY = s }.clip(CircleShape)
                 .background(Brush.linearGradient(listOf(Amarillo, Naranja, Rosa))), contentAlignment = Alignment.Center) {
-                Text(host.trim().take(1).uppercase().ifEmpty { "L" }, color = Tinta, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
+                Text(inicial(host), color = Tinta, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
             }
             Spacer(Modifier.width(14.dp))
             Column {
@@ -515,7 +517,7 @@ private fun EditarPortada(cfg: PortadaCfg, cambiar: (PortadaCfg) -> Unit, cerrar
             }
             Spacer(Modifier.height(8.dp)); Etiqueta("Estilo")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 6.dp)) {
-                listOf("vinilo" to "Vinilo que gira", "cuadrada" to "Carátula cuadrada").forEach { (k, n) ->
+                listOf("vinilo" to "Vinilo", "cuadrada" to "Cuadrada").forEach { (k, n) ->
                     FilterChip(selected = cfg.disco == k, onClick = { cambiar(cfg.copy(disco = k)) }, label = { Text(n) },
                         colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Amarillo, selectedLabelColor = Tinta))
                 }

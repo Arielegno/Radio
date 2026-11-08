@@ -51,6 +51,20 @@ El contenido denunciado se revisa y, si corresponde, se retira lo antes posible.
 
 **En tu dispositivo (no se envía al autor):** tu biblioteca de música, tus claves de API, tus ajustes, favoritos y estadísticas se guardan solo en el navegador de tu dispositivo. Si borras los datos del navegador, se pierden.
 
+**Tu resumen:** el historial de escuchas por mes se guarda solo en tu dispositivo.
+
+**Portada de la radio:** para la tarjeta «Hoy en la música» la app consulta Wikipedia (Wikimedia) y, si tu revista está configurada, el concierto del día y el club de escucha en Supabase; esos servicios reciben tu dirección IP. Tus ajustes de la portada y «lo último que sonó» se guardan solo en tu dispositivo.
+
+**Mapa de tus viajes:** si activas la ubicación, cada canción que suena queda marcada con una ubicación aproximada (redondeada a unos 1 km) en tu dispositivo. Esos puntos no se envían a nadie; solo al abrir el mapa se descargan los mosaicos de OpenStreetMap de la zona que ves.
+
+**Comandos de voz:** en el modo carro, al tocar el micrófono tu navegador convierte tu voz en texto; en Chrome esto lo hace el servicio de voz de Google, que recibe el audio. Solo se escucha mientras el botón está activo.
+
+**Guardados y copia de tu música:** los artículos que guardas y las copias de tu biblioteca se quedan en tu dispositivo o en los archivos que descargues. El autor no los recibe.
+
+**Escuchando ahora:** es opcional y está apagado por defecto. Si lo activas, el nombre de la canción y el artista que suenan en tu radio se publican en tu perfil de la Revista y cualquiera puede verlos. Puedes apagarlo cuando quieras en «Editar perfil».
+
+**Dedicatorias:** si alguien te envía una dedicatoria a tu muro, su texto se manda a la IA que elegiste para que Luna la lea en tu radio.
+
 **Ubicación:** es opcional. Si la activas, se envía a servicios externos (Open-Meteo para el clima y OpenStreetMap/Nominatim para el nombre de la zona) y, si usas la locutora, a la IA que elijas. El autor no la recibe ni la guarda.
 
 **Si creas una cuenta en la Revista se guarda:**

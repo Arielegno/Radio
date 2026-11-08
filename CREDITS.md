@@ -23,7 +23,7 @@ Feather: https://feathericons.com (MIT).
 
 - **jsmediatags** (MIT), para leer las etiquetas y carátulas de los archivos de audio.
 - **Sherpa-ONNX** (Apache 2.0), motor de voz local en el navegador, si activas esa opción. Los modelos de voz que configures (por ejemplo Kokoro o Piper) tienen su propia licencia: revísala antes de usarlos.
-- **Leaflet** 1.9.4 (BSD 2-Clause, © Volodymyr Agafonkin y colaboradores), para el mapa de la Agenda. Se descarga de jsDelivr solo al abrir el mapa.
+- **Leaflet** 1.9.4 (BSD 2-Clause, © Volodymyr Agafonkin y colaboradores), para el mapa de la Agenda y el mapa de tus viajes. Se descarga de jsDelivr solo al abrir un mapa.
 
 Las librerías se sirven desde **jsDelivr** (CDN público) y las tipografías desde **Google Fonts**; ambos servicios reciben la dirección IP de quien abre la app al descargar esos archivos.
 
@@ -46,7 +46,7 @@ La app se conecta a estos servicios según lo que actives en Ajustes. Revisa sus
 ### Revista
 
 - **Supabase:** base de datos, cuentas y almacén de imágenes de la Revista.
-- **Mapa de la Agenda:** mosaicos de **OpenStreetMap** — © colaboradores de OpenStreetMap (ODbL). La ubicación de los eventos se obtiene con **Nominatim**.
+- **Mapa de la Agenda y de tus viajes:** mosaicos de **OpenStreetMap** — © colaboradores de OpenStreetMap (ODbL). La ubicación de los eventos se obtiene con **Nominatim**.
 - **Wikimedia Commons:** pósters históricos con licencia libre o de dominio público. Cada póster muestra su autor, su licencia y el enlace a su ficha; la licencia de cada imagen es la que indica Commons.
 - **Wikipedia en español** («Hoy en la música», vía la API de Wikimedia): textos bajo **CC BY-SA 4.0**, con su fuente indicada en la app.
 - **Internet Archive:** solo se enlazan elementos con licencia Creative Commons o de dominio público; no se copian.

@@ -11,8 +11,14 @@ Una radio personal que corre en el navegador (PWA). Reproduce tu música y, entr
 - **Sonido:** reproduce el archivo original sin comprimir. Ecualizador y nivelador de volumen opcionales (apagados por defecto) e información de calidad de cada archivo.
 - **Favoritas y estadísticas:** canciones y artistas favoritos, y lo más escuchado por ubicación.
 - **Instalable y sin conexión:** se instala como app y guarda una copia para abrir sin internet.
+- **Copia de tu música:** guarda tu biblioteca con los audios y carátulas en uno o varios archivos `.rrlib` (partes de hasta ~900 MB) y restáurala en otro celular sin duplicar canciones.
+- **Portada personalizable:** saludo con fecha y clima, carátula grande (vinilo que gira o cuadrada) con color de fondo según la carátula, «Seguir escuchando» lo último que sonó, modos de Luna con un toque, Luna con avatar que se anima al hablar, y tarjetas «Para ti», «Hoy en la música» (con el concierto del día de la Bóveda), «Tu mes» y «Club de escucha». Con «Personalizar portada» cada parte se muestra u oculta y las tarjetas se ordenan.
+- **Primeros pasos:** recorrido de bienvenida la primera vez (se puede ver de nuevo desde la Guía).
 - **Revista de la comunidad:** artículos con estéticas de revista, perfiles, pósters (originales con licencia libre y de la comunidad), perfiles de artistas y bandas verificadas, debates, retos, agenda de conciertos con mapa, ediciones mensuales, notificaciones y moderación. Usa Supabase y se carga solo cuando la abres.
-- **La bóveda del tiempo:** cartelera curada de conciertos y festivales históricos dentro de la Revista. Cada concierto se queda 30 días y rota; cada concierto tiene sinopsis obligatoria; hay concierto del día, ciclos, lista de canciones con saltos al minuto, nota del curador y comentarios. Los videos se ven con el reproductor oficial de YouTube, Vimeo o Internet Archive (nunca se descargan) y siempre se muestra la fuente. La vista de artista avisa cuando su concierto o un festival de su biografía está en cartelera, y la locutora puede recomendarlo.
+- **Radio:** modo carro con botones grandes, pantalla encendida y **comandos de voz** («siguiente», «pausa», «pon Soda Stereo», «solo música», «Luna»), **programas de Luna** («La hora del recuerdo» a la hora que elijas y «El resumen del domingo»), **mapa de tus viajes musicales** (dónde sonó cada canción), temporizador para dormir, fundido opcional entre canciones, tema claro u oscuro, y «Tu resumen» del mes, del año o de siempre, con imagen para historias.
+- **Comunidad:** «Escuchando ahora» en el perfil (opcional), dedicatorias que Luna lee al aire, respuestas, encuestas, menciones con @ y etiquetas con # en los muros, un **club de escucha** con un disco por semana comentado canción por canción, **listas compartidas** (cerradas o abiertas para que otros agreguen canciones) y **Guardados** para leer artículos sin internet.
+- **Perfiles y muros:** cada persona tiene foto, imagen de fondo, estadísticas y un muro de notas con imágenes y me gusta; puede decidir si otros escriben en su muro. Inicio con saludo, concierto del día, carrusel de pósters y tarjetas tipo red social.
+- **La bóveda del tiempo:** cartelera curada de conciertos y festivales históricos dentro de la Revista. Cada concierto se queda 30 días y rota; cada concierto tiene sinopsis obligatoria; puede tener una **función en vivo** con cuenta regresiva y chat, y botón «Avísame»; hay concierto del día, ciclos, lista de canciones con saltos al minuto, nota del curador y comentarios. Los videos se ven con el reproductor oficial de YouTube, Vimeo o Internet Archive (nunca se descargan) y siempre se muestra la fuente. La vista de artista avisa cuando su concierto o un festival de su biografía está en cartelera, y la locutora puede recomendarlo.
 
 ## Archivos
 
@@ -59,7 +65,7 @@ La revista de la página original de Radio de ruta es privada de ese proyecto. S
 
 ## Actualizar la app
 
-Cada vez que cambies `index.html` o `revista.js`, sube el número de `CACHE` en `sw.js` (por ejemplo `rr59` → `rr60`). Si cambias `revista.js`, pon el mismo número en `REV_VER` dentro de `index.html`. Sube los archivos en **un solo commit** para que GitHub Pages publique una sola vez. Si sigues viendo la versión vieja, cierra la app y vuelve a abrirla.
+Cada vez que cambies `index.html` o `revista.js`, sube el número de `CACHE` en `sw.js` (por ejemplo `rr63` → `rr64`). Si cambias `revista.js`, pon el mismo número en `REV_VER` dentro de `index.html`. Sube los archivos en **un solo commit** para que GitHub Pages publique una sola vez. Si sigues viendo la versión vieja, cierra la app y vuelve a abrirla.
 
 ## Música y contenido de terceros
 

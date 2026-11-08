@@ -28,6 +28,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
@@ -44,13 +45,17 @@ import kotlin.random.Random
 
 /** Estilos de los banners de la portada (saludo y «Cerca de»), inspirados en carteles punk, Y2K y grunge. */
 val ESTILOS_BANNER = listOf(
-    "punk" to "Punk · recortes", "y2k" to "Y2K · años 2000", "grunge" to "Grunge · spray", "vidrio" to "Translúcido", "senal" to "Señal de ruta"
+    "punk" to "Punk · recortes", "y2k" to "Y2K · años 2000", "grunge" to "Grunge · spray", "vidrio" to "Translúcido", "senal" to "Señal de ruta",
+    "neon" to "Neón", "atardecer" to "Atardecer", "vinilo" to "Vinilo", "tokio" to "Tokio kawaii", "tabloide" to "Tabloide", "cromo" to "Cromo 2000",
+    "vintage" to "Cartel vintage", "teen" to "Teen 2002"
 )
 
 fun estiloBanner(): String = RadioApp.prefs.str("banner", "punk").takeIf { s -> ESTILOS_BANNER.any { it.first == s } } ?: "punk"
 
 /** Color de la tinta que va encima de cada estilo (para iconos y botones). */
-fun tintaBanner(estilo: String): Color = when (estilo) { "punk" -> Color(0xFF141414); "y2k" -> Color(0xFF2D47C4); else -> Color.White }
+fun tintaBanner(estilo: String): Color = when (estilo) {
+    "punk", "tabloide" -> Color(0xFF141414); "y2k" -> Color(0xFF2D47C4); "tokio" -> Color(0xFFD6336C); "cromo" -> Color(0xFF1F2A44); "vintage" -> Color(0xFF5A3A22); else -> Color.White
+}
 
 private val ROSA_PUNK = Color(0xFFFF3D8B)
 private val CIAN = Color(0xFF26C6F0)
@@ -224,6 +229,135 @@ fun Banner(
                     Text(etiqueta, color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp)
                     Text(titulo, color = Color.White, fontWeight = FontWeight.Bold, fontSize = tamTitulo, lineHeight = tamTitulo * 1.08f)
                     if (sub.isNotEmpty()) Text(sub, color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                    abajo?.invoke()
+                }
+                derecha?.invoke(this)
+            }
+        }
+        "neon" -> {
+            val c1 = if (variante == 0) ROSA_PUNK else CIAN
+            val brillo = TextStyle(shadow = Shadow(c1, Offset(0f, 0f), 28f))
+            Box(modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xFF0B0A14)).drawBehind {
+                drawCircle(Brush.radialGradient(listOf(ROSA_PUNK.copy(alpha = 0.45f), Color.Transparent), center = Offset(size.width * 0.15f, 0f), radius = size.width * 0.5f), radius = size.width * 0.5f, center = Offset(size.width * 0.15f, 0f))
+                drawCircle(Brush.radialGradient(listOf(CIAN.copy(alpha = 0.4f), Color.Transparent), center = Offset(size.width, size.height), radius = size.width * 0.5f), radius = size.width * 0.5f, center = Offset(size.width, size.height))
+            }.border(1.5.dp, c1.copy(alpha = 0.7f), RoundedCornerShape(20.dp)).padding(18.dp)) {
+                Column(Modifier.padding(end = if (derecha != null) 52.dp else 0.dp)) {
+                    Text(etiqueta.uppercase(), color = c1, fontFamily = FontFamily.Monospace, fontSize = 12.sp, letterSpacing = 2.sp, style = brillo)
+                    Text(titulo, color = Color.White, fontSize = tamTitulo, lineHeight = tamTitulo * 1.05f, fontWeight = FontWeight.Black, style = brillo, modifier = Modifier.padding(top = 4.dp))
+                    if (sub.isNotEmpty()) Text(sub, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
+                    abajo?.invoke()
+                }
+                derecha?.invoke(this)
+            }
+        }
+        "atardecer" -> {
+            Box(modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(20.dp))
+                .background(Brush.verticalGradient(if (variante == 0) listOf(Color(0xFFFF7E5F), Color(0xFFFEB47B), Color(0xFF6A3093)) else listOf(Color(0xFF6A3093), Color(0xFFFF7E5F))))
+                .drawBehind {
+                    // sol retro con franjas
+                    val r = size.height * 0.62f; val c = Offset(size.width - r * 0.7f, size.height * 0.62f)
+                    drawCircle(Brush.verticalGradient(listOf(Color(0xFFFFE08A), Color(0xFFFF5F6D)), startY = c.y - r, endY = c.y + r), radius = r, center = c)
+                    for (i in 0 until 5) { val y = c.y + r * (0.05f + i * 0.17f); drawRect(Color(0xFF6A3093).copy(alpha = 0.55f), Offset(c.x - r, y), Size(r * 2, 3f + i * 2.5f)) }
+                }.padding(18.dp)) {
+                Column(Modifier.padding(end = if (derecha != null) 52.dp else 0.dp)) {
+                    Text(etiqueta.uppercase(), color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp, letterSpacing = 2.sp)
+                    TextoDesfasado(titulo, tamTitulo, Color.White, Color(0x88401050), Color.Transparent, Modifier.padding(top = 4.dp), estilo = FontStyle.Italic)
+                    if (sub.isNotEmpty()) Text(sub, color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
+                    abajo?.invoke()
+                }
+                derecha?.invoke(this)
+            }
+        }
+        "vinilo" -> {
+            Box(modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xFF0E0E0E)).drawBehind {
+                val r = size.height * 0.9f; val c = Offset(size.width + r * 0.25f, size.height / 2)
+                drawCircle(Color(0xFF181818), radius = r, center = c)
+                var k = r; while (k > r * 0.38f) { drawCircle(Color(0xFF262626), radius = k, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.2f)); k -= 7f }
+                drawCircle(acento, radius = r * 0.32f, center = c); drawCircle(Color(0xFF0E0E0E), radius = r * 0.05f, center = c)
+            }.padding(18.dp)) {
+                Column(Modifier.padding(end = if (derecha != null) 52.dp else 72.dp)) {
+                    Text("● " + etiqueta.uppercase(), color = acento, fontSize = 12.sp, letterSpacing = 2.sp)
+                    Text(titulo, color = Color.White, fontSize = tamTitulo, lineHeight = tamTitulo * 1.05f, fontWeight = FontWeight.Black, modifier = Modifier.padding(top = 4.dp))
+                    if (sub.isNotEmpty()) Text(sub, color = Color.White.copy(alpha = 0.75f), fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
+                    abajo?.invoke()
+                }
+                derecha?.invoke(this)
+            }
+        }
+        "tokio" -> {
+            val rosa = Color(0xFFD6336C)
+            Box(modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(28.dp)).background(if (variante == 0) Color(0xFFFFD6E8) else Color(0xFFD9F2FF)).drawBehind {
+                var y = 10f; var fila = 0
+                while (y < size.height) { var x = if (fila % 2 == 0) 10f else 28f; while (x < size.width) { drawCircle(Color.White.copy(alpha = 0.8f), 5f, Offset(x, y)); x += 36f }; y += 18f; fila++ }
+            }.border(3.dp, Color.White, RoundedCornerShape(28.dp)).padding(18.dp)) {
+                Column(Modifier.padding(end = if (derecha != null) 52.dp else 0.dp)) {
+                    Text("✿ " + etiqueta + " ✿", color = rosa, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    TextoDesfasado(titulo, tamTitulo, rosa, Color.White, Color.Transparent, Modifier.padding(top = 4.dp), peso = FontWeight.ExtraBold)
+                    if (sub.isNotEmpty()) Text(sub, color = Color(0xFF7A2A4A), fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
+                    abajo?.invoke()
+                }
+                Text("★", color = Color(0xFFFFC94D), fontSize = 26.sp, modifier = Modifier.align(Alignment.BottomEnd))
+                derecha?.invoke(this)
+            }
+        }
+        "tabloide" -> {
+            Column(modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(4.dp)).background(Color.White)) {
+                Row(Modifier.fillMaxWidth().background(Color(0xFFE3242B)).padding(horizontal = 12.dp, vertical = 4.dp)) {
+                    Text(if (variante == 0) "¡EXCLUSIVA!" else "ÚLTIMA HORA", color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
+                    Text("★ ★ ★", color = Color.White, fontSize = 12.sp)
+                }
+                Box(Modifier.fillMaxWidth().drawBehind {
+                    var y = 0f; while (y < size.height) { drawRect(Color(0x141D4ED8), Offset(0f, y), Size(size.width, 3f)); y += 6f }
+                }.padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 14.dp)) {
+                    Column(Modifier.padding(end = if (derecha != null) 52.dp else 0.dp)) {
+                        Text(etiqueta.uppercase(), color = Color(0xFF1D4ED8), fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp)
+                        Text(titulo.uppercase(), color = Color(0xFF141414), fontFamily = FontFamily.Serif, fontWeight = FontWeight.Black, fontSize = tamTitulo, lineHeight = tamTitulo * 1.0f, modifier = Modifier.padding(top = 2.dp))
+                        if (sub.isNotEmpty()) Text(sub, color = Color(0xFF333333), fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                        abajo?.invoke()
+                    }
+                    derecha?.invoke(this)
+                }
+            }
+        }
+        "cromo" -> {
+            val tinta = Color(0xFF1F2A44)
+            Box(modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFFE9EEF5), Color(0xFF9FB3C8), Color(0xFFF4F7FB), Color(0xFFB8C6D6))))
+                .border(2.dp, Brush.linearGradient(listOf(Color.White, Color(0xFF6B7F99), Color.White)), RoundedCornerShape(16.dp)).padding(18.dp)) {
+                Column(Modifier.padding(end = if (derecha != null) 52.dp else 0.dp)) {
+                    Text("✦ " + etiqueta.uppercase(), color = tinta, fontFamily = FontFamily.Monospace, fontSize = 12.sp, letterSpacing = 2.sp)
+                    TextoDesfasado(titulo, tamTitulo, tinta, Color.White, Color(0x552D47C4), Modifier.padding(top = 4.dp), peso = FontWeight.ExtraBold, estilo = FontStyle.Italic)
+                    if (sub.isNotEmpty()) Text(sub, color = tinta.copy(alpha = 0.8f), fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
+                    abajo?.invoke()
+                }
+                derecha?.invoke(this)
+            }
+        }
+        "vintage" -> {
+            val cafe = Color(0xFF5A3A22); val rojo = Color(0xFFB23A2B)
+            Box(modifier.fillMaxWidth().padding(vertical = 4.dp).background(Color(0xFFEFE4CC)).padding(5.dp).border(2.dp, cafe).padding(4.dp).border(1.dp, cafe).padding(14.dp)) {
+                Column(Modifier.fillMaxWidth().padding(end = if (derecha != null) 52.dp else 0.dp), horizontalAlignment = if (derecha != null) Alignment.Start else Alignment.CenterHorizontally) {
+                    Text("— " + etiqueta.uppercase() + " —", color = cafe, fontFamily = FontFamily.Serif, fontSize = 12.sp, letterSpacing = 3.sp)
+                    Text(titulo.uppercase(), color = rojo, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Black, fontSize = tamTitulo, lineHeight = tamTitulo * 1.02f,
+                        textAlign = if (derecha != null) androidx.compose.ui.text.style.TextAlign.Start else androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                    if (sub.isNotEmpty()) Text(sub, color = cafe, fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
+                    abajo?.invoke()
+                }
+                derecha?.invoke(this)
+            }
+        }
+        "teen" -> {
+            Box(modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(18.dp)).drawBehind {
+                drawRect(Color(0xFF3D5AFE))
+                val p = Path(); p.moveTo(0f, 0f); p.lineTo(size.width * 0.62f, 0f); p.lineTo(size.width * 0.42f, size.height); p.lineTo(0f, size.height); p.close()
+                drawPath(p, Color(0xFFF2711C))
+            }.padding(18.dp)) {
+                val contorno = TextStyle(shadow = Shadow(Color(0xFF141414), Offset(3f, 3f), 0f))
+                Column(Modifier.padding(end = if (derecha != null) 52.dp else 0.dp)) {
+                    Text(etiqueta.uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.sp,
+                        modifier = Modifier.rotate(-2f).background(Color(0xFF141414), RoundedCornerShape(999.dp)).padding(horizontal = 10.dp, vertical = 3.dp))
+                    Text(titulo, color = Color.White, fontSize = tamTitulo, lineHeight = tamTitulo * 1.05f, fontWeight = FontWeight.Black, style = contorno, modifier = Modifier.padding(top = 8.dp))
+                    if (sub.isNotEmpty()) Text(sub, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, style = contorno, modifier = Modifier.padding(top = 6.dp))
                     abajo?.invoke()
                 }
                 derecha?.invoke(this)

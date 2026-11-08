@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14161a">
+<title>Revista · Radio de ruta (versión nativa)</title>
+<style>
+html,body{margin:0;height:100%;background:#14161a;overflow:hidden}
+#rr{position:fixed;inset:0}
+#carga{position:fixed;inset:0;display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;color:#8d96a3;font:16px system-ui,sans-serif;text-align:center;padding:24px;background:#14161a;z-index:5}
+#carga b{color:#f2c230;font-size:22px}
+#carga a{color:#f2c230}
+</style>
+</head>
+<body>
+<div id="rr"></div>
+<div id="carga"><b>Revista</b><span>Cargando la versión nativa…</span></div>
+<script>
+// Navegadores sin WebAssembly GC (muy viejos) no pueden abrir la versión nativa: se ofrece la Revista normal.
+(function () {
+  var ok = false;
+  try { ok = typeof WebAssembly === 'object' && WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 95, 1, 120, 0])); } catch (e) {}
+  if (!ok) { document.getElementById('carga').innerHTML = '<b>Revista</b><span>Tu navegador es muy viejo para la versión nativa.</span><a href="https://arielegno.github.io/Radio/#revista">Abrir la Revista normal</a>'; return; }
+  var s = document.createElement('script'); s.src = 'composeApp.js'; document.body.appendChild(s);
+})();
+</script>
+</body>
+</html>

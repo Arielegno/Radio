@@ -1,0 +1,6 @@
+build/
+.gradle/
+.kotlin/
+node_modules/
+capturas/
+composeApp/src/wasmJsMain/resources/fonts/

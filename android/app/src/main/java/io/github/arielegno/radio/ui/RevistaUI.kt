@@ -82,14 +82,17 @@ private val CAPA_APP = """
     st.textContent = '.topbar,#sidebar,#sidebarOverlay,#ctl,#miniNow,#installBtn,#tourOv{display:none!important}' +
       '.view:not(#view-revista){display:none!important}#view-revista{display:block!important}' +
       'body{padding-top:env(safe-area-inset-top,0)!important}' +
-      '#uiDlg{overflow-y:auto!important;padding:16px!important}#uiDlg .dlg-card{overflow-y:auto!important}';
+      '#uiDlg{overflow-y:auto!important;padding:16px!important;align-items:flex-start!important}' +
+      /* La ventana nunca se aplasta: crece con su contenido hasta el alto real de la pantalla */
+      '#uiDlg .dlg-card{max-height:100%!important;height:auto!important;min-height:min-content!important;overflow-y:auto!important;flex-shrink:0!important;margin:auto!important}';
     document.head.appendChild(st);
   }
   var t = document.getElementById('tourOv'); if (t) t.remove();
   // Las medidas «vh» de la página fallan dentro de la app: se calculan con la altura real de la pantalla
   var alto = document.getElementById('rrAppVh'); if (!alto) { alto = document.createElement('style'); alto.id = 'rrAppVh'; document.head.appendChild(alto); }
   var medir = function(){ var h = window.innerHeight || document.documentElement.clientHeight || 700;
-    alto.textContent = '#uiDlg .dlg-card{max-height:' + Math.round(h * .9 - 32) + 'px!important}.dlg-opts{max-height:' + Math.round(h * .5) + 'px!important}' +
+    if (h < 320) h = screen.height || 700;
+    alto.textContent = '.dlg-opts{max-height:' + Math.round(h * .5) + 'px!important}' +
       '.rv-pview img{max-height:' + Math.round(h * .78) + 'px!important;min-height:120px}.rv-lb img{max-height:' + Math.round(h * .92) + 'px!important}' +
       '.rv-map{height:' + Math.round(h * .6) + 'px!important}body{min-height:' + h + 'px!important}'; };
   medir(); window.addEventListener('resize', medir); setTimeout(medir, 400); setTimeout(medir, 1500);

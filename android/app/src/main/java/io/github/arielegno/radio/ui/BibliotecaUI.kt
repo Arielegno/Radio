@@ -243,7 +243,7 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
                 items(filtradas, key = { it.id }) { t -> FilaCancion(t, filtradas, acciones) }
             }
             "playlists" -> {
-                val nombres = remember(b.versionListas) { b.listas.nombres }
+                val nombres = b.versionListas.let { b.listas.nombres }
                 item {
                     FilledTonalButton(onClick = { nuevaLista = true }, modifier = Modifier.padding(vertical = 6.dp)) { Icon(Icons.Filled.Add, null); Spacer(Modifier.width(6.dp)); Text("Crear playlist") }
                     if (nombres.isEmpty()) Text("Aún no tienes playlists. Créala aquí y añade canciones desde el menú ⋮ de cada canción.", color = LocalExtra.current.tenue, modifier = Modifier.padding(vertical = 8.dp))

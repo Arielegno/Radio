@@ -4,6 +4,7 @@ import io.github.arielegno.radio.core.Concierto
 import io.github.arielegno.radio.core.Efemerides
 import io.github.arielegno.radio.core.Json
 import io.github.arielegno.radio.core.asObj
+import io.github.arielegno.radio.core.map
 import io.github.arielegno.radio.core.num
 import io.github.arielegno.radio.core.str
 import java.time.LocalDate
@@ -36,6 +37,32 @@ object Revista {
         val j = leer("/rest/v1/vault?select=id,title,artist,festival,year,provider,video_id,cover,starts_on,ends_on,featured_on,created_at&hidden=eq.false&starts_on=lte.$t&ends_on=gt.$t&festival=ilike.*" +
             java.net.URLEncoder.encode(q, "UTF-8").replace("+", "%20") + "*&limit=12", 3_600_000L) ?: return emptyList()
         return Json.arr(j).mapNotNull { it.asObj()?.let(Concierto::from) }
+    }
+
+    data class PerfilArtista(val id: String, val enlaces: List<Pair<String, String>>)
+    data class PosterMini(val id: String, val titulo: String, val anio: Int, val imagen: String)
+    private val ENLACES = listOf("bandcamp" to "Bandcamp", "spotify" to "Spotify", "youtube" to "YouTube", "instagram" to "Instagram", "web" to "Sitio oficial")
+    private fun urlRevista(u: String) = u.takeIf { Regex("^https://[a-z0-9-]+\\.supabase\\.co/storage/v1/object/public/revista/[\\w/.-]+$", RegexOption.IGNORE_CASE).matches(it) ||
+        Regex("^https://upload\\.wikimedia\\.org/[^\\s\"'<>]+$").matches(it) } ?: ""
+    private fun patron(n: String) = n.trim().replace(Regex("[*,()%]"), " ").replace(Regex("\\s+"), " ").trim()
+
+    /** Perfil del artista en la Revista (con sus enlaces), si existe. */
+    suspend fun perfilArtista(nombre: String): PerfilArtista? {
+        val q = patron(nombre); if (q.length < 2) return null
+        val j = leer("/rest/v1/artists?select=id,name,links&name=ilike." + java.net.URLEncoder.encode(q, "UTF-8").replace("+", "%20") + "&limit=5", 3_600_000L) ?: return null
+        val a = Json.arr(j).mapNotNull { it.asObj() }.firstOrNull { io.github.arielegno.radio.core.normNombre(it.str("name")) == io.github.arielegno.radio.core.normNombre(nombre) } ?: return null
+        val l = a.map("links")
+        return PerfilArtista(a.str("id"), ENLACES.mapNotNull { (k, n) -> l.str(k).trim().takeIf { Regex("^https://[^\\s\"'<>]{4,300}$").matches(it) }?.let { n to it } })
+    }
+
+    /** Pósters de la Revista de un artista. */
+    suspend fun postersDe(nombre: String): List<PosterMini> {
+        val q = patron(nombre); if (q.length < 2) return emptyList()
+        val j = leer("/rest/v1/posters?select=id,title,artist,year,thumb_url,image_url&artist=ilike.*" + java.net.URLEncoder.encode(q, "UTF-8").replace("+", "%20") + "*&order=year.asc.nullslast&limit=20", 3_600_000L) ?: return emptyList()
+        return Json.arr(j).mapNotNull { it.asObj() }.mapNotNull { m ->
+            val img = urlRevista(m.str("thumb_url")).ifEmpty { urlRevista(m.str("image_url")) }
+            PosterMini(m.str("id").ifEmpty { return@mapNotNull null }, m.str("title"), m.num("year").toInt(), img)
+        }
     }
 
     data class Club(val id: String, val album: String, val artista: String, val anio: Int, val portada: String)

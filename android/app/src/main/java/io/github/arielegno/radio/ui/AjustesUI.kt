@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -192,7 +193,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     if (i < CATEGORIAS.size - 1) HorizontalDivider(color = LocalExtra.current.borde, modifier = Modifier.padding(start = 58.dp))
                 }
             }
-            Text("Radio de ruta para Android · versión 1.3", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
+            Text("Radio de ruta para Android · versión 1.4", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 14.dp).align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(24.dp))
             return@Column
@@ -212,7 +213,19 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     if (r.fuenteSpotify) {
                         Ayuda("Spotify necesita Premium. La música suena en la app oficial de Spotify y Radio de ruta la controla: Luna habla entre canciones igual que con tu biblioteca.")
                         CampoTexto("spClientId", "Client ID de Spotify", "")
-                        Ayuda("En developer.spotify.com › tu app › Settings › Redirect URIs agrega: radioderuta://spotify")
+                        var red by remember { mutableStateOf(Spotify.redireccion()) }
+                        Text("Dirección de regreso (Redirect URI)", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
+                        Ayuda("Tiene que estar escrita EXACTAMENTE igual en developer.spotify.com › tu app › Settings › Redirect URIs (si no, Spotify dice «redirect_uri: Not matching configuration»). Si ya usas Spotify en la web, elige la de la web: la página te devuelve a la app.")
+                        io.github.arielegno.radio.core.SpotifyDatos.REDIRECCIONES.forEach { u ->
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { red = u; p.set("spRedir", u) }.padding(vertical = 2.dp)) {
+                                androidx.compose.material3.RadioButton(selected = red == u, onClick = { red = u; p.set("spRedir", u) })
+                                Text(u, modifier = Modifier.weight(1f), fontSize = 14.sp)
+                                IconButton(onClick = {
+                                    (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Redirect URI", u))
+                                    android.widget.Toast.makeText(ctx, "Copiado", android.widget.Toast.LENGTH_SHORT).show()
+                                }) { Icon(Icons.Filled.ContentCopy, "Copiar") }
+                            }
+                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
                             if (Spotify.conectado) {
                                 Text("✓ Conectado", color = Amarillo, fontWeight = FontWeight.SemiBold)
@@ -377,6 +390,14 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                         listOf("system" to "Automático", "dark" to "Oscuro", "light" to "Claro").forEach { (k, n) -> Elegible(n, tema == k) { cambiarTema(k) } }
                     }
                 }
+                Grupo("Banners de la portada") {
+                    Ayuda("El estilo del saludo y de «Cerca de» en la portada.")
+                    var ban by remember { mutableStateOf(estiloBanner()) }
+                    Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ESTILOS_BANNER.forEach { (k, n) -> Elegible(n, ban == k) { ban = k; p.set("banner", k) } }
+                    }
+                    Banner(ban, "Vista previa", "Cerca de tu ciudad", "", variante = 1, modifier = Modifier.padding(top = 8.dp), tamTitulo = 24.sp)
+                }
                 Grupo("Color de acento") {
                     var sel by remember { mutableStateOf(p.str("acentoColor", "#f2c230")) }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(vertical = 6.dp)) {
@@ -432,7 +453,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                 Ayuda("No manipules la app mientras conduces.")
             }
             else -> Grupo("Radio de ruta para Android") {
-                Text("Versión 1.3 · por Arielegno", fontWeight = FontWeight.SemiBold)
+                Text("Versión 1.4 · por Arielegno", fontWeight = FontWeight.SemiBold)
                 Ayuda("No manipules la app mientras conduces: configúrala antes de arrancar.")
                 TextButton(onClick = { abrir(ctx, "https://arielegno.github.io/Radio/legal.html") }) { Text("Aviso legal y privacidad") }
                 Ayuda("Usa Media3 (Apache 2.0), Jetpack Compose (Apache 2.0), Leaflet (BSD-2) y datos de OpenStreetMap (ODbL), Open-Meteo, Wikipedia (CC BY-SA), MusicBrainz (CC0), iTunes Search, Spotify, Google Gemini y Anthropic Claude.")

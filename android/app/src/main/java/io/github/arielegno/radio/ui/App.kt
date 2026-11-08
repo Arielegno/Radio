@@ -88,6 +88,7 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
 
     LaunchedEffect(Unit) { if (r.entorno.permitido()) r.entorno.iniciar() }
 
+    var artistaPedido by remember { mutableStateOf("") }
     val acc = AccionesPortada(
         carro = { carro = true }, resumen = { resumen = true }, mapa = { mapa = true },
         revista = { d -> destinoRevista = d; pestana = "revista" }, biblioteca = { pedirAgregar = true; pestana = "biblioteca" },
@@ -97,7 +98,8 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
                 .putExtra(Intent.EXTRA_TEXT, "Radio de ruta: tu música con una locutora con IA. https://arielegno.github.io/Radio/"), "Compartir Radio de ruta"))
         },
         probarVoz = { scope.launchSafe { r.probarVoz() } }, probarLuna = { scope.launchSafe { r.probarLuna() } },
-        notificaciones = { pedirNotif() }
+        notificaciones = { pedirNotif() },
+        abrirArtista = { n -> artistaPedido = n; pestana = "biblioteca" }
     )
 
     if (carro) { CarroPantalla { carro = false }; return }
@@ -125,7 +127,7 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
         Box(Modifier.fillMaxSize().padding(pad)) {
             when (pestana) {
                 "radio" -> Portada(acc)
-                "biblioteca" -> BibliotecaPantalla(pedirAgregar, { pedirAgregar = false }) { d -> destinoRevista = d; pestana = "revista" }
+                "biblioteca" -> BibliotecaPantalla(pedirAgregar, { pedirAgregar = false }, { d -> destinoRevista = d; pestana = "revista" }, artistaPedido, { artistaPedido = "" })
                 "stats" -> EstadisticasPantalla({ resumen = true }, { mapa = true })
                 "revista" -> RevistaPantalla(vistaRevista, destinoRevista) { pestana = "radio" }
                 else -> AjustesPantalla(tema, cambiarTema, { recorrido = true }, { pedirUbicacion() }) { pedirAgregar = true; pestana = "biblioteca" }

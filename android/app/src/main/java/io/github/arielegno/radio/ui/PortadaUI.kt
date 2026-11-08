@@ -121,7 +121,8 @@ class AccionesPortada(
     val compartir: () -> Unit,
     val probarVoz: () -> Unit,
     val probarLuna: () -> Unit,
-    val notificaciones: () -> Unit
+    val notificaciones: () -> Unit,
+    val abrirArtista: (String) -> Unit = {}
 )
 
 fun iconoModo(m: String): ImageVector = when (m) {
@@ -162,6 +163,7 @@ fun Portada(acc: AccionesPortada) {
         Spacer(Modifier.height(18.dp))
         cfg.orden.filter { cfg.visible(it) }.forEach { k ->
             when (k) {
+                "artists" -> MasVistos(acc)
                 "foryou" -> ParaTi(acc)
                 "day" -> HoyEnLaMusica(acc)
                 "week" -> TuMes(acc)
@@ -181,25 +183,23 @@ private fun Saludo(acc: AccionesPortada) {
     val ahora = LocalDateTime.now()
     val dia = ahora.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", Locale("es")))
     val wx = listOf(r.entorno.clima, r.entorno.zona).filter { it.isNotBlank() }.joinToString(" · ")
-    Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(bottom = 14.dp)) {
-        Column(Modifier.weight(1f)) {
-            Etiqueta(dia)
-            Text(saludo(ahora.hour, p.str("me", "")), style = MaterialTheme.typography.headlineLarge, modifier = Modifier.padding(vertical = 2.dp))
-            Text(wx.ifEmpty { if (r.entorno.permitido()) "Buscando el clima…" else "Activa la ubicación para ver el clima." },
-                color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodyMedium)
-        }
-        IconButton(onClick = acc.compartir, modifier = Modifier.clip(CircleShape).background(LocalExtra.current.tarjeta.copy(alpha = 0.6f))) { Icon(Icons.Filled.Share, "Compartir la app") }
-    }
+    val estilo = estiloBanner()
+    Banner(estilo, dia, saludo(ahora.hour, p.str("me", "")),
+        wx.ifEmpty { if (r.entorno.permitido()) "Buscando el clima…" else "Activa la ubicación para ver el clima." }, variante = 0,
+        modifier = Modifier.padding(bottom = 8.dp), tamTitulo = 36.sp,
+        derecha = {
+            IconButton(onClick = acc.compartir, modifier = Modifier.align(Alignment.TopEnd).clip(CircleShape).background(tintaBanner(estilo).copy(alpha = 0.12f))) {
+                Icon(Icons.Filled.Share, "Compartir la app", tint = tintaBanner(estilo))
+            }
+        })
 }
 
 @Composable
 private fun Zona(acc: AccionesPortada) {
     val e = RadioApp.radio.entorno
-    Column(Modifier.fillMaxWidth().padding(bottom = 16.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xCC1B4F9C)).border(3.dp, Color(0x66F4F6F8), RoundedCornerShape(14.dp)).padding(14.dp)) {
-        Text("Cerca de", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall)
-        Text(e.zona.ifEmpty { "Esperando ubicación" }, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 30.sp, lineHeight = 33.sp)
-        if (!e.permitido()) TextButton(onClick = acc.ubicacion, contentPadding = ButtonDefaults.TextButtonContentPadding) { Text("Activar ubicación", color = Amarillo) }
-    }
+    val estilo = estiloBanner()
+    Banner(estilo, "Cerca de", e.zona.ifEmpty { "Esperando ubicación" }, "", variante = 1, modifier = Modifier.padding(bottom = 12.dp), tamTitulo = 30.sp,
+        abajo = { if (!e.permitido()) TextButton(onClick = acc.ubicacion, contentPadding = ButtonDefaults.TextButtonContentPadding) { Text("Activar ubicación", color = if (estilo == "punk" || estilo == "y2k") tintaBanner(estilo) else Amarillo) } })
 }
 
 @Composable
@@ -364,6 +364,32 @@ private fun BotonesPrincipales(acc: AccionesPortada) {
 /* ---------- Tarjetas ---------- */
 
 private class Mosaico(val tipo: String, val titulo: String, val sub: String, val pista: Track?, val icono: ImageVector, val valor: String = "")
+
+/** Artistas más vistos: los que más abres y más escuchas, con su foto (como los álbumes, en fila). */
+@Composable
+private fun MasVistos(acc: AccionesPortada) {
+    val lib = RadioApp.biblioteca.pistas
+    if (lib.isEmpty()) return
+    val st = RadioApp.stats
+    val grupos = remember(lib, st.stats.size) {
+        val vistas = visitasArtistas()
+        val escuchas = HashMap<String, Int>(); st.stats.values.forEach { escuchas[normNombre(it.a)] = (escuchas[normNombre(it.a)] ?: 0) + it.c }
+        io.github.arielegno.radio.core.Coleccion.agrupar(lib, "artistas").filter { !it.clave.startsWith(io.github.arielegno.radio.core.Coleccion.SIN_ARTISTA) }
+            .map { g -> g to ((vistas[g.clave] ?: 0) * 3 + (escuchas[normNombre(g.clave)] ?: 0)) }
+            .sortedWith(compareByDescending<Pair<io.github.arielegno.radio.core.Coleccion.Grupo, Int>> { it.second }.thenByDescending { it.first.canciones.size })
+            .take(12).map { it.first }
+    }
+    if (grupos.isEmpty()) return
+    Column(Modifier.padding(bottom = 14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Artistas más vistos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            TextButton(onClick = { acc.abrirArtista("") }) { Text("Ver todos") }
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(grupos, key = { "mv:" + it.clave }) { g -> TarjetaArtista(g, Modifier.width(128.dp)) { acc.abrirArtista(g.clave) } }
+        }
+    }
+}
 
 @Composable
 private fun ParaTi(acc: AccionesPortada) {

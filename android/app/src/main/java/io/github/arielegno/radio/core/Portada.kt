@@ -24,7 +24,7 @@ data class PortadaCfg(
 
     companion object {
         val ARRIBA = listOf("hello" to "Saludo, fecha y clima", "place" to "Cerca de (tu zona)", "disc" to "Carátula grande", "modes" to "Modos de Luna")
-        val TARJETAS = listOf("foryou" to "Para ti", "day" to "Hoy en la música y concierto del día", "week" to "Tu mes en la radio", "club" to "Club de escucha")
+        val TARJETAS = listOf("artists" to "Artistas más vistos", "foryou" to "Para ti", "day" to "Hoy en la música y concierto del día", "week" to "Tu mes en la radio", "club" to "Club de escucha")
 
         fun fromJson(t: String?): PortadaCfg {
             val o = Json.obj(t); val ids = TARJETAS.map { it.first }
@@ -97,10 +97,10 @@ object Clima {
     }
 
     /** Nombre de la zona a partir de Nominatim. */
+    /** Solo la ciudad o el pueblo (nunca la colonia o el barrio: no hace falta tanta precisión). */
     fun zonaNominatim(json: String): String {
         val a = Json.obj(json).map("address")
-        val lugar = listOf("neighbourhood", "suburb", "village", "town", "city", "municipality", "county").map { a.str(it) }.firstOrNull { it.isNotBlank() } ?: ""
-        val ciudad = listOf("city", "town", "municipality", "state").map { a.str(it) }.firstOrNull { it.isNotBlank() && it != lugar } ?: ""
-        return listOf(lugar, ciudad).filter { it.isNotBlank() }.joinToString(", ")
+        val ciudad = listOf("city", "town", "village", "municipality", "county").map { a.str(it) }.firstOrNull { it.isNotBlank() } ?: ""
+        return ciudad.ifEmpty { a.str("state") }
     }
 }

@@ -16,6 +16,10 @@ data class SpotifyAhora(
 
 object SpotifyDatos {
     const val REDIRECT = "radioderuta://spotify"
+    /** Alternativa: la página web reenvía a la app (sirve si ya registraste la web en Spotify). */
+    const val REDIRECT_WEB = "https://arielegno.github.io/Radio/"
+    const val REDIRECT_WEB2 = "https://arielegno.github.io/Radio/index.html"
+    val REDIRECCIONES = listOf(REDIRECT_WEB, REDIRECT_WEB2, REDIRECT)
     const val PERMISOS = "user-read-playback-state user-modify-playback-state user-read-currently-playing"
 
     private const val LETRAS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
@@ -25,12 +29,12 @@ object SpotifyDatos {
 
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 
-    fun urlEntrar(clientId: String, verificador: String, estado: String): String =
+    fun urlEntrar(clientId: String, verificador: String, estado: String, redirect: String = REDIRECT): String =
         "https://accounts.spotify.com/authorize?response_type=code&client_id=${enc(clientId)}&scope=${enc(PERMISOS)}" +
-            "&redirect_uri=${enc(REDIRECT)}&code_challenge_method=S256&code_challenge=${reto(verificador)}&state=${enc(estado)}"
+            "&redirect_uri=${enc(redirect)}&code_challenge_method=S256&code_challenge=${reto(verificador)}&state=${enc(estado)}"
 
-    fun cuerpoCanje(clientId: String, code: String, verificador: String) =
-        "grant_type=authorization_code&code=${enc(code)}&redirect_uri=${enc(REDIRECT)}&client_id=${enc(clientId)}&code_verifier=${enc(verificador)}"
+    fun cuerpoCanje(clientId: String, code: String, verificador: String, redirect: String = REDIRECT) =
+        "grant_type=authorization_code&code=${enc(code)}&redirect_uri=${enc(redirect)}&client_id=${enc(clientId)}&code_verifier=${enc(verificador)}"
 
     fun cuerpoRenovar(clientId: String, refresh: String) = "grant_type=refresh_token&refresh_token=${enc(refresh)}&client_id=${enc(clientId)}"
 

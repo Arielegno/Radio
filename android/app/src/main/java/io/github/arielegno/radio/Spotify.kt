@@ -25,12 +25,17 @@ object Spotify {
 
     val clientId: String get() = p.str("spClientId", "").trim()
 
+    /** Dirección de regreso elegida en Ajustes (por defecto, la de la web, que reenvía a la app). */
+    fun redireccion(): String = p.str("spRedir", SpotifyDatos.REDIRECT_WEB).takeIf { it in SpotifyDatos.REDIRECCIONES } ?: SpotifyDatos.REDIRECT_WEB
+
     /** Abre el navegador para entrar a Spotify. */
     fun entrar(ctx: Context): Boolean {
         if (clientId.isEmpty()) { aviso = "Pega primero tu Client ID de Spotify."; return false }
-        val v = SpotifyDatos.verificador(); val estado = SpotifyDatos.verificador().take(16)
-        p.set("spVerif", v); p.set("spEstado", estado)
-        return try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(SpotifyDatos.urlEntrar(clientId, v, estado))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }
+        val v = SpotifyDatos.verificador(); val estado = "rrapp" + SpotifyDatos.verificador().take(16)
+        val red = redireccion()
+        p.set("spVerif", v); p.set("spEstado", estado); p.set("spRedirUsada", red)
+        aviso = ""
+        return try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(SpotifyDatos.urlEntrar(clientId, v, estado, red))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }
         catch (e: Exception) { aviso = "No encontré un navegador para entrar a Spotify."; false }
     }
 
@@ -38,10 +43,11 @@ object Spotify {
     suspend fun alVolver(uri: Uri) {
         val error = uri.getQueryParameter("error")
         if (error != null) { aviso = if (error == "access_denied") "Cancelaste la conexión con Spotify." else "Spotify respondió: $error"; return }
+        if (p.str("spVerif", "").isEmpty()) return
         val code = uri.getQueryParameter("code") ?: return
         if (uri.getQueryParameter("state") != p.str("spEstado", "")) { aviso = "La conexión con Spotify no coincide. Inténtalo otra vez."; return }
-        val (c, t) = Red.crudo("POST", "https://accounts.spotify.com/api/token", SpotifyDatos.cuerpoCanje(clientId, code, p.str("spVerif", "")), tipo = "application/x-www-form-urlencoded")
-        if (c !in 200..299) { aviso = "Spotify no aceptó la conexión ($c). Revisa que agregaste radioderuta://spotify en Redirect URIs."; return }
+        val (c, t) = Red.crudo("POST", "https://accounts.spotify.com/api/token", SpotifyDatos.cuerpoCanje(clientId, code, p.str("spVerif", ""), p.str("spRedirUsada", SpotifyDatos.REDIRECT).takeIf { it in SpotifyDatos.REDIRECCIONES } ?: SpotifyDatos.REDIRECT), tipo = "application/x-www-form-urlencoded")
+        if (c !in 200..299) { aviso = "Spotify no aceptó la conexión ($c). Revisa que en Redirect URIs esté exactamente: ${p.str("spRedirUsada", SpotifyDatos.REDIRECT)}"; return }
         guardar(t); p.remove("spVerif"); p.remove("spEstado")
         aviso = "Spotify conectado."
     }

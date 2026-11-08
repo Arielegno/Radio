@@ -116,10 +116,18 @@ private data class Carpeta(val vista: String, val clave: String, val artista: St
 
 private fun mb(b: Long): String = when { b >= 1_000_000_000 -> String.format("%.1f GB", b / 1e9); b >= 1_000_000 -> "${b / 1_000_000} MB"; else -> "${b / 1000} KB" }
 
+/** Cuántas veces abriste la página de cada artista (para «Artistas más vistos»). */
+fun visitasArtistas(): Map<String, Int> = Json.obj(RadioApp.prefs.str("artVistos", "")).mapValues { (it.value as? Number)?.toInt() ?: 0 }
+private fun contarVisita(nombre: String) {
+    val m = visitasArtistas().toMutableMap(); m[nombre] = (m[nombre] ?: 0) + 1
+    val top = m.entries.sortedByDescending { it.value }.take(60).associate { it.key to it.value }
+    RadioApp.prefs.set("artVistos", Json.write(top))
+}
+
 private fun favArtistas(): MutableMap<String, Any?> = Json.obj(RadioApp.prefs.str("fav_artists", "")).toMutableMap()
 
 @Composable
-fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}, abrirRevista: (String) -> Unit = {}) {
+fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}, abrirRevista: (String) -> Unit = {}, artistaPedido: String = "", alAbrirArtista: () -> Unit = {}) {
     val b = RadioApp.biblioteca; val r = RadioApp.radio; val p = RadioApp.prefs
     val scope = rememberCoroutineScope()
     var aviso by remember { mutableStateOf("") }
@@ -128,6 +136,7 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
     var orden by rememberSaveable { mutableStateOf(p.str("libOrden", "original")) }
     var filtros by remember { mutableStateOf(Coleccion.Filtros()) }
     var carpeta by remember { mutableStateOf<Carpeta?>(null) }
+    LaunchedEffect(artistaPedido) { if (artistaPedido.isNotEmpty()) { carpeta = Carpeta("artistas", artistaPedido); alAbrirArtista() } }
     var agregar by remember { mutableStateOf(false) }
     var verFiltros by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
@@ -456,28 +465,47 @@ private fun DetalleCarpeta(c: Carpeta, filtradas: List<Track>, acc: AccionesCanc
 @Composable
 private fun CabeceraAlbum(album: String, canciones: List<Track>, portada: Track?) {
     val g = Coleccion.Grupo(album, canciones)
+    val scope = rememberCoroutineScope()
+    var aviso by remember { mutableStateOf("") }
+    val galeria = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
+        if (uri != null) scope.launchSafe {
+            aviso = "Cambiando la portada…"
+            var ok = 0; canciones.forEach { if (RadioApp.biblioteca.cambiarCaratula(it, uri)) ok++ }
+            aviso = if (ok > 0) "Portada cambiada en $ok ${if (ok == 1) "canción" else "canciones"}." else "No se pudo leer esa imagen."
+        }
+    }
+    val elegir = { galeria.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
-        Box(Modifier.size(130.dp)) { CaratulaLlena(portada, album, Icons.Filled.MusicNote, RoundedCornerShape(16.dp)) }
+        Box(Modifier.size(130.dp).clip(RoundedCornerShape(16.dp)).clickable { elegir() }) {
+            CaratulaLlena(portada, album, Icons.Filled.MusicNote, RoundedCornerShape(16.dp))
+            Box(Modifier.align(Alignment.BottomEnd).padding(6.dp).size(34.dp).clip(CircleShape).background(Color(0x99000000)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Edit, "Cambiar portada del álbum", tint = Color.White, modifier = Modifier.size(18.dp))
+            }
+        }
         Spacer(Modifier.width(16.dp))
         Column {
             Text(album, style = MaterialTheme.typography.headlineSmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
             Text(listOf(g.artistaPrincipal, if (g.anio > 0) g.anio.toString() else "").filter { it.isNotBlank() }.joinToString(" · "), color = Amarillo, modifier = Modifier.padding(top = 4.dp))
             val min = canciones.sumOf { it.durMs } / 60_000
             Text("${canciones.size} ${if (canciones.size == 1) "canción" else "canciones"}" + if (min > 0) " · $min min" else "", color = LocalExtra.current.tenue)
+            TextButton(onClick = elegir, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                Icon(Icons.Filled.Image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Cambiar portada")
+            }
         }
     }
+    if (aviso.isNotEmpty()) Text(aviso, color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall)
 }
 
 /** Tarjeta grande de artista con su foto (como en la web). */
 @Composable
-private fun TarjetaArtista(g: Coleccion.Grupo, modifier: Modifier, abrir: () -> Unit) {
+fun TarjetaArtista(g: Coleccion.Grupo, modifier: Modifier, abrir: () -> Unit) {
     val foto by produceState<java.io.File?>(null, g.clave) { value = try { FichasRed.fotoArtista(g.clave) } catch (e: Exception) { null } }
     val imgFoto = cargarImagen(foto, 500)
     val imgPortada = cargarImagen(g.portada?.let { RadioApp.biblioteca.caratula(it) }, 400)
     val img = imgFoto ?: imgPortada
     val n = g.canciones.size
     Box(modifier.aspectRatio(0.68f).clip(RoundedCornerShape(18.dp)).clickable(onClick = abrir)) {
-        if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        if (img != null) Image(img, null, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, modifier = Modifier.fillMaxSize())
         else Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF2A2E36), Color(0xFF15171B)))), contentAlignment = Alignment.Center) {
             Icon(Icons.Filled.MusicNote, null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(48.dp))
         }
@@ -548,8 +576,8 @@ private fun FichaPantalla(f: FichaAbierta, abrirRevista: (String) -> Unit, cerra
     }
     Dialog(onDismissRequest = cerrar, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState())) {
-            Box(Modifier.fillMaxWidth().height(320.dp)) {
-                if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
+                if (img != null) Image(img, null, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, modifier = Modifier.fillMaxSize())
                 else Relleno(f.nombre, if (f.tipo == "miembro") Icons.Filled.Person else Icons.Filled.MusicNote, Modifier.fillMaxSize(), RoundedCornerShape(0.dp))
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to MaterialTheme.colorScheme.background)))
                 Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -621,6 +649,9 @@ private fun CabeceraArtista(nombre: String, canciones: List<Track>, abrir: (Carp
     LaunchedEffect(doc) { if (doc != null) cargado = true }
     LaunchedEffect(nombre, version) { kotlinx.coroutines.delay(12_000); cargado = true }
     val conciertos by produceState<List<Concierto>>(emptyList(), nombre) { value = try { Revista.conciertosDe(nombre) } catch (e: Exception) { emptyList() } }
+    val perfil by produceState<Revista.PerfilArtista?>(null, nombre) { value = try { Revista.perfilArtista(nombre) } catch (e: Exception) { null } }
+    val posters by produceState<List<Revista.PosterMini>>(emptyList(), nombre) { value = try { Revista.postersDe(nombre) } catch (e: Exception) { emptyList() } }
+    LaunchedEffect(nombre) { contarVisita(nombre) }
     val foto by produceState<java.io.File?>(null, nombre, version) { value = try { FichasRed.fotoArtista(nombre) } catch (e: Exception) { null } }
     val portada = canciones.firstOrNull { it.cover.isNotEmpty() }
     val img = cargarImagen(foto, 900) ?: cargarImagen(portada?.let { RadioApp.biblioteca.caratula(it) }, 600)
@@ -632,8 +663,8 @@ private fun CabeceraArtista(nombre: String, canciones: List<Track>, abrir: (Carp
     val generos = (generosLocales + (doc?.generos ?: emptyList())).distinctBy { normNombre(it) }.take(4)
     Column(Modifier.fillMaxWidth()) {
 
-    Box(Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(24.dp))) {
-        if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+    Box(Modifier.fillMaxWidth().aspectRatio(0.92f).clip(RoundedCornerShape(24.dp))) {
+        if (img != null) Image(img, null, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, modifier = Modifier.fillMaxSize())
         else Relleno(nombre, Icons.Filled.Person, Modifier.fillMaxSize(), RoundedCornerShape(24.dp))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.25f to Color.Transparent, 1f to Color(0xE60B0C0F))))
         Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
@@ -657,6 +688,32 @@ private fun CabeceraArtista(nombre: String, canciones: List<Track>, abrir: (Carp
             }
             if (generos.isNotEmpty()) Row(Modifier.padding(top = 10.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 generos.forEach { gn -> Text(gn, color = Color.White, modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0x55FFFFFF)).padding(horizontal = 12.dp, vertical = 6.dp)) }
+            }
+        }
+    }
+
+    val abrirUrl = { u: String -> try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(u))) } catch (e: Exception) {} }
+    val enlaces = perfil?.enlaces?.takeIf { it.isNotEmpty() } ?: run {
+        val q = java.net.URLEncoder.encode(nombre, "UTF-8")
+        listOf("Spotify" to "https://open.spotify.com/search/$q", "YouTube" to "https://www.youtube.com/results?search_query=$q")
+    }
+    Row(Modifier.padding(top = 12.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        enlaces.forEach { (n, u) -> OutlinedButton(onClick = { abrirUrl(u) }) { Text("$n ↗") } }
+        perfil?.let { pf -> FilledTonalButton(onClick = { abrirRevista("#rva=${pf.id}") }) { Text("Perfil en la Revista") } }
+    }
+    if (posters.isNotEmpty()) {
+        Seccion("Pósters")
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(posters, key = { "ps:" + it.id }) { ps ->
+                Column(Modifier.width(120.dp).clip(RoundedCornerShape(12.dp)).clickable { abrirRevista("#rvp=${ps.id}") }) {
+                    val im = cargarImagenUrl(ps.imagen)
+                    Box(Modifier.fillMaxWidth().aspectRatio(0.7f)) {
+                        if (im != null) Image(im, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp)))
+                        else Relleno(ps.titulo, Icons.Filled.Image, Modifier.fillMaxSize(), RoundedCornerShape(10.dp))
+                    }
+                    Text(ps.titulo, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                    if (ps.anio > 0) Text(ps.anio.toString(), fontSize = 12.sp, color = LocalExtra.current.tenue)
+                }
             }
         }
     }

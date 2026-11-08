@@ -96,6 +96,8 @@ private val CAPA_APP = """
       '.rv-pview img{max-height:' + Math.round(h * .78) + 'px!important;min-height:120px}.rv-lb img{max-height:' + Math.round(h * .92) + 'px!important}' +
       '.rv-map{height:' + Math.round(h * .6) + 'px!important}body{min-height:' + h + 'px!important}'; };
   medir(); window.addEventListener('resize', medir); setTimeout(medir, 400); setTimeout(medir, 1500);
+  // Personalización: el color de acento de la app también en la Revista
+  try { if (window.__rrAcento) document.documentElement.style.setProperty('--line', window.__rrAcento); } catch(e) {}
   if (window.__rrApp) return; window.__rrApp = 1;
   // Voz de la app para «Escuchar artículo»
   var cb = {}, n = 0;
@@ -120,6 +122,14 @@ private val CAPA_APP = """
 })();
 """.trimIndent()
 
+/** Ajustes de la app que la Revista también respeta (color de acento y tamaño de letra). */
+private fun capaConAjustes(web: WebView): String {
+    val p = RadioApp.prefs
+    val hex = p.str("acentoColor", "#f2c230").lowercase().takeIf { Regex("^#[0-9a-f]{6}$").matches(it) } ?: "#f2c230"
+    web.settings.textZoom = (p.int("letra", 17) * 100 / 17).coerceIn(85, 145)
+    return "window.__rrAcento='$hex';" + CAPA_APP
+}
+
 /** Una sola vista web para la Revista, que se conserva al cambiar de pestaña. */
 class VistaRevista(ctx: Context, irRadio: () -> Unit) {
     var elegirArchivos: ((ValueCallback<Array<Uri>>, WebChromeClient.FileChooserParams) -> Boolean)? = null
@@ -142,7 +152,7 @@ class VistaRevista(ctx: Context, irRadio: () -> Unit) {
                 return try { view.context.startActivity(Intent(Intent.ACTION_VIEW, u).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (e: Exception) { false }
             }
             override fun onPageFinished(view: WebView, url: String?) {
-                if (url != null && Uri.parse(url).host == "arielegno.github.io") view.evaluateJavascript(CAPA_APP, null)
+                if (url != null && Uri.parse(url).host == "arielegno.github.io") view.evaluateJavascript(capaConAjustes(view), null)
             }
         }
         webChromeClient = object : WebChromeClient() {
@@ -161,7 +171,7 @@ class VistaRevista(ctx: Context, irRadio: () -> Unit) {
     }
 
     /** Al volver a la pestaña: vuelve a aplicar la capa (por si la biblioteca cambió). */
-    fun refrescar() { if (cargada) web.evaluateJavascript("window.__rrApp=0;" + CAPA_APP, null) }
+    fun refrescar() { if (cargada) web.evaluateJavascript("window.__rrApp=0;" + capaConAjustes(web), null) }
 }
 
 @Composable

@@ -156,15 +156,15 @@ class CoreTest {
 
     @Test fun portada_configurable() {
         var c = PortadaCfg.fromJson(null)
-        assertEquals(listOf("foryou", "day", "week", "club"), c.orden)
+        assertEquals(listOf("artists", "foryou", "day", "week", "club"), c.orden)
         c = c.mover("week", -1).mover("week", -1).alternar("place", false).copy(disco = "cuadrada", tinte = false)
-        assertEquals(listOf("week", "foryou", "day", "club"), c.orden)
+        assertEquals(listOf("artists", "week", "foryou", "day", "club"), c.orden)
         val c2 = PortadaCfg.fromJson(c.toJson())
         assertEquals(c, c2); assertFalse(c2.visible("place"))
         // Compatible con lo que guarda la web
         val w = PortadaCfg.fromJson("""{"off":["modes"],"order":["club","raro"],"disc":"square","tint":false}""")
-        assertEquals(listOf("club", "foryou", "day", "week"), w.orden); assertEquals("cuadrada", w.disco); assertFalse(w.visible("modes"))
-        assertEquals(c, c.mover("week", -1))
+        assertEquals(listOf("club", "artists", "foryou", "day", "week"), w.orden); assertEquals("cuadrada", w.disco); assertFalse(w.visible("modes"))
+        assertEquals(c, c.mover("artists", -1))
     }
 
     @Test fun concierto_del_dia_y_clima() {
@@ -180,7 +180,8 @@ class CoreTest {
         assertEquals("", a.copy(portada = "https://evil.com/x.jpg", proveedor = "vimeo").miniatura())
         assertEquals("24°, nublado", Clima.deOpenMeteo("""{"current":{"temperature_2m":23.6,"weather_code":3}}""", false))
         assertNull(Clima.deOpenMeteo("{}", false))
-        assertEquals("Barrio Alto, Ciudad Centro", Clima.zonaNominatim("""{"address":{"neighbourhood":"Barrio Alto","city":"Ciudad Centro","state":"Provincia"}}"""))
+        assertEquals("Ciudad Centro", Clima.zonaNominatim("""{"address":{"neighbourhood":"Barrio Alto","city":"Ciudad Centro","state":"Provincia"}}"""))
+        assertEquals("Provincia", Clima.zonaNominatim("""{"address":{"suburb":"X","state":"Provincia"}}"""))
         assertEquals("Hoy cumple años mi papá", Efemerides.propias("11-08: Hoy cumple años mi papá\n12-25: Navidad", hoy))
         val w = Efemerides.deWikipedia("""{"events":[{"year":1990,"text":"Soda Stereo lanza el álbum Canción Animal"},{"year":1900,"text":"Se funda una ciudad"}]}""")
         assertEquals(listOf("1990" to "Soda Stereo lanza el álbum Canción Animal"), w)

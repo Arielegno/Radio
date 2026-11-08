@@ -72,7 +72,7 @@ class Entorno(private val ctx: Context) {
     private suspend fun actualizarZona(la: Double, lo: Double) {
         if (!Red.hayInternet(ctx)) return
         try {
-            val j = Red.get(String.format(Locale.ROOT, "https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&addressdetails=1&accept-language=es&lat=%.4f&lon=%.4f", la, lo) +
+            val j = Red.get(String.format(Locale.ROOT, "https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&addressdetails=1&accept-language=es&lat=%.2f&lon=%.2f", la, lo) +
                 (RadioApp.prefs.str("nomEmail", "").trim().takeIf { Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$").matches(it) }?.let { "&email=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: ""))
             val z = Clima.zonaNominatim(j)
             if (z.isNotEmpty()) { zona = z; zonaPos = la to lo }

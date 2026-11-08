@@ -43,10 +43,22 @@ jobs:
           gradle-version: '8.11.1'
 
       - name: Pruebas de la lógica
-        run: gradle --no-daemon --stacktrace testDebugUnitTest
+        run: set -o pipefail; gradle --no-daemon testDebugUnitTest 2>&1 | tee ../registro.txt
 
       - name: Compilar el APK
-        run: gradle --no-daemon --stacktrace assembleRelease
+        run: set -o pipefail; gradle --no-daemon assembleRelease 2>&1 | tee -a ../registro.txt
+
+      # Si algo falla, el registro queda público en Releases (para poder corregirlo).
+      - name: Publicar el registro de errores
+        if: failure()
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          grep -E "^e: |^w: .*error|What went wrong|FAILED|> " registro.txt | head -80 | while IFS= read -r l; do echo "::error::$l"; done || true
+          gh release view android-registro --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create android-registro --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "Registro de compilación" --notes "Registro de la última compilación fallida."
+          gh release upload android-registro registro.txt --repo "$GITHUB_REPOSITORY" --clobber
 
       - name: Preparar el APK
         run: cp app/build/outputs/apk/release/app-release.apk radio-de-ruta.apk

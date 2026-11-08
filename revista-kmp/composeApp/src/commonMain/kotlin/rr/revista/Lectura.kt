@@ -66,6 +66,8 @@ private class Look(a: Articulo) {
     val titulo: Color = cols.first?.let(::col) ?: t.titulo?.let(::col) ?: col(t.texto)
     val texto: Color = cols.second?.let(::col) ?: col(t.texto)
     val tenue: Color = if (cols.first != null) titulo.copy(alpha = .75f) else col(t.tenue)
+    /** Para nombres y secciones: si el título lleva contorno (Tokio, Y2K, Tabloide), se usa el color del texto para que se lea. */
+    val encabezado: Color = if (cols.first == null && t.contorno != null) col(t.texto) else titulo
     val letraTitulo: FontFamily = Fuentes.diseno(d.hf) ?: Fuentes.titulo(e.ft)
     val letraTexto: FontFamily = Fuentes.diseno(d.tf) ?: Fuentes.de("barlow")
     val tamTitulo: TextUnit = if (d.ts > 0) d.ts.sp else if (e.sz == "g") 42.sp else 32.sp
@@ -141,7 +143,7 @@ private fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Uni
                     }
                     Spacer(Modifier.width(10.dp))
                     Column {
-                        Text(a.autor.nombre, color = L.titulo, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(a.autor.nombre, color = L.encabezado, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text("${Fechas.corta(a.fecha)} · ${Formato.minutos(a.texto)} min de lectura", color = L.tenue, fontSize = 13.sp)
                     }
                 }
@@ -185,7 +187,7 @@ private fun Pastilla(icono: String, texto: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun Seccion(t: String, L: Look) = Text(t, color = L.titulo, fontFamily = Fuentes.de("condensada"), fontWeight = FontWeight.Bold, fontSize = 22.sp, modifier = Modifier.padding(top = 22.dp, bottom = 8.dp))
+private fun Seccion(t: String, L: Look) = Text(t, color = L.encabezado, fontFamily = Fuentes.de("condensada"), fontWeight = FontWeight.Bold, fontSize = 22.sp, modifier = Modifier.padding(top = 22.dp, bottom = 8.dp))
 
 /** Título con los efectos de cada estética: contorno, sombra dura, minúsculas o mayúsculas. */
 @Composable

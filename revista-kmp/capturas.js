@@ -2,7 +2,7 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 const SB = 'https://qfgncdzpcssiirxijdgj.supabase.co', KEY = 'sb_publishable_VWLMFbw4lhkV6lW4-DQ2FA_x6E9lVLT';
-const q = async p => { try { const r = await fetch(SB + p, { headers: { apikey: KEY } }); return r.ok ? await r.json() : []; } catch { return []; } };
+const q = async p => { try { const r = await fetch(SB + p, { headers: { apikey: KEY } }); const t = await r.text(); if (!r.ok) { console.log('Supabase', r.status, t.slice(0, 300)); return []; } return JSON.parse(t); } catch (e) { console.log('Supabase falló:', e.message); return []; } };
 (async () => {
   fs.mkdirSync('capturas', { recursive: true });
   const ahora = encodeURIComponent(new Date().toISOString());
@@ -14,7 +14,7 @@ const q = async p => { try { const r = await fetch(SB + p, { headers: { apikey: 
   const elegidos = [mag, tema, dz, posts[0]].filter(Boolean).filter((p, i, a) => a.findIndex(x => x.id === p.id) === i).slice(0, 3);
   console.log('Artículos elegidos:', elegidos.map(p => p.id).join(', ') || '(ninguno)');
   const b = await chromium.launch();
-  const ctx = await b.newContext({ viewport: { width: 412, height: 892 }, deviceScaleFactor: 2 });
+  const ctx = await b.newContext({ viewport: { width: 412, height: 892 }, deviceScaleFactor: 2, locale: 'es-419', timezoneId: 'America/Tegucigalpa' });
   const log = [];
   const shot = async (hash, nombre, bajadas = [0]) => {
     const pg = await ctx.newPage();

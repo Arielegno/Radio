@@ -47,6 +47,7 @@ object AjustesWeb {
         texto(o["pitch"]).toDoubleOrNull()?.let { m["tono"] = (it * 100).toInt().coerceIn(60, 150) }
         texto(o["vol"]).toDoubleOrNull()?.let { m["volVoz"] = (it * 100).toInt().coerceIn(10, 100) }
         texto(o["accentColor"]).lowercase().takeIf { it in ACENTOS_COLOR }?.let { m["acentoColor"] = it }
+        texto(o["cloudBaseUrl"]).trim().takeIf { Regex("^https://[a-z0-9.-]+(/[\\w./-]*)?$", RegexOption.IGNORE_CASE).matches(it) }?.let { m["nube"] = it }
         texto(o["source"]).takeIf { it == "spotify" || it == "local" }?.let { m["fuente"] = it }
         return m
     }

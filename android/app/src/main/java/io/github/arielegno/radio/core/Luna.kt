@@ -107,6 +107,14 @@ object Luna {
     fun textoClaude(respuesta: String): String? =
         limpiar(Json.obj(respuesta).list("content").mapNotNull { it.asObj() }.filter { it.str("type") == "text" }.joinToString("") { it.str("text") }).ifBlank { null }
 
+    /** Texto sin limpiar (para respuestas en JSON). */
+    fun crudoGemini(respuesta: String): String? {
+        val cand = Json.obj(respuesta).list("candidates").firstOrNull().asObj() ?: return null
+        return cand.map("content").list("parts").mapNotNull { it.asObj()?.let { p -> if (p.bool("thought")) null else p.str("text") } }.joinToString("").ifBlank { null }
+    }
+    fun crudoClaude(respuesta: String): String? =
+        Json.obj(respuesta).list("content").mapNotNull { it.asObj() }.filter { it.str("type") == "text" }.joinToString("") { it.str("text") }.ifBlank { null }
+
     /** Saca el texto de la respuesta de Gemini; null si no trae texto. */
     fun textoGemini(respuesta: String): String? {
         val o = Json.obj(respuesta)

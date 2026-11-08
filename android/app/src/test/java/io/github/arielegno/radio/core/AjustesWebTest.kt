@@ -21,7 +21,7 @@ class AjustesWebTest {
         assertEquals(95, m["velocidad"]); assertEquals(90, m["tono"]); assertEquals(100, m["volVoz"])
         assertEquals("Ponte cómodo", m["frases_hogar"]); assertEquals("#f2c230", m["acentoColor"]); assertEquals("medium", m["portadas"])
         assertEquals("", m["estilo"]); assertEquals(true, m["memoria"]); assertEquals("gemini-3.5-flash-lite", m["geminiModelSel"])
-        assertFalse(m.containsKey("sbKey")); assertFalse(m.containsKey("cloudBaseUrl"))
+        assertFalse(m.containsKey("sbKey")); assertFalse(m.containsKey("cloudBaseUrl")); assertEquals("https://x.netlify.app/", m["nube"])
         // Valores raros se ignoran
         val raro = AjustesWeb.convertir(Json.obj("""{"host":"Sol","provider":"otro","listeningMode":"fiesta","tEvery":"999","accentColor":"#000000"}"""))!!
         assertEquals("Sol", raro["host"]); assertFalse(raro.containsKey("proveedor")); assertFalse(raro.containsKey("modo")); assertEquals(10, raro["cadaN"]); assertFalse(raro.containsKey("acentoColor"))

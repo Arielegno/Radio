@@ -29,6 +29,15 @@ object Revista {
         return Json.arr(j).mapNotNull { it.asObj()?.let(Concierto::from) }
     }
 
+    /** Conciertos de la Bóveda grabados en un festival. */
+    suspend fun conciertosDeFestival(festival: String, hoy: LocalDate = LocalDate.now()): List<Concierto> {
+        val q = festival.trim().replace(Regex("[*,()%]"), " ").trim(); if (q.length < 3) return emptyList()
+        val t = hoy.toString()
+        val j = leer("/rest/v1/vault?select=id,title,artist,festival,year,provider,video_id,cover,starts_on,ends_on,featured_on,created_at&hidden=eq.false&starts_on=lte.$t&ends_on=gt.$t&festival=ilike.*" +
+            java.net.URLEncoder.encode(q, "UTF-8").replace("+", "%20") + "*&limit=12", 3_600_000L) ?: return emptyList()
+        return Json.arr(j).mapNotNull { it.asObj()?.let(Concierto::from) }
+    }
+
     data class Club(val id: String, val album: String, val artista: String, val anio: Int, val portada: String)
 
     private val cache = HashMap<String, Pair<Long, String>>()

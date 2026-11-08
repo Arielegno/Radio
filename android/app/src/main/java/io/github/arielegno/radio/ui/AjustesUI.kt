@@ -192,7 +192,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     if (i < CATEGORIAS.size - 1) HorizontalDivider(color = LocalExtra.current.borde, modifier = Modifier.padding(start = 58.dp))
                 }
             }
-            Text("Radio de ruta para Android · versión 1.2.1", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
+            Text("Radio de ruta para Android · versión 1.3", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 14.dp).align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(24.dp))
             return@Column
@@ -227,6 +227,10 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     Ayuda("${RadioApp.biblioteca.pistas.size} canciones guardadas en este celular, tal cual el archivo original (sin comprimir).")
                     Boton("Agregar música o restaurar copia", agregarMusica)
                     Interruptor("mezclar", "Orden aleatorio al iniciar la radio", true) { r.ponerMezclar(it) }
+                }
+                Grupo("Tu nube de datos") {
+                    Ayuda("La misma dirección que usas en la web (Netlify, GitHub Pages…). De ahí salen las fichas de artistas (artistas/<nombre>.json) y festivales (festivales/<nombre>.json). Si no hay, se usa Wikipedia y la IA.")
+                    CampoTexto("nube", "Dirección de tu nube (https://…)", "")
                 }
                 Grupo("La guía (limpiar y completar)") {
                     Ayuda("Limpia títulos («Video oficial», «VEVO», «Lyrics»…), completa álbum, año y carátula con MusicBrainz e iTunes, y respeta lo que corriges a mano. Se hace sola al agregar canciones.")
@@ -428,7 +432,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                 Ayuda("No manipules la app mientras conduces.")
             }
             else -> Grupo("Radio de ruta para Android") {
-                Text("Versión 1.2.1 · por Arielegno", fontWeight = FontWeight.SemiBold)
+                Text("Versión 1.3 · por Arielegno", fontWeight = FontWeight.SemiBold)
                 Ayuda("No manipules la app mientras conduces: configúrala antes de arrancar.")
                 TextButton(onClick = { abrir(ctx, "https://arielegno.github.io/Radio/legal.html") }) { Text("Aviso legal y privacidad") }
                 Ayuda("Usa Media3 (Apache 2.0), Jetpack Compose (Apache 2.0), Leaflet (BSD-2) y datos de OpenStreetMap (ODbL), Open-Meteo, Wikipedia (CC BY-SA), MusicBrainz (CC0), iTunes Search, Spotify, Google Gemini y Anthropic Claude.")

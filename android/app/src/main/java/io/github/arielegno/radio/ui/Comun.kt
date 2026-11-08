@@ -64,7 +64,8 @@ object Imagenes {
         Regex("^https://[a-z0-9-]+\\.supabase\\.co/storage/v1/object/public/revista/[\\w/.-]+$", RegexOption.IGNORE_CASE), Regex("^https://upload\\.wikimedia\\.org/\\S+$"), Regex("^https://(i|mosaic|image-cdn-[a-z0-9-]+)\\.(scdn\\.co|spotifycdn\\.com)/\\S+$"))
 
     fun deInternet(url: String): Bitmap? {
-        if (permitidas.none { it.matches(url) }) return null
+        val nube = io.github.arielegno.radio.FichasRed.nubeBase()
+        if (permitidas.none { it.matches(url) } && !(nube.isNotEmpty() && url.startsWith(nube))) return null
         cache.get(url)?.let { return it }
         return try {
             val c = URL(url).openConnection() as HttpURLConnection

@@ -29,6 +29,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import io.github.arielegno.radio.core.Fichas
+import io.github.arielegno.radio.FichasRed
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
@@ -272,6 +278,16 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
                     }
                 }
             }
+            "artistas" -> {
+                val grupos = Coleccion.agrupar(filtradas, "artistas")
+                if (grupos.isEmpty()) item { Text("No hay resultados.", color = LocalExtra.current.tenue, modifier = Modifier.padding(16.dp)) }
+                items(grupos.chunked(3), key = { "art:" + it.first().clave }) { fila ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        fila.forEach { g -> TarjetaArtista(g, Modifier.weight(1f)) { carpeta = Carpeta("artistas", g.clave) } }
+                        repeat(3 - fila.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
             else -> {
                 val grupos = Coleccion.agrupar(filtradas, vista)
                 if (grupos.isEmpty()) item { Text("No hay resultados.", color = LocalExtra.current.tenue, modifier = Modifier.padding(16.dp)) }
@@ -452,50 +468,207 @@ private fun CabeceraAlbum(album: String, canciones: List<Track>, portada: Track?
     }
 }
 
+/** Tarjeta grande de artista con su foto (como en la web). */
 @Composable
-private fun CabeceraArtista(nombre: String, canciones: List<Track>, abrir: (Carpeta) -> Unit, abrirRevista: (String) -> Unit) {
-    val p = RadioApp.prefs
-    var fav by remember(nombre) { mutableStateOf(favArtistas()[nombre] == true) }
-    val ficha by produceState<Bio.Ficha?>(null, nombre) { value = Guia.bio(nombre) }
-    val conciertos by produceState<List<Concierto>>(emptyList(), nombre) { value = try { Revista.conciertosDe(nombre) } catch (e: Exception) { emptyList() } }
-    val fotoWeb = cargarImagenUrl(ficha?.foto ?: "")
-    val portada = canciones.firstOrNull { it.cover.isNotEmpty() }
-    val fotoLocal = cargarImagen(portada?.let { RadioApp.biblioteca.caratula(it) }, 600)
-    val foto = fotoWeb ?: fotoLocal
-    Box(Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(24.dp))) {
-        if (foto != null) Image(foto, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        else Relleno(nombre, Icons.Filled.Person, Modifier.fillMaxSize(), RoundedCornerShape(24.dp))
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC0B0C0F)))))
-        Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
-            Text(nombre, color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, lineHeight = 36.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            val albumes = canciones.map { it.album }.filter { it.isNotBlank() }.distinct()
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${canciones.size} canciones" + if (albumes.isNotEmpty()) " · ${albumes.size} ${if (albumes.size == 1) "álbum" else "álbumes"}" else "",
-                    color = Color.White.copy(alpha = 0.85f), modifier = Modifier.weight(1f))
-                IconButton(onClick = {
-                    val m = favArtistas(); if (fav) m.remove(nombre) else m[nombre] = true
-                    p.set("fav_artists", Json.write(m)); fav = !fav
-                }, modifier = Modifier.clip(CircleShape).background(Color(0x33FFFFFF))) {
-                    Icon(if (fav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, if (fav) "Quitar de artistas favoritos" else "Artista favorito", tint = if (fav) Rosa else Color.White)
+private fun TarjetaArtista(g: Coleccion.Grupo, modifier: Modifier, abrir: () -> Unit) {
+    val foto by produceState<java.io.File?>(null, g.clave) { value = try { FichasRed.fotoArtista(g.clave) } catch (e: Exception) { null } }
+    val imgFoto = cargarImagen(foto, 500)
+    val imgPortada = cargarImagen(g.portada?.let { RadioApp.biblioteca.caratula(it) }, 400)
+    val img = imgFoto ?: imgPortada
+    val n = g.canciones.size
+    Box(modifier.aspectRatio(0.68f).clip(RoundedCornerShape(18.dp)).clickable(onClick = abrir)) {
+        if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        else Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF2A2E36), Color(0xFF15171B)))), contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.MusicNote, null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(48.dp))
+        }
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xE6000000))))
+        Column(Modifier.align(Alignment.BottomStart).padding(10.dp)) {
+            Text(g.clave, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, lineHeight = 19.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Text("$n ${if (n == 1) "canción" else "canciones"}", color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun Pildoras(items: List<String>, alTocar: ((Int) -> Unit)? = null) {
+    if (items.isEmpty()) return
+    Row(Modifier.padding(vertical = 4.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.forEachIndexed { i, t ->
+            val m = Modifier.clip(RoundedCornerShape(999.dp)).background(if (LocalExtra.current.oscuro) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.06f))
+                .then(if (alTocar != null) Modifier.clickable { alTocar(i) } else Modifier).padding(horizontal = 14.dp, vertical = 8.dp)
+            Text(t, modifier = m, fontWeight = if (alTocar != null) FontWeight.SemiBold else FontWeight.Normal, color = if (alTocar != null) Amarillo else Color.Unspecified, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun Seccion(t: String) = Text(t.uppercase(), style = MaterialTheme.typography.labelLarge, color = LocalExtra.current.tenue, letterSpacing = 1.5.sp,
+    modifier = Modifier.padding(top = 18.dp, bottom = 4.dp))
+
+@Composable
+private fun Fuente(f: String, url: String = "") {
+    val t = when (f) { "nube" -> "Fuente: tu nube."; "wiki" -> "Fuente: Wikipedia (CC BY-SA)."; "ia" -> "Escrito con inteligencia artificial: puede tener errores."; "tuya" -> "Biografía escrita por ti."; else -> "" }
+    if (t.isEmpty()) return
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
+        Text(t, style = MaterialTheme.typography.bodySmall, color = LocalExtra.current.tenue)
+        if (url.isNotEmpty()) TextButton(onClick = { try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url))) } catch (e: Exception) {} }) { Text("ver artículo", fontSize = 12.sp) }
+    }
+}
+
+/** Ficha de integrante o festival (pantalla completa, con foto arriba). */
+private data class FichaAbierta(val tipo: String, val nombre: String, val banda: String, val obj: Map<String, Any?> = emptyMap(), val id: String = "", val dato: String = "")
+
+@Composable
+private fun FichaPantalla(f: FichaAbierta, abrirRevista: (String) -> Unit, cerrar: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var version by remember { mutableStateOf(0) }
+    val claveFoto = if (f.tipo == "miembro") f.banda + "-" + f.nombre else Fichas.festivalLimpio(f.nombre)
+    val miembro by produceState<Fichas.Miembro?>(null, f) { if (f.tipo == "miembro") value = FichasRed.miembro(f.nombre, f.banda, f.obj) }
+    val fest by produceState<Fichas.FichaFestival?>(null, f) { if (f.tipo == "festival") value = FichasRed.festival(f.nombre, f.id) }
+    val conciertos by produceState<List<Concierto>>(emptyList(), f) { if (f.tipo == "festival") value = try { Revista.conciertosDeFestival(Fichas.festivalLimpio(f.nombre)) } catch (e: Exception) { emptyList() } }
+    val propia = remember(version) { FichasRed.fotoPropia(f.tipo, claveFoto).takeIf { it.exists() } }
+    val imgPropia = cargarImagen(propia, 900)
+    val urlWeb = miembro?.imagen ?: fest?.imagen ?: ""
+    val imgWeb = cargarImagenUrl(if (propia == null) urlWeb else "")
+    val img = imgPropia ?: imgWeb
+    val galeria = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
+        if (uri != null) scope.launchSafe { if (FichasRed.guardarFotoPropia(f.tipo, claveFoto, uri)) version++ }
+    }
+    val descargar = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { uri: Uri? ->
+        if (uri != null) scope.launchSafe {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val bytes = propia?.readBytes() ?: urlWeb.takeIf { it.isNotEmpty() }?.let { u ->
+                    val tmp = java.io.File(ctx.cacheDir, "ficha.jpg"); if (FichasRed.bajar(u, tmp)) tmp.readBytes() else null
                 }
+                if (bytes != null) ctx.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
             }
         }
     }
-    ficha?.let { f ->
-        Tarjeta(Modifier.padding(top = 12.dp)) {
-            Etiqueta("Historia")
-            Text(f.texto, modifier = Modifier.padding(top = 6.dp), lineHeight = 22.sp)
-            Text("Fuente: Wikipedia (CC BY-SA)", style = MaterialTheme.typography.bodySmall, color = LocalExtra.current.tenue, modifier = Modifier.padding(top = 8.dp))
+    Dialog(onDismissRequest = cerrar, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState())) {
+            Box(Modifier.fillMaxWidth().height(320.dp)) {
+                if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                else Relleno(f.nombre, if (f.tipo == "miembro") Icons.Filled.Person else Icons.Filled.MusicNote, Modifier.fillMaxSize(), RoundedCornerShape(0.dp))
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to MaterialTheme.colorScheme.background)))
+                Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BotonRedondo(Icons.Filled.Edit, "Poner tu foto") { galeria.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+                    if (img != null) BotonRedondo(Icons.Filled.Download, "Descargar foto") { descargar.launch(Fichas.slug(f.nombre) + ".jpg") }
+                    Spacer(Modifier.weight(1f))
+                    BotonRedondo(Icons.Filled.Close, "Cerrar", cerrar)
+                }
+                Text(f.nombre, color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, lineHeight = 36.sp,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(16.dp))
+            }
+            Column(Modifier.padding(horizontal = 16.dp)) {
+                if (f.tipo == "miembro") {
+                    val m = miembro
+                    if (m == null) Text("Buscando información…", color = LocalExtra.current.tenue, modifier = Modifier.padding(vertical = 12.dp))
+                    else {
+                        Pildoras(m.pills)
+                        if (m.bio.isNotEmpty()) { Seccion("Biografía"); Text(m.bio, lineHeight = 24.sp) }
+                        else Text("Aún no hay información de este integrante. Puedes escribirla en tu nube o configurar una clave de IA.", color = LocalExtra.current.tenue, modifier = Modifier.padding(vertical = 12.dp))
+                        if (m.proyectos.isNotEmpty()) { Seccion("Otros proyectos"); Pildoras(m.proyectos) }
+                        if (m.curiosidad.isNotEmpty()) { Seccion("Curiosidad"); Text(m.curiosidad, lineHeight = 24.sp) }
+                        Fuente(m.fuente, m.url)
+                    }
+                } else {
+                    val fe = fest
+                    if (fe == null) Text("Buscando información…", color = LocalExtra.current.tenue, modifier = Modifier.padding(vertical = 12.dp))
+                    else {
+                        Pildoras(fe.pills)
+                        if (f.banda.isNotEmpty()) {
+                            Seccion("${f.banda} en este festival")
+                            val anio = Fichas.festivalAnio(f.nombre)
+                            Text(f.dato.ifEmpty { if (anio.isNotEmpty()) "Participó en la edición de $anio." else "Participó en este festival." }, lineHeight = 24.sp)
+                        }
+                        if (fe.historia.isNotEmpty()) { Seccion("Historia"); Text(fe.historia, lineHeight = 24.sp) }
+                        else Text("Aún no hay historia de este festival. Puedes agregarla en tu nube (festivales/) o configurar una clave de IA.", color = LocalExtra.current.tenue, modifier = Modifier.padding(vertical = 12.dp))
+                        if (fe.ediciones.isNotEmpty()) { Seccion("Ediciones relevantes"); fe.ediciones.forEach { Text("• $it", modifier = Modifier.padding(vertical = 3.dp), lineHeight = 22.sp) } }
+                        if (fe.participantes.isNotEmpty()) { Seccion("Quiénes han participado"); Pildoras(fe.participantes) }
+                        if (conciertos.isNotEmpty()) {
+                            Seccion("En la bóveda del tiempo")
+                            conciertos.forEach { v -> TextButton(onClick = { cerrar(); abrirRevista("#rvb=${v.id}") }) { Icon(Icons.Filled.Movie, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(v.titulo) } }
+                        }
+                        Fuente(fe.fuente, fe.url)
+                    }
+                }
+                Spacer(Modifier.height(40.dp))
+            }
         }
     }
+}
+
+@Composable
+private fun BotonRedondo(icono: ImageVector, desc: String, onClick: () -> Unit) {
+    Box(Modifier.size(48.dp).clip(CircleShape).background(Color(0x66000000)).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        Icon(icono, desc, tint = Color.White)
+    }
+}
+
+@Composable
+private fun CabeceraArtista(nombre: String, canciones: List<Track>, abrir: (Carpeta) -> Unit, abrirRevista: (String) -> Unit) {
+    val p = RadioApp.prefs
+    val scope = rememberCoroutineScope()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var fav by remember(nombre) { mutableStateOf(favArtistas()[nombre] == true) }
+    var version by remember { mutableStateOf(0) }
+    var editar by remember { mutableStateOf(false) }
+    var ficha by remember { mutableStateOf<FichaAbierta?>(null) }
+    val doc by produceState<Fichas.Artista?>(null, nombre, version) { value = try { FichasRed.artista(nombre) } catch (e: Exception) { null } }
+    var cargado by remember(nombre, version) { mutableStateOf(false) }
+    LaunchedEffect(doc) { if (doc != null) cargado = true }
+    LaunchedEffect(nombre, version) { kotlinx.coroutines.delay(12_000); cargado = true }
+    val conciertos by produceState<List<Concierto>>(emptyList(), nombre) { value = try { Revista.conciertosDe(nombre) } catch (e: Exception) { emptyList() } }
+    val foto by produceState<java.io.File?>(null, nombre, version) { value = try { FichasRed.fotoArtista(nombre) } catch (e: Exception) { null } }
+    val portada = canciones.firstOrNull { it.cover.isNotEmpty() }
+    val img = cargarImagen(foto, 900) ?: cargarImagen(portada?.let { RadioApp.biblioteca.caratula(it) }, 600)
+    val galeria = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
+        if (uri != null) scope.launchSafe { if (FichasRed.guardarFotoPropia("artista", nombre, uri)) version++ }
+    }
+    val albumes = remember(canciones) { canciones.map { it.album }.filter { it.isNotBlank() }.distinct() }
+    val generosLocales = remember(canciones) { canciones.map { Coleccion.generoPrincipal(it) }.filter { it != Coleccion.OTROS_GENEROS }.distinct() }
+    val generos = (generosLocales + (doc?.generos ?: emptyList())).distinctBy { normNombre(it) }.take(4)
+    Column(Modifier.fillMaxWidth()) {
+
+    Box(Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(24.dp))) {
+        if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        else Relleno(nombre, Icons.Filled.Person, Modifier.fillMaxSize(), RoundedCornerShape(24.dp))
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.25f to Color.Transparent, 1f to Color(0xE60B0C0F))))
+        Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
+            Text(nombre.uppercase(), color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, lineHeight = 36.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+                Text("${canciones.size} ${if (canciones.size == 1) "canción" else "canciones"}" + if (albumes.isNotEmpty()) " · ${albumes.size} ${if (albumes.size == 1) "álbum" else "álbumes"}" else "",
+                    color = Color.White.copy(alpha = 0.85f), modifier = Modifier.weight(1f))
+                BotonRedondo(Icons.Filled.Storefront, "Buscar en Bandcamp") {
+                    val url = doc?.bandcamp?.ifEmpty { null } ?: ("https://bandcamp.com/search?q=" + java.net.URLEncoder.encode(nombre, "UTF-8"))
+                    try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url))) } catch (e: Exception) {}
+                }
+                Spacer(Modifier.width(8.dp))
+                BotonRedondo(Icons.Filled.Edit, "Editar artista") { editar = true }
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.size(48.dp).clip(CircleShape).background(Color(0x66000000)).clickable {
+                    val m = favArtistas(); if (fav) m.remove(nombre) else m[nombre] = true
+                    p.set("fav_artists", Json.write(m)); fav = !fav
+                }, contentAlignment = Alignment.Center) {
+                    Icon(if (fav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, if (fav) "Quitar de artistas favoritos" else "Artista favorito", tint = if (fav) Rosa else Color.White)
+                }
+            }
+            if (generos.isNotEmpty()) Row(Modifier.padding(top = 10.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                generos.forEach { gn -> Text(gn, color = Color.White, modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0x55FFFFFF)).padding(horizontal = 12.dp, vertical = 6.dp)) }
+            }
+        }
+    }
+
     if (conciertos.isNotEmpty()) {
-        Text("En la bóveda del tiempo", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
+        Seccion("En la bóveda del tiempo")
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(conciertos, key = { it.id }) { v ->
                 Column(Modifier.width(180.dp).clip(RoundedCornerShape(14.dp)).clickable { abrirRevista("#rvb=${v.id}") }) {
-                    val img = cargarImagenUrl(v.miniatura())
+                    val im = cargarImagenUrl(v.miniatura())
                     Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
-                        if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)))
+                        if (im != null) Image(im, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)))
                         else Relleno(v.titulo, Icons.Filled.Movie, Modifier.fillMaxSize(), RoundedCornerShape(12.dp))
                     }
                     Text(v.titulo, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
@@ -503,19 +676,100 @@ private fun CabeceraArtista(nombre: String, canciones: List<Track>, abrir: (Carp
             }
         }
     }
-    val albumes = remember(canciones) { Coleccion.agrupar(canciones, "albumes").filter { it.clave != Coleccion.SIN_ALBUM } }
-    if (albumes.isNotEmpty()) {
-        Text("Álbumes", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(albumes, key = { it.clave }) { g ->
-                Column(Modifier.width(120.dp).clip(RoundedCornerShape(14.dp)).clickable { abrir(Carpeta("albumes", g.clave, g.subtitulo)) }) {
-                    Box(Modifier.size(120.dp)) { CaratulaLlena(g.portada, g.clave, Icons.Filled.MusicNote, RoundedCornerShape(14.dp)) }
-                    Text(g.clave, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
-                    if (g.anio > 0) Text("${g.anio}", color = LocalExtra.current.tenue, fontSize = 12.sp)
-                }
+
+    val d = doc
+    if (d == null) {
+        Text(if (cargado) (if (FichasRed.hayIA() || FichasRed.nubeBase().isNotEmpty()) "No se encontró información de este artista." else "Configura una clave de IA en Ajustes (o tu nube) para ver la historia completa.")
+            else "Cargando historia y detalles…", color = LocalExtra.current.tenue, modifier = Modifier.padding(vertical = 16.dp))
+    } else {
+        if (d.bio.isNotEmpty()) Text(d.bio, modifier = Modifier.padding(top = 16.dp), lineHeight = 25.sp, fontSize = 16.sp)
+        val historia = listOfNotNull(d.formacion.takeIf { it.isNotEmpty() }?.let { "Formación: $it" }, d.separacion.takeIf { it.isNotEmpty() }?.let { "Separación: $it" })
+        if (historia.isNotEmpty()) { Seccion("Historia"); Pildoras(historia) }
+        if (d.miembros.isNotEmpty()) {
+            Seccion("Miembros")
+            Pildoras(d.miembros.map { it.nombre }) { i -> ficha = FichaAbierta("miembro", d.miembros[i].nombre, nombre, d.miembros[i].datos) }
+            Text("Toca un integrante para ver su historia.", style = MaterialTheme.typography.bodySmall, color = LocalExtra.current.tenue)
+        }
+        val disco = listOfNotNull(d.debut.takeIf { it.isNotEmpty() }?.let { "Debut: $it" }, d.obraMaestra.takeIf { it.isNotEmpty() }?.let { "Obra maestra: $it" })
+        if (disco.isNotEmpty()) { Seccion("Discografía clave"); Pildoras(disco) }
+        if (d.festivales.isNotEmpty()) {
+            Seccion("Festivales")
+            Pildoras(d.festivales.map { it.nombre }) { i -> val fe = d.festivales[i]; ficha = FichaAbierta("festival", fe.nombre, nombre, id = fe.id, dato = fe.dato) }
+            Text("Toca un festival para ver su historia y quiénes han tocado.", style = MaterialTheme.typography.bodySmall, color = LocalExtra.current.tenue)
+        }
+        if (d.curiosidades.isNotEmpty()) { Seccion("Curiosidades"); d.curiosidades.forEach { Text("• $it", modifier = Modifier.padding(vertical = 3.dp), lineHeight = 22.sp) } }
+        Fuente(d.fuente)
+    }
+
+    SeccionAlbumes(canciones, abrir)
+
+    if (editar) EditarArtista(nombre, cerrar = { editar = false }, foto = { editar = false; galeria.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+        quitarFoto = { FichasRed.fotoPropia("artista", nombre).delete(); p.remove("artimg_" + Fichas.slug(nombre)); version++; editar = false }) { bio ->
+        FichasRed.guardarBioPropia(nombre, bio); version++; editar = false
+    }
+    ficha?.let { f -> FichaPantalla(f, abrirRevista) { ficha = null } }
+    }
+}
+
+@Composable
+private fun SeccionAlbumes(canciones: List<Track>, abrir: (Carpeta) -> Unit) {
+    val p = RadioApp.prefs
+    var orden by remember { mutableStateOf(p.str("albSort", "new")) }
+    var lista by remember { mutableStateOf(p.str("albVista", "grid") == "list") }
+    val albumes = remember(canciones, orden) {
+        val g = Coleccion.agrupar(canciones, "albumes").filter { it.clave != Coleccion.SIN_ALBUM }
+        when (orden) { "old" -> g.sortedBy { if (it.anio == 0) 9999 else it.anio }; "az" -> g.sortedBy { normNombre(it.clave) }; else -> g.sortedByDescending { it.anio } }
+    }
+    if (albumes.isEmpty()) return
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp)) {
+        Text("ÁLBUMES · ${albumes.size}", style = MaterialTheme.typography.labelLarge, color = LocalExtra.current.tenue, letterSpacing = 1.5.sp, modifier = Modifier.weight(1f))
+        listOf("new" to "Nuevo", "old" to "Viejo", "az" to "A-Z").forEach { (k, n) ->
+            TextButton(onClick = { orden = k; p.set("albSort", k) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) {
+                Text(n, color = if (orden == k) Amarillo else LocalExtra.current.tenue, fontWeight = if (orden == k) FontWeight.Bold else FontWeight.Normal)
             }
         }
+        IconButton(onClick = { lista = !lista; p.set("albVista", if (lista) "list" else "grid") }) {
+            Icon(if (lista) Icons.Filled.GridView else Icons.AutoMirrored.Filled.List, if (lista) "Ver en cuadrícula" else "Ver en lista")
+        }
     }
+    if (lista) albumes.forEach { g ->
+        FilaGrupo(g.clave, listOf(if (g.anio > 0) g.anio.toString() else "", "${g.canciones.size} ${if (g.canciones.size == 1) "canción" else "canciones"}").filter { it.isNotEmpty() }.joinToString(" · "),
+            g.portada, Icons.Filled.MusicNote, redonda = false, play = { val ids = g.canciones.map { it.id }.toSet(); RadioApp.radio.iniciar({ it.id in ids }, mezclarEsta = false) }) { abrir(Carpeta("albumes", g.clave, g.subtitulo)) }
+    } else albumes.chunked(2).forEach { fila ->
+        Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            fila.forEach { g ->
+                Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(18.dp)).clickable { abrir(Carpeta("albumes", g.clave, g.subtitulo)) }) {
+                    CaratulaLlena(g.portada, g.clave, Icons.Filled.MusicNote, RoundedCornerShape(18.dp))
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
+                    Column(Modifier.align(Alignment.BottomStart).padding(10.dp)) {
+                        Text(g.clave, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(listOf(if (g.anio > 0) g.anio.toString() else "", "${g.canciones.size} ${if (g.canciones.size == 1) "canción" else "canciones"}").filter { it.isNotEmpty() }.joinToString(" · "),
+                            color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                    }
+                }
+            }
+            if (fila.size == 1) Spacer(Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun EditarArtista(nombre: String, cerrar: () -> Unit, foto: () -> Unit, quitarFoto: () -> Unit, guardar: (String) -> Unit) {
+    var bio by remember { mutableStateOf(FichasRed.bioPropia(nombre)) }
+    AlertDialog(onDismissRequest = cerrar, title = { Text("Editar artista") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = foto) { Icon(Icons.Filled.Image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Cambiar foto") }
+                    if (FichasRed.fotoPropia("artista", nombre).exists()) TextButton(onClick = quitarFoto) { Text("Quitar foto") }
+                }
+                OutlinedTextField(bio, { bio = it.take(3000) }, label = { Text("Tu biografía de $nombre") }, minLines = 5,
+                    placeholder = { Text("Si la escribes, se muestra en lugar de la que trae la nube o la IA.") })
+                Text("Déjala vacía para usar la biografía automática.", style = MaterialTheme.typography.bodySmall, color = LocalExtra.current.tenue)
+            }
+        },
+        confirmButton = { TextButton(onClick = { guardar(bio) }) { Text("Guardar") } },
+        dismissButton = { TextButton(onClick = cerrar) { Text("Cancelar") } })
 }
 
 @Composable

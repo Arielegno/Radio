@@ -32,7 +32,7 @@ object Reportes {
     private fun guardar(texto: String) {
         try {
             File(dir, "reporte-${System.currentTimeMillis()}.txt").writeText(texto.take(60_000))
-            dir.listFiles()?.sortedByDescending { it.lastModified() }?.drop(15)?.forEach { it.delete() }   // los 15 más recientes
+            dir.listFiles()?.filter { it.name.startsWith("reporte-") }?.sortedByDescending { it.lastModified() }?.drop(30)?.forEach { it.delete() }   // los 30 más recientes
         } catch (e: Exception) {}
     }
 
@@ -72,7 +72,7 @@ object Reportes {
         if (java > 0 && File(dir, "ultimo_cierre_java").lastModified() > (RadioApp.prefs.str("javaVisto", "0").toLongOrNull() ?: 0L)) {
             RadioApp.prefs.set("javaVisto", System.currentTimeMillis().toString()); RadioApp.prefs.set("reporteNuevo", true)
         }
-        if (RadioApp.prefs.bool("reporteNuevo", false)) { pendiente = ultimo(); RadioApp.prefs.set("reporteNuevo", false) }
+        if (RadioApp.prefs.bool("reporteNuevo", false)) { pendiente = todosJuntos().take(90_000); RadioApp.prefs.set("reporteNuevo", false) }
     }
 
     /** Las últimas líneas del registro de Android de esta app (errores y avisos), para entender un cierre. */
@@ -91,7 +91,9 @@ object Reportes {
     fun marca(texto: String) { try { File(RadioApp.app.filesDir, "ultima_accion.txt").writeText(java.time.LocalTime.now().withNano(0).toString() + " · " + texto) } catch (e: Exception) {} }
     private fun ultimaAccion(): String = try { File(RadioApp.app.filesDir, "ultima_accion.txt").readText() } catch (e: Exception) { "-" }
 
-    fun todos(): List<File> = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList()
+    fun todos(): List<File> = dir.listFiles()?.filter { it.name.startsWith("reporte-") }?.sortedByDescending { it.lastModified() } ?: emptyList()
+    /** Todos los reportes juntos en un solo texto (para mandarlos de una vez). */
+    fun todosJuntos(): String = todos().joinToString("\n\n────────────\n\n") { runCatching { it.readText() }.getOrDefault("") }
     fun ultimo(): String? = todos().firstOrNull()?.readText()
     fun borrarTodos() { dir.listFiles()?.forEach { it.delete() } }
 

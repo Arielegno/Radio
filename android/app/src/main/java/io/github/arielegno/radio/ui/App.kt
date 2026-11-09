@@ -152,7 +152,7 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
             onDismissRequest = { io.github.arielegno.radio.Reportes.pendiente = null },
             title = { Text("La app se cerró la última vez") },
             text = { Text("Guardé qué pasó. Si me mandas el reporte (por ejemplo, pegándolo en el chat con Claude), se puede arreglar. No incluye tus claves ni tu música.") },
-            confirmButton = { androidx.compose.material3.TextButton(onClick = { io.github.arielegno.radio.Reportes.compartir(ctx, rep); io.github.arielegno.radio.Reportes.pendiente = null }) { Text("Compartir reporte") } },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { io.github.arielegno.radio.Reportes.compartir(ctx, rep); io.github.arielegno.radio.Reportes.pendiente = null }) { Text("Compartir reportes") } },
             dismissButton = { androidx.compose.material3.TextButton(onClick = {
                 (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Reporte", rep))
                 io.github.arielegno.radio.Reportes.pendiente = null

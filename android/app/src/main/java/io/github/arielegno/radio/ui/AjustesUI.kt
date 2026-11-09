@@ -511,14 +511,17 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     var version by remember { mutableIntStateOf(0) }
                     val lista = remember(version) { io.github.arielegno.radio.Reportes.todos() }
                     Ayuda(if (lista.isEmpty()) "No hay reportes: la app no se ha cerrado sola." else "Si la app se cerró sola, aquí está qué pasó. Compártelo para que se pueda arreglar (no incluye tus claves ni tu música).")
-                    lista.take(5).forEach { f ->
+                    lista.take(10).forEach { f ->
                         val t = remember(f) { runCatching { f.readText() }.getOrDefault("") }
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                             Text(t.lineSequence().firstOrNull().orEmpty(), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                             TextButton(onClick = { io.github.arielegno.radio.Reportes.compartir(ctx, t) }) { Text("Compartir") }
                         }
                     }
-                    if (lista.isNotEmpty()) TextButton(onClick = { io.github.arielegno.radio.Reportes.borrarTodos(); version++ }) { Text("Borrar reportes") }
+                    if (lista.isNotEmpty()) Row {
+                        TextButton(onClick = { io.github.arielegno.radio.Reportes.compartir(ctx, io.github.arielegno.radio.Reportes.todosJuntos().take(90_000)) }) { Text("Compartir todos") }
+                        TextButton(onClick = { io.github.arielegno.radio.Reportes.borrarTodos(); version++ }) { Text("Borrar reportes") }
+                    }
                 }
                 Grupo("Datos guardados") {
                     var version by remember { mutableIntStateOf(0) }

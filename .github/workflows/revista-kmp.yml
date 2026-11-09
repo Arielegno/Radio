@@ -59,7 +59,7 @@ jobs:
           (cd $D && python3 -m http.server 8080 >/dev/null 2>&1 &)
           sleep 2
           npm i --no-save --no-audit --no-fund playwright@1.49.1
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium firefox
           node capturas.js
           ls capturas
 

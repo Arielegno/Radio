@@ -1,5 +1,5 @@
 // Saca capturas de la versión nativa (ya compilada y servida en http://localhost:8080) con datos reales de la Revista.
-const { chromium } = require('playwright');
+const { chromium, firefox } = require('playwright');
 const fs = require('fs');
 const SB = 'https://qfgncdzpcssiirxijdgj.supabase.co', KEY = 'sb_publishable_VWLMFbw4lhkV6lW4-DQ2FA_x6E9lVLT';
 const q = async p => { try { const r = await fetch(SB + p, { headers: { apikey: KEY } }); const t = await r.text(); if (!r.ok) { console.log('Supabase', r.status, t.slice(0, 300)); return []; } return JSON.parse(t); } catch (e) { console.log('Supabase falló:', e.message); return []; } };
@@ -47,6 +47,26 @@ const q = async p => { try { const r = await fetch(SB + p, { headers: { apikey: 
   const ls = await q('/rest/v1/song_lists?select=id&limit=1');
   if (ls[0]) await shot('#lista=' + ls[0].id, `${n++}-lista`);
   await shot('#boveda', `${n++}-boveda`);
-  fs.writeFileSync('capturas/consola.txt', log.join('\n'));
   await b.close();
+  // Computadora y tableta: Chromium (igual que Chrome y Edge) y Firefox
+  for (const [motor, nombreM] of [[chromium, 'chromium'], [firefox, 'firefox']]) {
+    let nav;
+    try { nav = await motor.launch(); } catch (e) { log.push(`[${nombreM}] no se pudo abrir: ${e.message}`); continue; }
+    for (const [vw, vh, tipo] of [[1440, 900, 'pc'], [820, 1180, 'tableta']]) {
+      if (tipo === 'tableta' && nombreM === 'firefox') continue;
+      const c = await nav.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: 1, locale: 'es-419', timezoneId: 'America/Tegucigalpa' });
+      const rutas = tipo === 'pc' ? [['', 'inicio'], ['#posters', 'posters'], ['#boveda', 'boveda']] : [['', 'inicio']];
+      if (tipo === 'pc' && art[0]) rutas.push(['#artista=' + art[0].id, 'artista']);
+      if (tipo === 'pc' && elegidos[0]) rutas.push(['#post=' + elegidos[0].id, 'articulo']);
+      for (const [h, nm] of rutas) {
+        const pg = await c.newPage();
+        pg.on('console', m => { if (m.type() === 'error') log.push(`[${nombreM}-${tipo}-${nm}] error: ${m.text()}`); }); pg.on('pageerror', e => log.push(`[${nombreM}-${tipo}-${nm}] ERROR: ${e.message}`));
+        await pg.goto('http://localhost:8080/' + h, { waitUntil: 'load' }); await pg.waitForTimeout(15000);
+        await pg.screenshot({ path: `capturas/${tipo}-${nombreM}-${nm}.png` }); await pg.close();
+      }
+      await c.close();
+    }
+    await nav.close();
+  }
+  fs.writeFileSync('capturas/consola.txt', log.join('\n'));
 })();

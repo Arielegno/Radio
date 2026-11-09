@@ -95,6 +95,16 @@ class Biblioteca(private val ctx: Context) {
         val candado = Mutex()
         val lista = pistas.toMutableList()
         val dups = lista.map { claveDup(it.name, it.artist, it.size) }.toMutableSet()
+        // Archivos ya importados antes (nombre original + tamaño): si eliges otra vez la misma carpeta, solo entran las nuevas
+        val origenes = Json.arr(RadioApp.prefs.str("origenes", "[]")).mapNotNull { it as? String }.toMutableSet()
+        val porTamano = lista.groupBy { it.size }
+        fun yaEsta(nombre: String, tam: Long): Boolean {
+            if (tam <= 0) return false
+            if (normNombre(nombre) + "|" + tam in origenes) return true
+            val mismos = porTamano[tam] ?: return false
+            val n = normNombre(nombre.substringBeforeLast('.'))
+            return mismos.any { t -> val a = normNombre(t.name); a.isNotEmpty() && (n.contains(a) || a.contains(n)) }
+        }
         var sig = (lista.maxOfOrNull { it.id } ?: 0L) + 1
         val ok = AtomicInteger(); val rep = AtomicInteger(); val mal = AtomicInteger(); val hechas = AtomicInteger()
         val turnos = Semaphore(3)
@@ -104,10 +114,16 @@ class Biblioteca(private val ctx: Context) {
                     turnos.withPermit {
                         var copia: File? = null
                         try {
-                            var nombre = "cancion"
-                            cr.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
-                                if (c.moveToFirst()) { val ni = c.getColumnIndex(OpenableColumns.DISPLAY_NAME); if (ni >= 0 && !c.isNull(ni)) nombre = c.getString(ni) }
+                            var nombre = "cancion"; var tam = -1L
+                            cr.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+                                if (c.moveToFirst()) {
+                                    val ni = c.getColumnIndex(OpenableColumns.DISPLAY_NAME); if (ni >= 0 && !c.isNull(ni)) nombre = c.getString(ni)
+                                    val si = c.getColumnIndex(OpenableColumns.SIZE); if (si >= 0 && !c.isNull(si)) tam = c.getLong(si)
+                                }
                             }
+                            val origen = normNombre(nombre) + "|" + tam
+                            // Ya está en la app: ni siquiera se copia (mucho más rápido al volver a elegir la carpeta)
+                            if (candado.withLock { yaEsta(nombre, tam) }) { rep.incrementAndGet(); candado.withLock { origenes += origen }; throw Saltar() }
                             val mime = cr.getType(uri) ?: "audio/mpeg"
                             val id = candado.withLock { sig++ }
                             val f = File(dirMusica, "$id.${extDe(nombre, mime)}"); copia = f
@@ -115,8 +131,11 @@ class Biblioteca(private val ctx: Context) {
                             input.use { inp -> FileOutputStream(f).use { out -> inp.copyTo(out, 128 * 1024) } }
                             val t = leerEtiquetas(f, id, nombre, mime)
                             val k = claveDup(t.name, t.artist, f.length())
-                            val nueva = candado.withLock { if (k in dups) false else { dups += k; lista += t; true } }
+                            // Mismo tamaño y misma duración que una que ya tienes: es la misma canción aunque se llame distinto
+                            val gemela = porTamano[f.length()]?.any { v -> t.durMs > 0 && kotlin.math.abs(v.durMs - t.durMs) < 1500 } == true
+                            val nueva = candado.withLock { origenes += origen; if (k in dups || gemela) false else { dups += k; lista += t; true } }
                             if (nueva) ok.incrementAndGet() else { f.delete(); if (t.cover.isNotEmpty()) File(dirCaratulas, t.cover).delete(); rep.incrementAndGet() }
+                        } catch (e: Saltar) {
                         } catch (e: Exception) {
                             copia?.delete(); mal.incrementAndGet()
                         }
@@ -129,6 +148,7 @@ class Biblioteca(private val ctx: Context) {
         }
         val final = lista.sortedBy { it.id }
         guardar(final); publicar(final); avisar(null)
+        RadioApp.prefs.set("origenes", Json.write(origenes.toList().takeLast(20000)))
         if (ok.get() > 0) RadioApp.scope.launchSafe { Guia.mantener(false) }
         Triple(ok.get(), rep.get(), mal.get())
     }
@@ -314,3 +334,6 @@ class Biblioteca(private val ctx: Context) {
         }
     }
 }
+
+/** Señal interna para saltar un archivo que ya está en la biblioteca. */
+private class Saltar : Exception()

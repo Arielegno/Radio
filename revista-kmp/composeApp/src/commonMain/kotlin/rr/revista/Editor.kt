@@ -170,7 +170,7 @@ fun Editor(id: String?) {
                 val img = imagen(b.portada?.mini ?: b.portadaUrl)
                 if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(14.dp)))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Boton(if (img == null) "Elegir imagen" else "Cambiar", principal = false) { val e = elegirImagenes(1400, 640, false); scope.launch { e.esperar().firstOrNull()?.let { b = b.copy(portada = it, portadaUrl = "") } } }
+                    Boton(if (img == null) "Elegir imagen" else "Cambiar", principal = false) { val e = elegirImagenes(1400, 640, false); scope.launch { e.esperar().firstOrNull()?.let { EditorFotos.abrir(FotoElegida(it).apply { formato = "16x9" }) { listo -> b = b.copy(portada = listo, portadaUrl = "") } } } }
                     if (img != null) Boton("Quitar", principal = false) { b = b.copy(portada = null, portadaUrl = "") }
                 }
 

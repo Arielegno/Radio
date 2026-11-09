@@ -26,7 +26,7 @@ object Coleccion {
 
     /** Clave de grupo de una canción en cada vista. */
     fun clave(t: Track, vista: String): String = when (vista) {
-        "artistas" -> t.artist.ifBlank { SIN_ARTISTA }
+        "artistas" -> Limpieza.artistaPrincipal(t.artist).ifBlank { SIN_ARTISTA }   // «Lana Del Rey, A$AP Rocky» va con Lana Del Rey
         "albumes" -> t.album.ifBlank { SIN_ALBUM }
         "generos" -> generoPrincipal(t)
         else -> if (t.year > 0) t.year.toString() else SIN_ANIO

@@ -33,7 +33,7 @@ class VozLuna(private val ctx: Context) {
     // Va antes de «tts» porque crear() lo usa al iniciar.
     private val progreso: UtteranceProgressListener = run {
         object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) { hablando = true }
+            override fun onStart(utteranceId: String?) { if (utteranceId != "calentar") hablando = true }
             override fun onDone(utteranceId: String?) { hablando = false; utteranceId?.let { pendientes.remove(it)?.invoke(true) } }
             @Deprecated("Requerido por la clase base") override fun onError(utteranceId: String?) { hablando = false; utteranceId?.let { pendientes.remove(it)?.invoke(false) } }
             override fun onError(utteranceId: String?, errorCode: Int) { hablando = false; utteranceId?.let { pendientes.remove(it)?.invoke(false) } }
@@ -45,7 +45,13 @@ class VozLuna(private val ctx: Context) {
 
     private fun crear(motor: String): TextToSpeech {
         val d = CompletableDeferred<Boolean>(); listo = d
-        val oyente = TextToSpeech.OnInitListener { status -> d.complete(status == TextToSpeech.SUCCESS) }
+        val oyente = TextToSpeech.OnInitListener { status ->
+            d.complete(status == TextToSpeech.SUCCESS)
+            // Las voces neuronales (SherpaTTS) tardan en cargar la primera vez: se «calientan» en silencio
+            if (status == TextToSpeech.SUCCESS) RadioApp.scope.launchSafe {
+                if (preparar()) tts.synthesizeToFile("Hola.", Bundle(), java.io.File(ctx.cacheDir, "calentar.wav"), "calentar")
+            }
+        }
         val t = if (motor.isEmpty()) TextToSpeech(ctx.applicationContext, oyente) else TextToSpeech(ctx.applicationContext, oyente, motor)
         t.setOnUtteranceProgressListener(progreso)
         return t
@@ -74,9 +80,13 @@ class VozLuna(private val ctx: Context) {
         val nombreVoz = p.str("voz", "")
         if (nombreVoz.isNotEmpty()) tts.voices?.firstOrNull { it.name == nombreVoz }?.let { tts.setVoice(it) }
         // Estilos de voz como en la web; «manual» usa los controles de velocidad y tono
-        val (vel, ton) = when (p.str("vozPreset", "natural")) {
-            "radio" -> 88 to 85; "narrador" -> 100 to 95; "energico" -> 110 to 105; "manual" -> p.int("velocidad", 100) to p.int("tono", 100); else -> 95 to 90
+        var (vel, ton) = when (p.str("vozPreset", "natural")) {
+            "radio" -> 88 to 85; "narrador" -> 100 to 95; "energico" -> 110 to 105; "manual" -> p.int("velocidad", 100) to p.int("tono", 100); else -> 100 to 100
         }
+        // SherpaTTS, RHVoice y otras voces neuronales ya suenan naturales: cambiarles el tono las deja «metálicas».
+        // Solo se ajustan con el estilo «manual»; el tono se deja igual salvo con la voz de Google.
+        val google = p.str("motorVoz", "").let { it.isEmpty() || it == "com.google.android.tts" }
+        if (!google && p.str("vozPreset", "natural") != "manual") { vel = 100; ton = 100 }
         tts.setSpeechRate(vel / 100f)
         tts.setPitch(ton / 100f)
         return true

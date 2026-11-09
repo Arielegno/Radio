@@ -97,6 +97,50 @@ object Guia {
         } catch (e: Exception) { null }
     }
 
+    /** El artista no sirve para buscar: vacío, «desconocido» o en realidad es un título («… letra», «video oficial»). */
+    private fun artistaDudoso(t: Track): Boolean {
+        val a = t.artist.trim()
+        return a.isEmpty() || Regex("desconocid|\\b(letra|lyrics?|video|oficial|official|audio|hd|remix)\\b", RegexOption.IGNORE_CASE).containsMatchIn(a) || normNombre(a) == normNombre(t.name)
+    }
+
+    /** iTunes por título (y artista si sirve): saca artista, título, álbum, año y portada aunque el archivo venga sin datos. */
+    private suspend fun identificar(t: Track): Map<String, Any?>? {
+        val dudoso = artistaDudoso(t)
+        val nt = normNombre(t.name.replace(Regex("\\(.*?\\)|\\[.*?]"), " "))
+        if (nt.length < 2) return null
+        val term = (if (dudoso) "" else Limpieza.artistaPrincipal(t.artist) + " ") + t.name.replace(Regex("\\b(letra|lyrics?|video oficial|official video|audio)\\b", RegexOption.IGNORE_CASE), " ")
+        val (c, j) = try { Red.crudo("GET", "https://itunes.apple.com/search?media=music&entity=song&limit=15&term=" + enc(term.trim()), timeoutMs = 8000) } catch (e: Exception) { return null }
+        if (c != 200) return null
+        val na = normNombre(Limpieza.artistaPrincipal(t.artist))
+        return Json.obj(j).let { (it["results"] as? List<*>).orEmpty() }.mapNotNull { it as? Map<String, Any?> }.firstOrNull { r ->
+            val rt = normNombre(r.str("trackName").replace(Regex("\\(.*?\\)|\\[.*?]"), " ")); val ra = normNombre(r.str("artistName"))
+            rt.isNotEmpty() && (rt == nt || rt.startsWith(nt) || nt.startsWith(rt)) && (dudoso || na.isEmpty() || ra.contains(na) || na.contains(ra))
+        }
+    }
+
+    /** Último recurso: la IA de la persona (Gemini o Claude) adivina los datos desde el nombre del archivo. */
+    private var usosIA = 0
+    private suspend fun preguntarIA(t: Track): Map<String, Any?>? {
+        if (usosIA >= 60 || !FichasRed.hayIA()) return null
+        usosIA++
+        val p = RadioApp.prefs
+        val pedido = "Identifica esta canción a partir de lo que dice el archivo. Responde SOLO un JSON {\"titulo\":\"\",\"artista\":\"\",\"album\":\"\",\"anio\":0}. " +
+            "Si no estás seguro de un dato, déjalo vacío o en 0. Título: «${t.name}». Artista: «${t.artist}». Álbum: «${t.album}»."
+        return try {
+            val texto = if (p.str("proveedor", "gemini") == "claude") {
+                val (c, r) = Red.crudo("POST", "https://api.anthropic.com/v1/messages", io.github.arielegno.radio.core.Luna.peticionClaude(p.str("claudeModel", "claude-sonnet-5-5").ifBlank { "claude-sonnet-5-5" }, "Eres un experto en música.", pedido),
+                    mapOf("x-api-key" to p.str("claudeKey", "").trim(), "anthropic-version" to "2023-06-01"), timeoutMs = 30_000)
+                if (c in 200..299) io.github.arielegno.radio.core.Luna.crudoClaude(r) else null
+            } else {
+                val modelo = p.str("geminiModel", "").trim().ifEmpty { p.str("geminiModelSel", "gemini-3.5-flash-lite") }.filter { it.isLetterOrDigit() || it == '-' || it == '.' }
+                val (c, r) = Red.crudo("POST", "https://generativelanguage.googleapis.com/v1beta/models/$modelo:generateContent", io.github.arielegno.radio.core.Luna.peticionGemini("Eres un experto en música.", pedido),
+                    mapOf("x-goog-api-key" to p.str("geminiKey", "").trim()), timeoutMs = 30_000)
+                if (c in 200..299) io.github.arielegno.radio.core.Luna.crudoGemini(r) else null
+            }
+            io.github.arielegno.radio.core.Fichas.jsonDeTexto(texto)
+        } catch (e: Exception) { null }
+    }
+
     /** Limpia y completa una canción. forzar = «Completar» (también cambia lo editado a mano). */
     private suspend fun revisar(t0: Track, forzar: Boolean): Track? {
         var t = t0
@@ -105,10 +149,31 @@ object Guia {
         if (libre("artist") && Red.hayInternet(ctx)) artista = nombreOficial(artista)
         val nombre = if (libre("name")) Limpieza.titulo(t.name, artista, t0.artist) else t.name
         t = t.copy(name = nombre, artist = artista)
-        val d = datos(t) ?: return if (t != t0) t else null
+        if (!Red.hayInternet(ctx)) return if (t != t0) t else null
+        // Para buscar se usa el artista principal («Lana Del Rey, A$AP Rocky» → Lana Del Rey)
+        val busca = t.copy(artist = Limpieza.artistaPrincipal(t.artist).ifBlank { t.artist })
+        val d = (if (artistaDudoso(t)) null else datos(busca)) ?: Limpieza.Datos()
         t = Limpieza.aplicar(t, d, forzar)
-        if ((t.cover.isEmpty() || (forzar && "cover" !in t0.manual)) && t0.cover.isEmpty() && d.portada.isNotEmpty() && libre("cover")) {
-            bajarImagen(d.portada)?.let { b -> bib.guardarCaratulaDe(b, t.id).takeIf { it.isNotEmpty() }?.let { t = t.copy(cover = it) } }
+        var portada = d.portada
+        // Si faltan artista, álbum o año: iTunes por título y, al final, la IA
+        if (artistaDudoso(t) || t.album.isEmpty() || t.year == 0) {
+            identificar(t)?.let { r ->
+                if (artistaDudoso(t) && libre("artist")) t = t.copy(artist = r.str("artistName").take(200))
+                if (t.album.isEmpty() && libre("album")) t = t.copy(album = r.str("collectionName").replace(Regex("\\s+-\\s+(single|ep)$", RegexOption.IGNORE_CASE), "").take(200))
+                if (t.year == 0 && libre("year")) t = t.copy(year = Regex("^(\\d{4})").find(r.str("releaseDate"))?.groupValues?.get(1)?.toInt() ?: 0)
+                if (portada.isEmpty()) portada = r.str("artworkUrl100").replace(Regex("/\\d+x\\d+bb\\."), "/600x600bb.")
+            }
+        }
+        if (artistaDudoso(t) || t.album.isEmpty()) preguntarIA(t)?.let { r ->
+            if (artistaDudoso(t) && libre("artist") && r.str("artista").isNotBlank()) t = t.copy(artist = r.str("artista").take(200))
+            if (libre("name") && r.str("titulo").isNotBlank() && normNombre(r.str("titulo")).let { it.isNotEmpty() && normNombre(t.name).contains(it) }) t = t.copy(name = r.str("titulo").take(200))
+            if (t.album.isEmpty() && libre("album") && r.str("album").isNotBlank()) t = t.copy(album = r.str("album").take(200))
+            val y = (r["anio"] as? Number)?.toInt() ?: r.str("anio").toIntOrNull() ?: 0
+            if (t.year == 0 && libre("year") && y in 1900..2100) t = t.copy(year = y)
+        }
+        val d2 = d.copy(portada = portada)
+        if ((t.cover.isEmpty() || (forzar && "cover" !in t0.manual)) && t0.cover.isEmpty() && d2.portada.isNotEmpty() && libre("cover")) {
+            bajarImagen(d2.portada)?.let { b -> bib.guardarCaratulaDe(b, t.id).takeIf { it.isNotEmpty() }?.let { t = t.copy(cover = it) } }
         }
         t = t.copy(revisada = true, manual = if (forzar) emptySet() else t0.manual)
         return if (t != t0) t else null
@@ -144,7 +209,10 @@ object Guia {
             if (!Red.hayInternet(ctx)) return if (nombres > 0) "Limpié $nombres nombre(s). Sin internet: los demás datos se completan después." else "Sin internet: la guía completará los datos después."
             // 2) Álbum, año y carátula (primero las más incompletas)
             val falta = { t: Track -> (if (t.album.isEmpty()) 1 else 0) + (if (t.year == 0) 1 else 0) + (if (t.cover.isEmpty()) 1 else 0) }
-            val pendientes = bib.pistas.filter { forzar || !it.revisada }.sortedByDescending(falta)
+            val reintentar = System.currentTimeMillis() - (RadioApp.prefs.str("guiaReintento", "0").toLongOrNull() ?: 0L) > 3 * 86_400_000L
+            usosIA = 0
+            val pendientes = bib.pistas.filter { forzar || !it.revisada || (reintentar && falta(it) > 0) }.sortedByDescending(falta)
+            if (reintentar) RadioApp.prefs.set("guiaReintento", System.currentTimeMillis().toString())
             val lote = mutableListOf<Track>()
             pendientes.forEachIndexed { i, t ->
                 if (cancelar) return@forEachIndexed

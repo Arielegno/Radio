@@ -49,6 +49,33 @@ private external fun jsSubir(url: String, cab: String, b64: String, tipo: String
   img.onerror = () => ok(u); img.src = u; })""")
 private external fun jsRecortar(u: String, r: Double, d: Double, mx: Int): Promise<JsString>
 
+@JsFun("""(u, giro, esp, r, z, cx, cy, mat, vin, mx) => new Promise(ok => { const img = new Image();
+  img.onload = () => {
+    const W0 = img.naturalWidth, H0 = img.naturalHeight, g90 = ((giro % 360) + 360) % 360, gira = g90 % 180 !== 0;
+    const W = gira ? H0 : W0, H = gira ? W0 : H0;
+    const a = document.createElement('canvas'); a.width = W; a.height = H; const g = a.getContext('2d');
+    g.translate(W / 2, H / 2); g.rotate(g90 * Math.PI / 180); if (esp) g.scale(-1, 1); g.drawImage(img, -W0 / 2, -H0 / 2);
+    const rr = r > 0 ? r : W / H; let cw = W, ch = H; if (W / H > rr) cw = H * rr; else ch = W / rr; cw /= z; ch /= z;
+    const sx = (W - cw) * cx, sy = (H - ch) * cy, k = Math.min(1, mx / Math.max(cw, ch));
+    const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(cw * k)); c.height = Math.max(1, Math.round(ch * k));
+    const h = c.getContext('2d'); h.fillStyle = '#fff'; h.fillRect(0, 0, c.width, c.height); h.drawImage(a, sx, sy, cw, ch, 0, 0, c.width, c.height);
+    const m = mat ? mat.split(',').map(Number) : null, id = [1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0];
+    if (m && m.length === 20 && m.some((v, i) => Math.abs(v - id[i]) > 1e-4)) {
+      const d = h.getImageData(0, 0, c.width, c.height), p = d.data;
+      for (let i = 0; i < p.length; i += 4) { const R = p[i], G = p[i + 1], B = p[i + 2];
+        p[i] = m[0] * R + m[1] * G + m[2] * B + m[4]; p[i + 1] = m[5] * R + m[6] * G + m[7] * B + m[9]; p[i + 2] = m[10] * R + m[11] * G + m[12] * B + m[14]; }
+      h.putImageData(d, 0, 0);
+    }
+    if (vin > 0) { const gr = h.createRadialGradient(c.width / 2, c.height / 2, Math.min(c.width, c.height) * 0.3, c.width / 2, c.height / 2, Math.hypot(c.width, c.height) / 2);
+      gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,' + vin + ')'); h.fillStyle = gr; h.fillRect(0, 0, c.width, c.height); }
+    ok(c.toDataURL('image/jpeg', 0.86));
+  };
+  img.onerror = () => ok(u); img.src = u; })""")
+private external fun jsProcesar(u: String, giro: Int, esp: Boolean, r: Double, z: Double, cx: Double, cy: Double, mat: String, vin: Double, mx: Int): Promise<JsString>
+
+actual suspend fun procesarFoto(dataUrl: String, giro: Int, espejo: Boolean, proporcion: Float, zoom: Float, cx: Float, cy: Float, matriz: String, vineta: Float, max: Int): String =
+    jsProcesar(dataUrl, giro, espejo, proporcion.toDouble(), zoom.toDouble(), cx.toDouble(), cy.toDouble(), matriz, vineta.toDouble(), max).await<JsString>().toString()
+
 actual suspend fun recortarFoto(dataUrl: String, proporcion: Float, encuadre: Float, max: Int): String =
     jsRecortar(dataUrl, proporcion.toDouble(), encuadre.toDouble(), max).await<JsString>().toString()
 

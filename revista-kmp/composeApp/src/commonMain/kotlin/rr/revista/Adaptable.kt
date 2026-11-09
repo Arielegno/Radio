@@ -85,6 +85,7 @@ fun teclaEscape(e: KeyEvent): Boolean {
     if (e.type != KeyEventType.KeyDown || e.key != Key.Escape) return false
     when {
         Visor.url != null -> Visor.url = null
+        EditorFotos.actual != null -> EditorFotos.cerrar()
         Nav.dialogo != null -> Nav.dialogo = null
         Nav.pila.isNotEmpty() -> Nav.atras()
         else -> return false

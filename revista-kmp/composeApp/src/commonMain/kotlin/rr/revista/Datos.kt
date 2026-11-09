@@ -16,6 +16,8 @@ data class Foto(val grande: String, val mini: String)
 expect fun elegirImagenes(maxGrande: Int, maxMini: Int, varias: Boolean): Espera<List<Foto>>
 /** Sube un archivo (en base64) al almacén. */
 /** Recorta una foto (data:image/jpeg) a una proporción ancho/alto; encuadre 0 = izquierda/arriba, 1 = derecha/abajo. */
+/** Procesa una foto: giro (0/90/180/270), espejo, proporción (0 = la suya), zoom, encuadre (0–1), matriz de color 4×5 ("" = sin color) y viñeta (0–1). */
+expect suspend fun procesarFoto(dataUrl: String, giro: Int, espejo: Boolean, proporcion: Float, zoom: Float, cx: Float, cy: Float, matriz: String, vineta: Float, max: Int): String
 expect suspend fun recortarFoto(dataUrl: String, proporcion: Float, encuadre: Float, max: Int): String
 expect suspend fun subirArchivo(url: String, cabeceras: Map<String, String>, base64: String, tipo: String): Respuesta
 

@@ -2,6 +2,8 @@ package io.github.arielegno.radio
 
 import io.github.arielegno.radio.core.Fichas
 import io.github.arielegno.radio.core.Json
+import io.github.arielegno.radio.core.normNombre
+import io.github.arielegno.radio.core.str
 import io.github.arielegno.radio.core.Luna
 import io.github.arielegno.radio.core.num
 import kotlinx.coroutines.Dispatchers
@@ -127,6 +129,12 @@ object FichasRed {
                 if (c == 200) url = Fichas.fotoSpotify(t, nombre)
             }
             if (url.isEmpty()) url = Guia.bio(nombre)?.foto ?: ""
+            // Deezer (gratis, sin clave) tiene fotos de casi todos los artistas
+            if (url.isEmpty()) url = try {
+                val (c, t) = Red.crudo("GET", "https://api.deezer.com/search/artist?limit=5&q=" + enc(nombre), timeoutMs = 8000)
+                if (c != 200) "" else (Json.obj(t)["data"] as? List<*>).orEmpty().mapNotNull { it as? Map<String, Any?> }
+                    .firstOrNull { normNombre(it.str("name")) == normNombre(nombre) }?.str("picture_xl")?.takeIf { it.startsWith("https://") && !it.contains("/artist//") } ?: ""
+            } catch (e: Exception) { "" }
             val ok = url.isNotEmpty() && bajar(url, f)
             if (!ok) p.set(ck, System.currentTimeMillis().toString())
             if (ok) f else null

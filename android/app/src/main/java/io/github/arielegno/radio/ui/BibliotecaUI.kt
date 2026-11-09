@@ -440,7 +440,7 @@ private fun DetalleCarpeta(c: Carpeta, filtradas: List<Track>, acc: AccionesCanc
             }
             when (c.vista) {
                 "artistas" -> CabeceraArtista(c.clave, canciones, abrir, abrirRevista)
-                "albumes" -> CabeceraAlbum(c.clave, canciones, portada)
+                "albumes" -> CabeceraAlbum(c.clave, canciones, portada) { art -> abrir(Carpeta("artistas", art)) }
                 else -> {
                     Text(c.clave, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.padding(vertical = 6.dp))
                     Text("${canciones.size} ${if (canciones.size == 1) "canción" else "canciones"}", color = LocalExtra.current.tenue)
@@ -463,7 +463,7 @@ private fun DetalleCarpeta(c: Carpeta, filtradas: List<Track>, acc: AccionesCanc
 }
 
 @Composable
-private fun CabeceraAlbum(album: String, canciones: List<Track>, portada: Track?) {
+private fun CabeceraAlbum(album: String, canciones: List<Track>, portada: Track?, irAlArtista: (String) -> Unit) {
     val g = Coleccion.Grupo(album, canciones)
     val scope = rememberCoroutineScope()
     var aviso by remember { mutableStateOf("") }
@@ -485,7 +485,11 @@ private fun CabeceraAlbum(album: String, canciones: List<Track>, portada: Track?
         Spacer(Modifier.width(16.dp))
         Column {
             Text(album, style = MaterialTheme.typography.headlineSmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            val principal = io.github.arielegno.radio.core.Limpieza.artistaPrincipal(g.artistaPrincipal)
             Text(listOf(g.artistaPrincipal, if (g.anio > 0) g.anio.toString() else "").filter { it.isNotBlank() }.joinToString(" · "), color = Amarillo, modifier = Modifier.padding(top = 4.dp))
+            if (principal.isNotBlank()) OutlinedButton(onClick = { irAlArtista(principal) }, modifier = Modifier.padding(top = 6.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+                Icon(Icons.Filled.Person, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Ir a $principal", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             val min = canciones.sumOf { it.durMs } / 60_000
             Text("${canciones.size} ${if (canciones.size == 1) "canción" else "canciones"}" + if (min > 0) " · $min min" else "", color = LocalExtra.current.tenue)
             TextButton(onClick = elegir, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {

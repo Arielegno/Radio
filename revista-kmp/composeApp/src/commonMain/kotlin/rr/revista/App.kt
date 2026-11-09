@@ -162,6 +162,7 @@ fun App() {
                     }
                 }
                 if (Nav.dialogo == "cuenta") DialogoCuenta { Nav.dialogo = null }
+                EditorFotosVista()
                 VisorVista()
                 AvisoVista()
                 }
@@ -222,7 +223,7 @@ private fun Inicio(lista: LazyGridState, abrir: (String) -> Unit) {
         item(span = { GridItemSpan(maxLineSpan) }) { Cabecera("Revista", "Artículos, reseñas e historias de la comunidad de Radio de ruta") }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                (listOf("todo" to "Lo último", "resenas" to "Reseñas de discos") + (if (Cuenta.dentro) listOf("siguiendo" to "Siguiendo") else emptyList()) + (if (etiqueta.isNotEmpty()) listOf("tag" to "#$etiqueta  ✕") else emptyList())).forEach { (k, n) ->
+                (listOf("todo" to "Lo último", "resenas" to "Reseñas de discos") + (if (Cuenta.dentro) listOf("siguiendo" to "Siguiendo") else emptyList()) + (if (etiqueta.isNotEmpty()) listOf("tag" to "#$etiqueta  ×") else emptyList())).forEach { (k, n) ->
                     val on = filtro == k || k == "tag"
                     Text(n, color = if (on) Color(0xFF1B1E23) else TextoClaro, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(if (on) Amarillo else Color.Transparent).border(1.dp, if (on) Amarillo else Color(0x33FFFFFF), RoundedCornerShape(999.dp))

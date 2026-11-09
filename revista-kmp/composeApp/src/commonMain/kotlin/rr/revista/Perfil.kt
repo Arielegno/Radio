@@ -54,7 +54,7 @@ fun PerfilPantalla(id: String) {
     var pestana by remember(id) { mutableStateOf("wall") }
     var denunciar by remember { mutableStateOf(false) }
     var salir by remember { mutableStateOf(false) }
-    val datos by produceState<Result<DatosPerfil?>?>(null, id, version) {
+    val datos by produceState<Result<DatosPerfil?>?>(null, id, version, if (Cuenta.uid == id) Cuenta.yo else null) {
         value = runCatching {
             val p = Json.arr(Cuenta.api("GET", "/rest/v1/profiles?select=*&id=eq.$id")).firstOrNull()?.asObj() ?: return@runCatching null
             val mio = Cuenta.uid == id

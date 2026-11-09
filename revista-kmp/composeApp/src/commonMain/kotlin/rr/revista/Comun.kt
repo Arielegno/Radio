@@ -84,7 +84,7 @@ object Nav {
     /** Ventana abierta encima de todo: "cuenta", "normas"… */
     var dialogo by mutableStateOf<String?>(null)
     private var conectado = false
-    private fun conectar() { if (!conectado) { conectado = true; alVolverNavegador { if (dialogo != null) dialogo = null else if (Visor.url != null) Visor.url = null else if (pila.isNotEmpty()) pila = pila.dropLast(1) } } }
+    private fun conectar() { if (!conectado) { conectado = true; alVolverNavegador { if (dialogo != null) dialogo = null else if (Visor.url != null) Visor.url = null else if (EditorFotos.actual != null) EditorFotos.cerrar() else if (pila.isNotEmpty()) pila = pila.dropLast(1) } } }
     fun ir(d: Destino) { conectar(); pila = pila + d; historialEmpujar() }
     fun atras() { if (pila.isNotEmpty()) { pila = pila.dropLast(1); historialAtras(1) } }
     fun inicio() { val n = pila.size; pila = emptyList(); if (n > 0) historialAtras(n) }

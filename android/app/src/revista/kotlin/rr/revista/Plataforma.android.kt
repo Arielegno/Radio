@@ -54,7 +54,9 @@ fun RevistaNativa(destino: String, alSalir: () -> Unit) {
         }
     }
     BackHandler { alSalir() }
-    BackHandler(enabled = Nav.dialogo != null || Nav.pila.isNotEmpty()) { if (Nav.dialogo != null) Nav.dialogo = null else Nav.atras() }
+    BackHandler(enabled = Nav.dialogo != null || Nav.pila.isNotEmpty() || Visor.url != null || EditorFotos.actual != null) {
+        when { EditorFotos.actual != null -> EditorFotos.cerrar(); Visor.url != null -> Visor.url = null; Nav.dialogo != null -> Nav.dialogo = null; else -> Nav.atras() }
+    }
     key(destino) {
         PlataformaAndroid.hash = destino
         androidx.compose.runtime.remember(destino) { if (destino.isNotEmpty()) Nav.inicio(); 0 }
@@ -243,6 +245,33 @@ private fun foto(u: Uri, grande: Int, mini: Int): Foto? {
         cr.openInputStream(u)?.use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = m }) } ?: return null
     }
     return Foto(jpeg(bm, grande), jpeg(bm, mini))
+}
+
+suspend fun procesarFoto(dataUrl: String, giro: Int, espejo: Boolean, proporcion: Float, zoom: Float, cx: Float, cy: Float, matriz: String, vineta: Float, max: Int): String = withContext(Dispatchers.Default) {
+    val b = Base64.decode(dataUrl.substringAfter(','), Base64.DEFAULT)
+    val bm = BitmapFactory.decodeByteArray(b, 0, b.size) ?: return@withContext dataUrl
+    val m = android.graphics.Matrix().apply { if (espejo) postScale(-1f, 1f); postRotate((((giro % 360) + 360) % 360).toFloat()) }
+    val rot = if (giro % 360 != 0 || espejo) Bitmap.createBitmap(bm, 0, 0, bm.width, bm.height, m, true) else bm
+    val w = rot.width.toFloat(); val h = rot.height.toFloat()
+    val r = if (proporcion > 0f) proporcion else w / h
+    var cw = w; var ch = h
+    if (w / h > r) cw = h * r else ch = w / r
+    cw /= zoom.coerceAtLeast(1f); ch /= zoom.coerceAtLeast(1f)
+    val sx = ((w - cw) * cx).coerceIn(0f, w - 1f); val sy = ((h - ch) * cy).coerceIn(0f, h - 1f)
+    val k = minOf(1f, max / maxOf(cw, ch))
+    val ow = (cw * k).toInt().coerceAtLeast(1); val oh = (ch * k).toInt().coerceAtLeast(1)
+    val out = Bitmap.createBitmap(ow, oh, Bitmap.Config.ARGB_8888)
+    val lienzo = Canvas(out); lienzo.drawColor(android.graphics.Color.WHITE)
+    val pintura = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+    matriz.split(',').mapNotNull { it.trim().toFloatOrNull() }.takeIf { it.size == 20 }?.let { pintura.colorFilter = android.graphics.ColorMatrixColorFilter(it.toFloatArray()) }
+    lienzo.drawBitmap(rot, android.graphics.Rect(sx.toInt(), sy.toInt(), (sx + cw).toInt().coerceAtMost(rot.width), (sy + ch).toInt().coerceAtMost(rot.height)), android.graphics.RectF(0f, 0f, ow.toFloat(), oh.toFloat()), pintura)
+    if (vineta > 0f) {
+        val v = android.graphics.Paint().apply { shader = android.graphics.RadialGradient(ow / 2f, oh / 2f, kotlin.math.hypot(ow.toFloat(), oh.toFloat()) / 2f,
+            intArrayOf(0, 0, android.graphics.Color.argb((vineta * 255).toInt().coerceIn(0, 255), 0, 0, 0)), floatArrayOf(0f, .45f, 1f), android.graphics.Shader.TileMode.CLAMP) }
+        lienzo.drawRect(0f, 0f, ow.toFloat(), oh.toFloat(), v)
+    }
+    val s = ByteArrayOutputStream(); out.compress(Bitmap.CompressFormat.JPEG, 86, s)
+    "data:image/jpeg;base64," + Base64.encodeToString(s.toByteArray(), Base64.NO_WRAP)
 }
 
 suspend fun recortarFoto(dataUrl: String, proporcion: Float, encuadre: Float, max: Int): String = withContext(Dispatchers.Default) {

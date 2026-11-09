@@ -47,6 +47,7 @@ object Reportes {
             } catch (x: Throwable) {}
             anterior?.uncaughtException(hilo, e)
         }
+        val java = try { File(dir, "ultimo_cierre_java").readText().toLong() } catch (e: Exception) { 0L }
         // Android 11+: también los cierres del motor nativo (voces), por falta de memoria o por «no responde»
         if (Build.VERSION.SDK_INT >= 30) try {
             val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
@@ -54,7 +55,6 @@ object Reportes {
             val salidas = am.getHistoricalProcessExitReasons(ctx.packageName, 0, 5).filter { it.timestamp > visto }
             val malas = salidas.filter { it.reason in setOf(ApplicationExitInfo.REASON_CRASH, ApplicationExitInfo.REASON_CRASH_NATIVE, ApplicationExitInfo.REASON_ANR, ApplicationExitInfo.REASON_LOW_MEMORY) }
             salidas.maxOfOrNull { it.timestamp }?.let { RadioApp.prefs.set("ultimoCierreVisto", it.toString()) }
-            val java = try { File(dir, "ultimo_cierre_java").readText().toLong() } catch (e: Exception) { 0L }
             for (s in malas) {
                 // ya lo guardó el atrapador (con el detalle del error): no se repite
                 if (s.reason == ApplicationExitInfo.REASON_CRASH && kotlin.math.abs(s.timestamp - java) < 20_000) { RadioApp.prefs.set("reporteNuevo", true); continue }

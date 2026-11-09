@@ -194,7 +194,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     if (i < CATEGORIAS.size - 1) HorizontalDivider(color = LocalExtra.current.borde, modifier = Modifier.padding(start = 58.dp))
                 }
             }
-            Text("Radio de ruta para Android · versión 1.9", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
+            Text("Radio de ruta para Android · versión 1.9.1", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 14.dp).align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(24.dp))
             return@Column
@@ -342,6 +342,8 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     Opciones("vozPreset", "Estilo de voz", linkedMapOf("natural" to "Natural (recomendado)", "radio" to "Radio FM (cálido)", "narrador" to "Narrador (claro)", "energico" to "Enérgico (rápido)", "manual" to "Manual"), "natural") { preset = it }
                     if (preset == "manual") { Deslizador("velocidad", "Velocidad", 100, 60, 150); Deslizador("tono", "Tono", 100, 60, 150) }
                     Deslizador("volVoz", "Volumen de la voz", 100, 10, 100)
+                    Interruptor("hablarEncima", "Hablar encima de la música (la canción sigue bajita, como en la radio)", true)
+                    Deslizador("nivelEncima", "Volumen de la música mientras habla", 18, 5, 60)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
                         Boton("Probar voz") { scope.launchSafe { r.probarVoz() } }
                         Boton("Probar a Luna") { scope.launchSafe { r.probarLuna() } }
@@ -497,7 +499,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                 Ayuda("No manipules la app mientras conduces.")
             }
             else -> Grupo("Radio de ruta para Android") {
-                Text("Versión 1.9 · por Arielegno", fontWeight = FontWeight.SemiBold)
+                Text("Versión 1.9.1 · por Arielegno", fontWeight = FontWeight.SemiBold)
                 Ayuda("No manipules la app mientras conduces: configúrala antes de arrancar.")
                 TextButton(onClick = { abrir(ctx, "https://arielegno.github.io/Radio/legal.html") }) { Text("Aviso legal y privacidad") }
                 Ayuda("Usa Media3 (Apache 2.0), Jetpack Compose (Apache 2.0), sherpa-onnx (Apache 2.0) con voces Piper, Apache Commons Compress (Apache 2.0), Leaflet (BSD-2) y datos de OpenStreetMap (ODbL), Open-Meteo, Wikipedia (CC BY-SA), MusicBrainz (CC0), iTunes Search, Spotify, Google Gemini y Anthropic Claude.")

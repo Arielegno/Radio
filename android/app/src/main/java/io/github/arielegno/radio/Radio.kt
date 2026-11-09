@@ -62,6 +62,24 @@ class Radio(private val ctx: Context) {
     private var guion: CompletableDeferred<String>? = null
     private var guionPara = -1L
     private var enPausaLuna = false
+    /** Luna habla encima de la música (bajita), como en la radio de verdad. */
+    @Volatile private var encima = false
+    private val hablaEncima: Boolean get() = p.bool("hablarEncima", true) && !fuenteSpotify
+
+    /** Baja la música, deja hablar a Luna y la vuelve a subir poco a poco. */
+    private suspend fun conMusicaBajita(bloque: suspend () -> Unit) {
+        encima = true; fundido?.cancel()
+        val nivel = p.int("nivelEncima", 18).coerceIn(5, 60) / 100f
+        try {
+            for (i in 10 downTo 0) { player.volume = nivel + (1f - nivel) * i / 10f; delay(40) }   // baja en medio segundo
+            if (activa && !retenida) player.play()
+            bloque()
+        } finally {
+            encima = false
+            for (i in 1..12) { player.volume = nivel + (1f - nivel) * i / 12f; delay(110) }   // sube en poco más de un segundo
+            player.volume = 1f
+        }
+    }
     private val anteriores = mutableListOf<String>()
     private var contadoId = -1L
     private var segundos = 0
@@ -114,8 +132,7 @@ class Radio(private val ctx: Context) {
         if (aire) RadioApp.scope.launchSafe {
             val t = lista[0]
             val hola = "Hola, soy ${p.str("host", "Luna")}. ${io.github.arielegno.radio.core.saludo(LocalDateTime.now().hour, p.str("me", ""))}. Empezamos con ${t.name}, de ${t.artist}."
-            hablar(hola)
-            player.play()
+            if (hablaEncima) conMusicaBajita { hablar(hola) } else { hablar(hola); player.play() }
         } else player.play()
     }
 
@@ -289,7 +306,7 @@ class Radio(private val ctx: Context) {
             try {
                 val texto = withTimeoutOrNull(12_000) { g.await() } ?: Luna.sinIA(LunaContexto(actual, siguiente), ajustes())
                 guion = null
-                if (aire && activa) hablar(texto)
+                if (aire && activa) { if (hablaEncima && !retenida) conMusicaBajita { hablar(texto) } else hablar(texto) }
             } finally {
                 enPausaLuna = false
                 if (activa && !retenida && (apagarEn == 0L || apagarEn > System.currentTimeMillis())) player.play()
@@ -382,6 +399,7 @@ class Radio(private val ctx: Context) {
     suspend fun probarVoz() { hablar("Hola, soy ${p.str("host", "Luna")}. ¿Me escuchas bien?") }
 
     private fun fundir() {
+        if (encima) return
         fundido?.cancel()
         fundido = RadioApp.scope.launchSafe {
             player.volume = 0f
@@ -401,7 +419,7 @@ class Radio(private val ctx: Context) {
         }
         if (t != null && contadoId == t.id && segundos == 0) contadoId = -1L
         // Transición suave: baja el volumen en los últimos segundos de la canción
-        if (!fuenteSpotify && p.bool("fundido", false) && pl.isPlaying && durMs > 8000 && durMs - posMs in 1..2500 && fundido?.isActive != true) {
+        if (!fuenteSpotify && !encima && p.bool("fundido", false) && pl.isPlaying && durMs > 8000 && durMs - posMs in 1..2500 && fundido?.isActive != true) {
             fundido = RadioApp.scope.launchSafe { for (i in 9 downTo 2) { player.volume = i / 10f; delay(220) } }
         }
         if (apagarEn > 0 && System.currentTimeMillis() >= apagarEn) { apagarEn = 0; pausar(); mensaje = "Temporizador: la radio se apagó. Buenas noches." }

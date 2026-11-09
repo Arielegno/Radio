@@ -43,6 +43,10 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
+      # Motor de voces propias (sherpa-onnx, licencia Apache 2.0)
+      - name: Motor de voz
+        run: mkdir -p app/libs && curl -fsSL --retry 4 -o app/libs/sherpa-onnx.aar https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.7/sherpa-onnx-1.13.7.aar
+
       # Letras de la Revista nativa dentro del APK (así abre rápido y sin internet la primera vez)
       - name: Letras de la Revista
         working-directory: .

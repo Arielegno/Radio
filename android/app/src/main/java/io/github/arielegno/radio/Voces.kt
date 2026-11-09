@@ -28,20 +28,22 @@ class VozLuna(private val ctx: Context) {
     private var listo = CompletableDeferred<Boolean>()
     private val pendientes = ConcurrentHashMap<String, (Boolean) -> Unit>()
     private val n = AtomicInteger()
-    @Volatile var hablando = false; private set
+    @Volatile private var hablandoTts = false
+    /** Luna está hablando (con el motor del teléfono o con una voz propia de la app). */
+    val hablando: Boolean get() = hablandoTts || VozPropia.hablando
 
     // Va antes de «tts» porque crear() lo usa al iniciar.
     private val progreso: UtteranceProgressListener = run {
         object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) { if (utteranceId != "calentar") hablando = true }
-            override fun onDone(utteranceId: String?) { hablando = false; utteranceId?.let { pendientes.remove(it)?.invoke(true) } }
-            @Deprecated("Requerido por la clase base") override fun onError(utteranceId: String?) { hablando = false; utteranceId?.let { pendientes.remove(it)?.invoke(false) } }
-            override fun onError(utteranceId: String?, errorCode: Int) { hablando = false; utteranceId?.let { pendientes.remove(it)?.invoke(false) } }
-            override fun onStop(utteranceId: String?, interrupted: Boolean) { hablando = false; utteranceId?.let { pendientes.remove(it)?.invoke(false) } }
+            override fun onStart(utteranceId: String?) { if (utteranceId != "calentar") hablandoTts = true }
+            override fun onDone(utteranceId: String?) { hablandoTts = false; utteranceId?.let { pendientes.remove(it)?.invoke(true) } }
+            @Deprecated("Requerido por la clase base") override fun onError(utteranceId: String?) { hablandoTts = false; utteranceId?.let { pendientes.remove(it)?.invoke(false) } }
+            override fun onError(utteranceId: String?, errorCode: Int) { hablandoTts = false; utteranceId?.let { pendientes.remove(it)?.invoke(false) } }
+            override fun onStop(utteranceId: String?, interrupted: Boolean) { hablandoTts = false; utteranceId?.let { pendientes.remove(it)?.invoke(false) } }
         }
     }
 
-    private var tts: TextToSpeech = crear(RadioApp.prefs.str("motorVoz", ""))
+    private var tts: TextToSpeech = crear(RadioApp.prefs.str("motorVoz", "").let { if (it.startsWith(VozPropia.PREFIJO)) "" else it })
 
     private fun crear(motor: String): TextToSpeech {
         val d = CompletableDeferred<Boolean>(); listo = d
@@ -56,6 +58,7 @@ class VozLuna(private val ctx: Context) {
     /** Cambia el motor de voz (Google, SherpaTTS con Piper o Kokoro, RHVoice…). "" = el predeterminado. */
     fun cambiarMotor(motor: String) {
         RadioApp.prefs.set("motorVoz", motor); RadioApp.prefs.set("voz", "")
+        if (motor.startsWith(VozPropia.PREFIJO)) return   // voz propia de la app: no hace falta otro motor
         try { tts.stop(); tts.shutdown() } catch (e: Exception) {}
         tts = crear(motor)
     }
@@ -99,7 +102,17 @@ class VozLuna(private val ctx: Context) {
 
     /** Habla y espera a que termine. Devuelve false si no se pudo. */
     suspend fun decir(texto: String): Boolean {
-        if (texto.isBlank() || !preparar()) return false
+        if (texto.isBlank()) return false
+        val p = RadioApp.prefs
+        val motor = p.str("motorVoz", "")
+        if (motor.startsWith(VozPropia.PREFIJO)) {
+            val vel = when (p.str("vozPreset", "natural")) { "radio" -> .9f; "narrador" -> 1f; "energico" -> 1.12f; "manual" -> p.int("velocidad", 100) / 100f; else -> 1f }
+            val ok = withTimeoutOrNull(30_000L + texto.length * 120L) { VozPropia.decir(motor.removePrefix(VozPropia.PREFIJO), texto, vel, p.int("volVoz", 100).coerceIn(10, 100) / 100f) }
+            if (ok == true) return true
+            VozPropia.callar()
+            // si la voz propia falla (por ejemplo, se borró), se usa la del teléfono
+        }
+        if (!preparar()) return false
         // Si el motor de voz se traba, la radio no se queda esperando: se corta y sigue la música
         val limite = 15_000L + texto.length * 110L
         val r = withTimeoutOrNull(limite) { hablar(texto) }
@@ -118,5 +131,5 @@ class VozLuna(private val ctx: Context) {
         }
     }
 
-    fun callar() { try { tts.stop() } catch (e: Exception) {} ; hablando = false }
+    fun callar() { try { tts.stop() } catch (e: Exception) {} ; hablandoTts = false; VozPropia.callar() }
 }

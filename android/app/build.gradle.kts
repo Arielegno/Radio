@@ -12,8 +12,10 @@ android {
         applicationId = "io.github.arielegno.radio"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.7"
+        versionCode = 11
+        versionName = "1.8"
+        // Voces propias (sherpa-onnx): solo para los procesadores de teléfonos (así el APK pesa menos)
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
     signingConfigs {
@@ -87,6 +89,10 @@ dependencies {
     implementation("com.google.guava:guava:33.3.1-android")
 
     implementation("androidx.media3:media3-exoplayer:1.5.1")
+
+    // Voces propias sin internet: motor sherpa-onnx (se baja en la compilación a libs/) y descompresor de las voces
+    implementation(files("libs/sherpa-onnx.aar"))
+    implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("androidx.media3:media3-session:1.5.1")
 
     testImplementation("junit:junit:4.13.2")

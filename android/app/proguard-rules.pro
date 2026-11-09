@@ -4,3 +4,11 @@
 -dontwarn javax.annotation.**
 -dontwarn org.checkerframework.**
 -dontwarn kotlin.concurrent.atomics.**
+
+# Voces propias: el motor nativo lee estas clases por su nombre
+-keep class com.k2fsa.sherpa.onnx.** { *; }
+-dontwarn org.apache.commons.compress.**
+-dontwarn org.brotli.**
+-dontwarn org.tukaani.**
+-dontwarn com.github.luben.**
+-dontwarn org.objectweb.asm.**

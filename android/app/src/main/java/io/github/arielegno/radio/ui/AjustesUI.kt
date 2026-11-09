@@ -90,6 +90,7 @@ import io.github.arielegno.radio.Efectos
 import io.github.arielegno.radio.Guia
 import io.github.arielegno.radio.RadioApp
 import io.github.arielegno.radio.Spotify
+import io.github.arielegno.radio.VozPropia
 import io.github.arielegno.radio.core.AjustesWeb
 import io.github.arielegno.radio.core.Estadisticas
 import io.github.arielegno.radio.core.Json
@@ -193,7 +194,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     if (i < CATEGORIAS.size - 1) HorizontalDivider(color = LocalExtra.current.borde, modifier = Modifier.padding(start = 58.dp))
                 }
             }
-            Text("Radio de ruta para Android · versión 1.7", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
+            Text("Radio de ruta para Android · versión 1.8", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 14.dp).align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(24.dp))
             return@Column
@@ -327,7 +328,10 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                 val motores by produceState<List<Pair<String, String>>>(emptyList(), versionVoz) { value = r.voz.motores() }
                 val voces by produceState<List<Voice>>(emptyList(), versionVoz) { value = r.voz.vocesEspanol() }
                 Grupo("Motor y voz") {
-                    if (motores.size > 1) Opciones("motorVoz", "Motor de voz", linkedMapOf("" to "El del teléfono") + motores.toMap(), "") { mv -> r.voz.cambiarMotor(mv); versionVoz++ }
+                    val propias = remember(VozPropia.version) { VozPropia.VOCES.filter { VozPropia.instalada(it) }.associate { (VozPropia.PREFIJO + it.id) to "${it.nombre} (de la app, sin internet)" } }
+                    if (motores.size > 1 || propias.isNotEmpty()) key(VozPropia.version) {
+                        Opciones("motorVoz", "Motor de voz", linkedMapOf("" to "El del teléfono") + propias + motores.filter { it.first != "" }.toMap(), "") { mv -> r.voz.cambiarMotor(mv); versionVoz++ }
+                    }
                     key(versionVoz) {
                         if (voces.isNotEmpty()) Opciones("voz", "Voz", linkedMapOf("" to "La de siempre") + voces.associate { it.name to (it.locale.displayName + " · " + it.name.substringAfterLast('#').takeLast(18)) }, "")
                     }
@@ -343,7 +347,30 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                         Boton("Probar a Luna") { scope.launchSafe { r.probarLuna() } }
                     }
                 }
-                Grupo("Voces gratis sin internet") {
+                Grupo("Voces de la app (sin internet)") {
+                    Ayuda("Voces naturales que funcionan dentro de la app, sin SherpaTTS ni internet. Se descargan una sola vez (usa Wi-Fi).")
+                    if (!VozPropia.disponible) Ayuda("Este teléfono no admite las voces de la app; usa el motor del teléfono.")
+                    else VozPropia.VOCES.forEach { v ->
+                        val lista = remember(VozPropia.version, VozPropia.descargando) { VozPropia.instalada(v) }
+                        val enUso = p.str("motorVoz", "") == VozPropia.PREFIJO + v.id
+                        Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                            Text(v.nombre + if (enUso) " · en uso" else "", fontWeight = FontWeight.SemiBold)
+                            Text(v.detalle + " · ${v.mb} MB", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall)
+                            if (VozPropia.descargando == v.id) {
+                                androidx.compose.material3.LinearProgressIndicator(progress = { VozPropia.progreso }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+                                Text(if (VozPropia.progreso < .85f) "Descargando… ${(VozPropia.progreso / .85f * 100).toInt()} %" else "Preparando la voz…", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall)
+                            } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                                if (!lista) Boton("Descargar") { scope.launchSafe { aviso = VozPropia.descargar(v); versionVoz++ } }
+                                else {
+                                    if (!enUso) Boton("Usar") { p.set("motorVoz", VozPropia.PREFIJO + v.id); r.voz.cambiarMotor(VozPropia.PREFIJO + v.id); versionVoz++ }
+                                    Boton("Probar") { scope.launchSafe { if (!VozPropia.decir(v.id, "Hola, soy ${p.str("host", "Luna")}. Así sueno con la voz de ${v.nombre}.", 1f, p.int("volVoz", 100) / 100f)) aviso = "No se pudo usar la voz." } }
+                                    Boton("Borrar") { VozPropia.borrar(v); versionVoz++ }
+                                }
+                            }
+                        }
+                    }
+                }
+                Grupo("Otras voces gratis (apps aparte)") {
                     Ayuda("Instala «SherpaTTS» (voces Piper y Kokoro, código abierto) o «RHVoice», descarga una voz en español y elígela arriba como motor de voz.")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Boton("SherpaTTS") { abrir(ctx, "https://search.f-droid.org/?q=SherpaTTS&lang=es") }
@@ -455,10 +482,10 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                 Ayuda("No manipules la app mientras conduces.")
             }
             else -> Grupo("Radio de ruta para Android") {
-                Text("Versión 1.7 · por Arielegno", fontWeight = FontWeight.SemiBold)
+                Text("Versión 1.8 · por Arielegno", fontWeight = FontWeight.SemiBold)
                 Ayuda("No manipules la app mientras conduces: configúrala antes de arrancar.")
                 TextButton(onClick = { abrir(ctx, "https://arielegno.github.io/Radio/legal.html") }) { Text("Aviso legal y privacidad") }
-                Ayuda("Usa Media3 (Apache 2.0), Jetpack Compose (Apache 2.0), Leaflet (BSD-2) y datos de OpenStreetMap (ODbL), Open-Meteo, Wikipedia (CC BY-SA), MusicBrainz (CC0), iTunes Search, Spotify, Google Gemini y Anthropic Claude.")
+                Ayuda("Usa Media3 (Apache 2.0), Jetpack Compose (Apache 2.0), sherpa-onnx (Apache 2.0) con voces Piper, Apache Commons Compress (Apache 2.0), Leaflet (BSD-2) y datos de OpenStreetMap (ODbL), Open-Meteo, Wikipedia (CC BY-SA), MusicBrainz (CC0), iTunes Search, Spotify, Google Gemini y Anthropic Claude.")
             }
         }
         Spacer(Modifier.height(32.dp))

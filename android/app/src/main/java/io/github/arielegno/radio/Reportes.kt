@@ -26,7 +26,7 @@ object Reportes {
     private fun encabezado(): String {
         val v = try { RadioApp.app.packageManager.getPackageInfo(RadioApp.app.packageName, 0).versionName } catch (e: Exception) { "?" }
         return "Radio de ruta $v · Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · ${Build.MANUFACTURER} ${Build.MODEL}\n" +
-            "Memoria libre: ${Runtime.getRuntime().let { (it.maxMemory() - (it.totalMemory() - it.freeMemory())) / 1_048_576 }} MB · Canciones: ${runCatching { RadioApp.biblioteca.pistas.size }.getOrDefault(0)}\n"
+            "Memoria libre: ${Runtime.getRuntime().let { (it.maxMemory() - (it.totalMemory() - it.freeMemory())) / 1_048_576 }} MB\n"
     }
 
     private fun guardar(texto: String) {
@@ -62,12 +62,16 @@ object Reportes {
                     else -> "Cierre inesperado"
                 }
                 val traza = try { s.traceInputStream?.use { it.readBytes().toString(Charsets.UTF_8).take(20_000) } } catch (e: Exception) { null }
-                guardar("${motivo.uppercase()} · ${fecha(s.timestamp)}\n" + encabezado() + "Descripción: ${s.description ?: "-"} · Memoria usada: ${s.pss / 1024} MB\n\n" + (traza ?: "(Android no guardó más detalles)"))
+                guardar("${motivo.uppercase()} · ${fecha(s.timestamp)}\n" + encabezado() + "Descripción: ${s.description ?: "-"} · Memoria usada: ${s.pss / 1024} MB\nLo último que hacía: ${ultimaAccion()}\n\n" + (traza ?: "(Android no guardó más detalles)"))
                 RadioApp.prefs.set("reporteNuevo", true)
             }
         } catch (e: Exception) {}
         if (RadioApp.prefs.bool("reporteNuevo", false)) { pendiente = ultimo(); RadioApp.prefs.set("reporteNuevo", false) }
     }
+
+    /** Deja anotado qué estaba haciendo la app (si se cierra de golpe, el reporte lo dice). */
+    fun marca(texto: String) { try { File(RadioApp.app.filesDir, "ultima_accion.txt").writeText(java.time.LocalTime.now().withNano(0).toString() + " · " + texto) } catch (e: Exception) {} }
+    private fun ultimaAccion(): String = try { File(RadioApp.app.filesDir, "ultima_accion.txt").readText() } catch (e: Exception) { "-" }
 
     fun todos(): List<File> = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList()
     fun ultimo(): String? = todos().firstOrNull()?.readText()

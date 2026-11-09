@@ -68,6 +68,7 @@ object VozPropia {
                 while (inp.read(buf).also { n = it } >= 0) { out.write(buf, 0, n); hecho += n; progreso = (hecho.toFloat() / total * .85f).coerceAtMost(.85f) }
             } }
             // Descomprimir (tar.bz2) dentro de la carpeta de voces
+            Reportes.marca("Voz de la app: descomprimiendo ${v.nombre}")
             val destino = dirVoces.canonicalPath
             TarArchiveInputStream(BZip2CompressorInputStream(BufferedInputStream(tmp.inputStream(), 512 * 1024))).use { tar ->
                 var e = tar.nextEntry
@@ -112,7 +113,9 @@ object VozPropia {
                 numThreads = maxOf(2, minOf(4, Runtime.getRuntime().availableProcessors() / 2)), debug = false, provider = "cpu"),
             silenceScale = 0.1f,   // menos silencio entre frases
         )
+        Reportes.marca("Voz de la app: cargando ${v.nombre}")
         tts = OfflineTts(assetManager = null, config = cfg); cargada = v.id
+        Reportes.marca("Voz de la app: ${v.nombre} cargada")
         return tts
     }
 
@@ -152,8 +155,15 @@ object VozPropia {
                 }
                 reproductor.start()
                 try {
-                    t.generateWithCallback(limpio, 0, velocidad.coerceIn(.5f, 2f)) { muestras ->
-                        if (parar) 0 else { cola.put(muestras.copyOf()); generadas.addAndGet(muestras.size.toLong()); 1 }
+                    // Frase por frase con generate() (sin la llamada de vuelta del motor, que cerraba la app en algunos teléfonos)
+                    val frases = limpio.split(Regex("(?<=[.!?;])\\s+")).map { it.trim() }.filter { it.isNotEmpty() }
+                        .fold(mutableListOf<String>()) { acc, f -> if (acc.isNotEmpty() && acc.last().length < 40) acc[acc.lastIndex] = acc.last() + " " + f else acc += f; acc }
+                    for (f in frases) {
+                        if (parar) break
+                        Reportes.marca("Voz de la app: hablando con ${v.nombre} («${f.take(40)}»)")
+                        val audio = t.generate(f, 0, velocidad.coerceIn(.5f, 2f))
+                        val muestras = audio.samples
+                        if (muestras.isNotEmpty()) { cola.put(muestras); generadas.addAndGet(muestras.size.toLong()) }
                     }
                 } finally { listo.set(true) }
                 reproductor.join()

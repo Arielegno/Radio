@@ -128,9 +128,10 @@ fun Sugerencias(titulo: String, modifier: Modifier = Modifier) {
             val amigos = if (sigo.isEmpty()) emptyList() else Json.arr(Cuenta.api("GET", "/rest/v1/follows?select=author_id&follower_id=in.(${sigo.take(40).joinToString(",")})&limit=400")).mapNotNull { it.asObj()?.str("author_id") }
             val nuevos = Json.arr(Cuenta.api("GET", "/rest/v1/profiles?select=id,name,avatar,bio,banned&order=created_at.desc&limit=40")).mapNotNull { it.asObj() }
             val motivo = LinkedHashMap<String, String>()
-            meSiguen.forEach { motivo.putIfAbsent(it, "Te sigue") }
-            amigos.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.forEach { motivo.putIfAbsent(it.key, "Lo siguen ${it.value} de tus contactos".replace("Lo siguen 1 de tus contactos", "Lo sigue alguien que sigues")) }
-            nuevos.forEach { motivo.putIfAbsent(it.str("id"), "Nuevo en la Revista") }
+            fun poner(k: String, v: String) { if (k !in motivo) motivo[k] = v }
+            meSiguen.forEach { poner(it, "Te sigue") }
+            amigos.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.forEach { poner(it.key, "Lo siguen ${it.value} de tus contactos".replace("Lo siguen 1 de tus contactos", "Lo sigue alguien que sigues")) }
+            nuevos.forEach { poner(it.str("id"), "Nuevo en la Revista") }
             val ids = motivo.keys.filter { it != yo && it !in sigo }.take(15)
             val faltan = ids.filter { i -> nuevos.none { it.str("id") == i } }
             val perfiles = nuevos + if (faltan.isEmpty()) emptyList() else Json.arr(Cuenta.api("GET", "/rest/v1/profiles?select=id,name,avatar,bio,banned&id=in.(${faltan.joinToString(",")})")).mapNotNull { it.asObj() }

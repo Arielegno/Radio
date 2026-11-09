@@ -99,7 +99,7 @@ private fun TarjetaArtista(a: Map<String, Any?>, abrir: () -> Unit) {
         else Text(a.str("name").take(1).uppercase(), color = col(t.texto).copy(alpha = .5f), fontSize = 64.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Color(0xE6000000))))
         Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
-            Text(a.str("name") + if (a.bool("verified")) " ✓" else "", color = Color.White, fontFamily = Fuentes.titulo(e.ft), fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 22.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Text(a.str("name") + if (a.bool("verified")) " · verificada" else "", color = Color.White, fontFamily = Fuentes.titulo(e.ft), fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 22.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
             val sub = listOf(a.str("genre"), a.str("years")).filter { it.isNotBlank() }.joinToString(" · ")
             if (sub.isNotEmpty()) Text(sub, color = Color.White.copy(alpha = .8f), fontSize = 12.sp, maxLines = 1)
         }
@@ -148,9 +148,9 @@ fun ArtistaPantalla(id: String) {
                     }
                     Box(Modifier.padding(horizontal = 16.dp)) { CabeceraEstilo(art) }
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (a.bool("verified")) Text("✓ Banda verificada por la Revista", color = Amarillo, fontWeight = FontWeight.Bold)
+                        if (a.bool("verified")) Text("Banda verificada por la Revista", color = Amarillo, fontWeight = FontWeight.Bold)
                         if (L.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ENLACES.filter { it.first in L }.forEach { (k, n) -> Boton("$n ↗", principal = false) { abrirEnlace(L.getValue(k)) } }
+                            ENLACES.filter { it.first in L }.forEach { (k, n) -> Boton(n, principal = false) { abrirEnlace(L.getValue(k)) } }
                         }
                         if (a.str("bio").isBlank()) Text("Sin biografía todavía.", color = Tenue) else TextoArticulo(art)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Boton("Compartir", principal = false) { abrirEnlace(Supa.WEB + "#rva=" + id) }; Enlace("Denunciar", Tenue) { if (Nav.necesitaCuenta()) denunciar = true } }
@@ -158,7 +158,7 @@ fun ArtistaPantalla(id: String) {
                         if (Cuenta.esAdmin) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x1AF2C230)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Solo tú ves esto", fontWeight = FontWeight.Bold)
                             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Boton(if (a.bool("verified")) "Quitar verificación" else "Verificar banda ✓", principal = false) { scope.launch { runCatching { Cuenta.api("PATCH", "/rest/v1/artists?id=eq.$id", mapOf("verified" to !a.bool("verified")), "return=minimal") }; version++ } }
+                                Boton(if (a.bool("verified")) "Quitar verificación" else "Verificar banda", principal = false) { scope.launch { runCatching { Cuenta.api("PATCH", "/rest/v1/artists?id=eq.$id", mapOf("verified" to !a.bool("verified")), "return=minimal") }; version++ } }
                                 Boton("Añadir gestor", principal = false) { gestor = true }
                             }
                             d.gestores.forEach { (uid, n) -> Row(verticalAlignment = Alignment.CenterVertically) { Text(n, modifier = Modifier.weight(1f)); Enlace("quitar", Tenue) { scope.launch { runCatching { Cuenta.api("DELETE", "/rest/v1/artist_managers?artist_id=eq.$id&user_id=eq.$uid") }; version++ } } } }

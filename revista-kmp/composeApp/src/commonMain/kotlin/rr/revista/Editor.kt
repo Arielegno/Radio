@@ -381,7 +381,7 @@ private fun SelectorFondo(d: Diseno, hayPortada: Boolean, cambiar: (Diseno) -> U
         }
         if (d.bg == "cover") { Deslizador("Desenfoque", d.blur.toFloat(), 0f..40f, "${d.blur} px") { cambiar(d.copy(blur = it.toInt())) }; if (!hayPortada) Text("Primero elige una imagen de portada.", color = Tenue, fontSize = 13.sp) }
         Deslizador("Oscurecer", d.dim.toFloat(), 0f..90f, "${d.dim}%") { cambiar(d.copy(dim = (it / 5).toInt() * 5)) }
-        Fichas(listOf("vin" to "Viñeta" + if (d.vin) " ✓" else "", "grain" to "Grano de foto" + if (d.grain) " ✓" else ""), "") { if (it == "vin") cambiar(d.copy(vin = !d.vin)) else cambiar(d.copy(grain = !d.grain)) }
+        Fichas(listOf("vin" to "Viñeta" + if (d.vin) ": sí" else "", "grain" to "Grano de foto" + if (d.grain) ": sí" else ""), "") { if (it == "vin") cambiar(d.copy(vin = !d.vin)) else cambiar(d.copy(grain = !d.grain)) }
         Box(Modifier.fillMaxWidth().height(90.dp).clip(RoundedCornerShape(14.dp)).drawBehind { if (d.bg == "none" || d.bg == "cover") drawRect(Brush.linearGradient(listOf(Color(0xFF2A2E36), Color(0xFF15171B)))) else fondoDiseno(d); capasEncima(d) }, contentAlignment = Alignment.Center) {
             Text("Así se verá el fondo", color = Color.White, fontWeight = FontWeight.Bold)
         }
@@ -399,7 +399,7 @@ private fun SelectorLetra(d: Diseno, cambiar: (Diseno) -> Unit) {
         Deslizador("Interlineado", (if (d.lh == 0.0) 1.6 else d.lh).toFloat(), 1.2f..2.2f, if (d.lh == 0.0) "auto" else ((d.lh * 10).toInt() / 10.0).toString()) { cambiar(d.copy(lh = (it * 10).toInt() / 10.0)) }
         Deslizador("Tamaño del título", (if (d.ts == 0) 34 else d.ts).toFloat(), 20f..80f, if (d.ts == 0) "auto" else "${d.ts} px") { cambiar(d.copy(ts = it.toInt())) }
         Fichas(listOf("" to "Del tema", "l" to "Izquierda", "j" to "Justificado", "c" to "Centrado"), d.ta) { cambiar(d.copy(ta = it)) }
-        Fichas(listOf("tsh" to "Sombra en las letras" + if (d.tsh) " ✓" else ""), "") { cambiar(d.copy(tsh = !d.tsh)) }
+        Fichas(listOf("tsh" to "Sombra en las letras" + if (d.tsh) ": sí" else ""), "") { cambiar(d.copy(tsh = !d.tsh)) }
         Text("Color del texto", color = Tenue, fontSize = 13.sp); Puntos(d.tc, true) { cambiar(d.copy(tc = it)) }
         Text("Color del título", color = Tenue, fontSize = 13.sp); Puntos(d.hc, true) { cambiar(d.copy(hc = it)) }
         Enlace("Volver a la letra del tema") { cambiar(d.copy(tf = "", hf = "", fs = 0, lh = 0.0, ts = 0, tc = null, hc = null, ta = "", tsh = false)) }

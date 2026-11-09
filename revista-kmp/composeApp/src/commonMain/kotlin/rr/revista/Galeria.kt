@@ -223,7 +223,7 @@ fun PosterPantalla(id: String) {
                         if (p.tipo == "original") {
                             val c = p.credito.trim(); val mitad = if (c.length % 2 == 0) c.substring(0, c.length / 2) else ""
                             Text("Autor: ${(if (mitad.isNotEmpty() && mitad + mitad == c) mitad else c).ifEmpty { "desconocido" }}" + if (p.licencia.isNotEmpty()) " · Licencia: ${p.licencia}" else "", color = Tenue, fontSize = 14.sp)
-                            if (p.urlFuente.isNotEmpty()) Enlace("Ver la ficha en Wikimedia Commons ↗") { abrirEnlace(p.urlFuente) }
+                            if (p.urlFuente.isNotEmpty()) Enlace("Ver la ficha en Wikimedia Commons") { abrirEnlace(p.urlFuente) }
                         } else {
                             if (p.disenador.isNotBlank()) Text("Arte de ${p.disenador}", fontWeight = FontWeight.SemiBold)
                             Row(verticalAlignment = Alignment.CenterVertically) { Text("Subido por ", color = Tenue, fontSize = 14.sp); Enlace(p.creadorNombre) { Nav.ir(Destino.Perfil(p.creador)) }; Text("· ${Fechas.corta(p.fecha)}", color = Tenue, fontSize = 14.sp) }

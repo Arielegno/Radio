@@ -87,25 +87,26 @@ object VozPropia {
     }
 
     fun borrar(v: Voz) {
-        if (cargada == v.id) liberar()
+        if (turno.tryLock()) try { motores.remove(v.id)?.let { try { it.release() } catch (e: Throwable) {} } } finally { turno.unlock() }
         dir(v).deleteRecursively(); version++
         if (RadioApp.prefs.str("motorVoz", "") == PREFIJO + v.id) RadioApp.prefs.set("motorVoz", "")
     }
 
     // ---------- Voz ----------
-    private var tts: OfflineTts? = null
-    private var cargada: String? = null
-    private val turno = Mutex()
+    // Hasta dos voces cargadas a la vez (para Luna y su compañero sin recargar en cada turno)
+    private val motores = LinkedHashMap<String, OfflineTts>()
+    private val turno = Mutex()          // el motor genera de a una cosa
+    private val altavoz = Mutex()        // y suena de a una cosa
     @Volatile private var parar = false
-    private var pista: AudioTrack? = null
+    @Volatile private var pista: AudioTrack? = null
 
-    private fun liberar() { try { tts?.release() } catch (e: Throwable) {}; tts = null; cargada = null }
-    /** Suelta la voz de la memoria si no está hablando (Android pidió memoria). Se vuelve a cargar al hablar. */
+    private fun liberar() { motores.values.forEach { try { it.release() } catch (e: Throwable) {} }; motores.clear() }
+    /** Suelta las voces de la memoria si no están trabajando (Android pidió memoria). Se vuelven a cargar al hablar. */
     fun soltarMemoria() { if (!hablando && turno.tryLock()) try { liberar() } finally { turno.unlock() } }
 
-    private fun motor(v: Voz): OfflineTts? {
-        if (cargada == v.id && tts != null) return tts
-        liberar()
+    private fun motor(v: Voz, quedarse: Int = if (RadioApp.prefs.bool("dosLocutores", false)) 2 else 1): OfflineTts? {
+        motores[v.id]?.let { return it }
+        while (motores.size >= quedarse) { val k = motores.keys.first(); try { motores.remove(k)?.release() } catch (e: Throwable) {} }
         val m = modelo(v) ?: return null
         val d = dir(v)
         val cfg = OfflineTtsConfig(
@@ -116,9 +117,78 @@ object VozPropia {
             silenceScale = 0.1f,   // menos silencio entre frases
         )
         Reportes.marca("Voz de la app: cargando ${v.nombre}")
-        tts = OfflineTts(assetManager = null, config = cfg); cargada = v.id
+        val t = OfflineTts(assetManager = null, config = cfg); motores[v.id] = t
         Reportes.marca("Voz de la app: ${v.nombre} cargada")
-        return tts
+        return t
+    }
+
+    private fun frases(limpio: String): List<String> = limpio.split(Regex("(?<=[.!?;])\\s+")).map { it.trim() }.filter { it.isNotEmpty() }
+        .fold(mutableListOf<String>()) { acc, f -> if (acc.isNotEmpty() && acc.last().length < 40) acc[acc.lastIndex] = acc.last() + " " + f else acc += f; acc }
+
+    /** Audio ya generado (para que Luna hable al instante, sin pausas). */
+    class Pieza(val muestras: FloatArray, val sr: Int)
+
+    /** Genera de antemano todo lo que dirá una voz (se hace mientras suena la canción). */
+    suspend fun generar(id: String, texto: String, velocidad: Float): Pieza? = withContext(Dispatchers.Default) {
+        val v = porId(id) ?: return@withContext null
+        if (!disponible || !instalada(v)) return@withContext null
+        val limpio = limpiarParaVoz(texto); if (limpio.isBlank()) return@withContext null
+        turno.withLock {
+            try {
+                val t = motor(v) ?: return@withLock null
+                val partes = mutableListOf<FloatArray>()
+                for (f in frases(limpio)) {
+                    Reportes.marca("Voz de la app: preparando con ${v.nombre} («${f.take(40)}»)")
+                    val a = t.generate(f, 0, velocidad.coerceIn(.5f, 2f)).samples
+                    if (a.isNotEmpty()) partes += a
+                }
+                val total = partes.sumOf { it.size }
+                if (total == 0) return@withLock null
+                val todo = FloatArray(total); var k = 0
+                for (a in partes) { a.copyInto(todo, k); k += a.size }
+                Pieza(todo, t.sampleRate())
+            } catch (e: Throwable) { Reportes.error("VozPropia.generar", e); null }
+        }
+    }
+
+    private fun nuevaPista(sr: Int, volumen: Float): AudioTrack {
+        val min = AudioTrack.getMinBufferSize(sr, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT)
+        return AudioTrack.Builder()
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+            .setAudioFormat(AudioFormat.Builder().setSampleRate(sr).setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+            .setBufferSizeInBytes(maxOf(min, sr * 4)).setTransferMode(AudioTrack.MODE_STREAM).build()
+            .also { it.setVolume(volumen.coerceIn(0f, 1f)) }
+    }
+
+    /** Hace sonar audio ya generado (una o varias voces seguidas) y espera a que termine. */
+    suspend fun reproducir(piezas: List<Pieza>, volumen: Float, efecto: String = RadioApp.prefs.str("efectoVoz", "")): Boolean = withContext(Dispatchers.IO) {
+        if (piezas.isEmpty()) return@withContext true
+        altavoz.withLock {
+            parar = false; hablando = true
+            try {
+                Reportes.marca("Voz de la app: hablando (preparado)")
+                for ((n, pz) in piezas.withIndex()) {
+                    if (parar) break
+                    val p = nuevaPista(pz.sr, volumen); pista = p
+                    val fx = Efecto(efecto, pz.sr)
+                    var x = fx.procesar(pz.muestras)
+                    val c = fx.cola(); if (c.isNotEmpty()) x = x + c
+                    // entre un locutor y otro, una pausa corta y natural
+                    if (n < piezas.lastIndex) x = x + FloatArray(pz.sr / 4)
+                    p.play()
+                    var i = 0
+                    while (i < x.size && !parar) { val w = p.write(x, i, minOf(8192, x.size - i), AudioTrack.WRITE_BLOCKING); if (w <= 0) break; i += w }
+                    val fin = System.currentTimeMillis() + x.size * 1000L / pz.sr + 1500
+                    while (!parar && p.playbackHeadPosition < x.size && System.currentTimeMillis() < fin) Thread.sleep(30)
+                    try { p.stop() } catch (e: Exception) {}
+                    p.release(); pista = null
+                }
+                !parar
+            } catch (e: Throwable) {
+                Reportes.error("VozPropia.reproducir", e)
+                try { pista?.release() } catch (x: Throwable) {}; pista = null; false
+            } finally { hablando = false }
+        }
     }
 
     /** Habla con la voz propia y espera a que termine. velocidad 1.0 = normal. efecto: "", "fm", "telefono", "estadio", "walkie". */
@@ -126,27 +196,21 @@ object VozPropia {
         val v = porId(id) ?: return@withContext false
         if (!disponible || !instalada(v)) return@withContext false
         val limpio = limpiarParaVoz(texto); if (limpio.isBlank()) return@withContext true
-        turno.withLock {
+        turno.withLock { altavoz.withLock {
             parar = false; hablando = true
             try {
                 val t = motor(v) ?: return@withLock false
                 val sr = t.sampleRate()
-                val min = AudioTrack.getMinBufferSize(sr, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT)
-                val p = AudioTrack.Builder()
-                    .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-                    .setAudioFormat(AudioFormat.Builder().setSampleRate(sr).setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
-                    .setBufferSizeInBytes(maxOf(min, sr * 4)).setTransferMode(AudioTrack.MODE_STREAM).build()
-                pista = p
-                p.setVolume(volumen.coerceIn(0f, 1f))
+                val p = nuevaPista(sr, volumen); pista = p
                 val fx = Efecto(efecto, sr)
-                // Se genera y suena a la vez; antes de empezar se junta un colchón de ~2,5 s para que no haya huecos
+                // Se genera y suena a la vez; la primera frase empieza apenas está lista y el resto se va generando
                 val cola = java.util.concurrent.LinkedBlockingQueue<FloatArray>()
                 val generadas = java.util.concurrent.atomic.AtomicLong(0)
                 val listo = java.util.concurrent.atomic.AtomicBoolean(false)
                 var escritos = 0L
                 val reproductor = Thread {
                     try {
-                        while (!parar && !listo.get() && generadas.get() < sr * 2.5) Thread.sleep(20)
+                        while (!parar && !listo.get() && generadas.get() < sr * 1.5) Thread.sleep(20)
                         p.play()
                         while (!parar) {
                             val c = cola.poll(200, java.util.concurrent.TimeUnit.MILLISECONDS) ?: if (listo.get() && cola.isEmpty()) break else continue
@@ -158,13 +222,10 @@ object VozPropia {
                 reproductor.start()
                 try {
                     // Frase por frase con generate() (sin la llamada de vuelta del motor, que cerraba la app en algunos teléfonos)
-                    val frases = limpio.split(Regex("(?<=[.!?;])\\s+")).map { it.trim() }.filter { it.isNotEmpty() }
-                        .fold(mutableListOf<String>()) { acc, f -> if (acc.isNotEmpty() && acc.last().length < 40) acc[acc.lastIndex] = acc.last() + " " + f else acc += f; acc }
-                    for (f in frases) {
+                    for (f in frases(limpio)) {
                         if (parar) break
                         Reportes.marca("Voz de la app: hablando con ${v.nombre} («${f.take(40)}»)")
-                        val audio = t.generate(f, 0, velocidad.coerceIn(.5f, 2f))
-                        val muestras = audio.samples
+                        val muestras = t.generate(f, 0, velocidad.coerceIn(.5f, 2f)).samples
                         if (muestras.isNotEmpty()) { cola.put(muestras); generadas.addAndGet(muestras.size.toLong()) }
                     }
                 } finally { listo.set(true) }
@@ -177,9 +238,10 @@ object VozPropia {
                 p.release(); pista = null
                 !parar
             } catch (e: Throwable) {
+                Reportes.error("VozPropia.decir", e)
                 try { pista?.release() } catch (x: Throwable) {}; pista = null; false
             } finally { hablando = false }
-        }
+        } }
     }
 
     fun callar() { parar = true; try { pista?.pause(); pista?.flush() } catch (e: Exception) {} }

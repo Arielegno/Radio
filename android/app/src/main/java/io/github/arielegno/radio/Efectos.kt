@@ -69,6 +69,13 @@ object Efectos {
         } catch (e: Exception) { Log.w("Radio", "Nivelador no disponible", e); dp = null; le = null }
     }
 
+    /** Mientras Luna habla encima, el nivelador se apaga (si no, vuelve a subir la música bajita). */
+    fun pausarNivelador(pausa: Boolean) {
+        val on = p.bool("levelOn", false) && !pausa
+        try { if (Build.VERSION.SDK_INT >= 28) dp?.enabled = on } catch (e: Exception) {}
+        try { le?.enabled = on } catch (e: Exception) {}
+    }
+
     /** Compresor suave + limitador: sube lo bajito y frena los picos. */
     private fun crearNivelador(): DynamicsProcessing? {
         if (Build.VERSION.SDK_INT < 28) return null

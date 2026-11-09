@@ -51,6 +51,11 @@ object Limpieza {
         return r
     }
 
+    // Recopilatorios de radio, promos y listas: no son el álbum real de la canción
+    private val RECOPILATORIO = Regex("promo only|spotify (singles|sessions)|\\bkfog\\b|live from the archives|now that.?s what i call|various artists|varios artistas|modern rock radio|alternative times|radio hits|\\bhits \\d{4}\\b|\\bdj mix\\b|karaoke|tribute to|tributo a|playlist|\\bmixtape vol|ministry of sound|bravo hits|top hits", RegexOption.IGNORE_CASE)
+    /** true si el nombre del álbum parece un recopilatorio (promo, radio, Spotify Singles…). */
+    fun esRecopilatorio(album: String?): Boolean = !album.isNullOrBlank() && RECOPILATORIO.containsMatchIn(album)
+
     /** Datos encontrados en internet para una canción. */
     data class Datos(val album: String = "", val anio: Int = 0, val portada: String = "", val albumes: List<String> = emptyList())
 
@@ -59,7 +64,9 @@ object Limpieza {
         var x = t; var cambio = false
         val conocidos = d.albumes.map(::normNombre).filter { it.isNotEmpty() }.toSet()
         val libre = { c: String -> forzar || c !in t.manual }
-        if (d.album.isNotEmpty() && libre("album") && (t.album.isEmpty() || (conocidos.isNotEmpty() && normNombre(t.album) !in conocidos)) && t.album != d.album) {
+        // nunca se cambia un álbum de verdad por un recopilatorio; uno de recopilatorio sí se cambia por el real
+        val mejor = !esRecopilatorio(d.album) || t.album.isEmpty()
+        if (d.album.isNotEmpty() && libre("album") && mejor && (t.album.isEmpty() || (esRecopilatorio(t.album) && !esRecopilatorio(d.album)) || (conocidos.isNotEmpty() && normNombre(t.album) !in conocidos)) && t.album != d.album) {
             x = x.copy(album = d.album); cambio = true
             if (d.anio > 0 && libre("year")) x = x.copy(year = d.anio)
         }
@@ -67,25 +74,34 @@ object Limpieza {
         return x
     }
 
-    /** iTunes: la canción que coincide exactamente (título y artista). */
+    /** iTunes: la canción que coincide exactamente (título y artista), en su álbum original (no en recopilatorios). */
     fun deItunes(json: String, nombre: String, artista: String): Datos? {
         val nt = normNombre(nombre); val na = normNombre(artista)
-        val t = Json.obj(json).list("results").mapNotNull { it.asObj() }
-            .firstOrNull { normNombre(it.str("trackName")) == nt && normNombre(it.str("artistName")).contains(na) } ?: return null
+        val todos = Json.obj(json).list("results").mapNotNull { it.asObj() }
+            .filter { normNombre(it.str("trackName")) == nt && normNombre(it.str("artistName")).contains(na) }
+        if (todos.isEmpty()) return null
+        val t = todos.sortedWith(compareBy<Map<String, Any?>>(
+            { val ca = normNombre(it.str("collectionArtistName")); if (ca.isNotEmpty() && !ca.contains(na)) 1 else 0 },   // «Various Artists»
+            { if (esRecopilatorio(it.str("collectionName"))) 1 else 0 },
+            { if (Regex("\\s-\\s(single|ep)$", RegexOption.IGNORE_CASE).containsMatchIn(it.str("collectionName"))) 1 else 0 },
+            { it.str("releaseDate").ifEmpty { "9999" } })).first()
         val anio = Regex("^(\\d{4})").find(t.str("releaseDate"))?.groupValues?.get(1)?.toInt() ?: 0
         return Datos(t.str("collectionName").replace(Regex("\\s+-\\s+(single|ep)$", RegexOption.IGNORE_CASE), ""), anio,
-            t.str("artworkUrl100").replace(Regex("/\\d+x\\d+bb\\."), "/600x600bb."), listOf(t.str("collectionName")))
+            t.str("artworkUrl100").replace(Regex("/\\d+x\\d+bb\\."), "/600x600bb."), todos.map { it.str("collectionName") }.distinct())
     }
 
     /** MusicBrainz: álbum y año (prefiere álbumes oficiales, sin recopilatorios, el más antiguo). */
     fun deMusicBrainz(json: String, nombre: String, artista: String): Datos? {
         val nt = normNombre(nombre); val na = normNombre(artista)
-        val rec = Json.obj(json).list("recordings").mapNotNull { it.asObj() }.firstOrNull { r ->
+        // la misma canción puede tener varias grabaciones (estudio, en vivo, radio): se juntan todos sus discos
+        val recs = Json.obj(json).list("recordings").mapNotNull { it.asObj() }.filter { r ->
             r.num("score") >= 85 && normNombre(r.str("title")) == nt &&
                 r.list("artist-credit").mapNotNull { it.asObj() }.any { c -> normNombre(c.str("name").ifEmpty { c.map("artist").str("name") }) == na }
-        } ?: return null
-        val rels = rec.list("releases").mapNotNull { it.asObj() }.filter { it.str("title").isNotEmpty() }.sortedWith(
+        }
+        val rec = recs.firstOrNull() ?: return null
+        val rels = recs.flatMap { r -> r.list("releases").mapNotNull { it.asObj() } }.filter { it.str("title").isNotEmpty() }.sortedWith(
             compareBy<Map<String, Any?>>({ if (it.map("release-group").str("primary-type") == "Album") 0 else 1 },
+                { if (esRecopilatorio(it.str("title"))) 1 else 0 },
                 { it.map("release-group").list("secondary-types").size },
                 { if (it.str("status") == "Official") 0 else 1 },
                 { it.str("date").ifEmpty { "9999" } }))

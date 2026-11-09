@@ -2,6 +2,14 @@
 
 Lo más nuevo arriba. También se ve dentro de la app en Ajustes › Acerca de › Novedades.
 
+## 2.0.5
+- Luna habla al instante y sin pausas: con las voces de la app, su voz se prepara mientras suena la canción.
+- Dos locutores: Luna ya no lee la parte de Leo; cada uno habla con su voz aunque la IA escriba todo seguido, y en pantalla se ve cada uno en su renglón.
+- La música baja de verdad mientras Luna habla (el nivelador de volumen ya no la vuelve a subir) y empieza bajita enseguida, sin silencio largo.
+- Álbumes: las canciones ya no se van a recopilatorios (Promo Only, Spotify Singles, radios en vivo…); la guía busca el álbum original y une «Deluxe», «Remastered» y similares con su álbum.
+- Las canciones que ya estaban en recopilatorios se revisan solas una vez para volver a su álbum real.
+- Agregar muchas canciones ya no se queda trabado: un archivo dañado o lento se salta, y el avance se guarda cada 300 canciones.
+
 ## 2.0.4
 - Arreglado: la app se trababa («no responde») al abrir la Biblioteca o al empezar la radio con muchas canciones.
 - Ordenar, buscar y agrupar la biblioteca es mucho más rápido: los nombres limpios se calculan una sola vez.

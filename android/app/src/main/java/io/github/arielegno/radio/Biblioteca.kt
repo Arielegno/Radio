@@ -55,6 +55,12 @@ class Biblioteca(private val ctx: Context) {
             pistas.filter { !esCancion(it.file) }.forEach { runCatching { File(dirMusica, it.file).delete() } }
             val faltan = pistas.filter { !esCancion(it.file) || !File(dirMusica, it.file).exists() }.map { it.id }.toSet()
             if (faltan.isNotEmpty()) { val l = pistas.filter { it.id !in faltan }; guardar(l); publicar(l) }
+            // Una sola vez: canciones que quedaron en recopilatorios (Promo Only, Spotify Singles, KFOG…) vuelven a buscar su álbum real
+            if (!RadioApp.prefs.bool("albumesRecop1", false)) {
+                RadioApp.prefs.set("albumesRecop1", true)
+                val l = pistas.map { if ("album" !in it.manual && io.github.arielegno.radio.core.Limpieza.esRecopilatorio(it.album)) it.copy(revisada = false) else it }
+                if (l.any { !it.revisada }) { guardar(l); publicar(l); kotlinx.coroutines.delay(20_000); Guia.mantener(false) }
+            }
         }
     }
 
@@ -150,16 +156,20 @@ class Biblioteca(private val ctx: Context) {
                             val mime = cr.getType(uri) ?: "audio/mpeg"
                             val id = candado.withLock { sig++ }
                             val f = File(dirMusica, "$id.${extDe(nombre, mime)}"); copia = f
-                            val input = cr.openInputStream(uri) ?: throw IllegalStateException("No se pudo abrir")
-                            input.use { inp -> FileOutputStream(f).use { out -> inp.copyTo(out, 128 * 1024) } }
-                            val t = leerEtiquetas(f, id, nombre, mime)
+                            // Copiar y leer etiquetas con tiempo límite: un archivo trabado (en la nube, dañado) ya no detiene todo
+                            val limite = 60_000L + (if (tam > 0) tam / 1_048_576 * 3_000L else 120_000L)
+                            val t = conLimite(limite) {
+                                val input = cr.openInputStream(uri) ?: throw IllegalStateException("No se pudo abrir")
+                                input.use { inp -> FileOutputStream(f).use { out -> inp.copyTo(out, 128 * 1024) } }
+                                leerEtiquetas(f, id, nombre, mime)
+                            } ?: throw IllegalStateException("Archivo trabado: se salta")
                             val k = claveDup(t.name, t.artist, f.length())
                             // Mismo tamaño y misma duración que una que ya tienes: es la misma canción aunque se llame distinto
                             val gemela = porTamano[f.length()]?.any { v -> t.durMs > 0 && kotlin.math.abs(v.durMs - t.durMs) < 1500 } == true
                             val nueva = candado.withLock { origenes += origen; if (k in dups || gemela) false else { dups += k; lista += t; true } }
                             if (nueva) ok.incrementAndGet() else { f.delete(); if (t.cover.isNotEmpty()) File(dirCaratulas, t.cover).delete(); rep.incrementAndGet() }
                         } catch (e: Saltar) {
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {   // también falta de memoria con un archivo raro: se salta y se sigue
                             copia?.delete(); mal.incrementAndGet()
                         }
                         val n = hechas.incrementAndGet()
@@ -167,6 +177,11 @@ class Biblioteca(private val ctx: Context) {
                         // La pantalla se actualiza cada 60 canciones o cada 5 segundos (antes cada 15: la lista se trababa)
                         val ahora = System.currentTimeMillis()
                         if (n % 60 == 0 || ahora - ultimaVista.get() > 5000) { ultimaVista.set(ahora); val copiaLista = candado.withLock { lista.toList() }; publicar(copiaLista) }
+                        // Se guarda el avance cada 300: si Android cierra la app a mitad, no se pierde lo ya agregado
+                        if (n % 300 == 0) {
+                            val (copiaLista, og) = candado.withLock { lista.toList() to origenes.toList() }
+                            guardar(copiaLista.sortedBy { it.id }); RadioApp.prefs.set("origenes", Json.write(og.takeLast(20000)))
+                        }
                     }
                 }
             }.awaitAll()
@@ -192,7 +207,7 @@ class Biblioteca(private val ctx: Context) {
             genero = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE).orEmpty().trim().removePrefix("(").let { if (Regex("^\\d+\\)?$").matches(it)) "" else it }
             dur = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
             mmr.embeddedPicture?.let { cover = guardarCaratula(it, id) }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             // archivo sin etiquetas legibles: se usa el nombre del archivo
         } finally {
             try { mmr.release() } catch (e: Exception) {}
@@ -220,7 +235,17 @@ class Biblioteca(private val ctx: Context) {
             FileOutputStream(File(dirCaratulas, nombre)).use { final.compress(Bitmap.CompressFormat.JPEG, 85, it) }
             nombre
         }
-    } catch (e: Exception) { "" }
+    } catch (e: Throwable) { "" }
+
+    /** Hace un trabajo lento en un hilo aparte; si tarda más del límite, se abandona (null). */
+    private fun <T> conLimite(ms: Long, bloque: () -> T): T? {
+        val r = java.util.concurrent.atomic.AtomicReference<Result<T>?>(null)
+        val hecho = java.util.concurrent.CountDownLatch(1)
+        val h = Thread { try { r.set(Result.success(bloque())) } catch (e: Throwable) { r.set(Result.failure(e)) } finally { hecho.countDown() } }
+        h.isDaemon = true; h.start()
+        if (!hecho.await(ms, java.util.concurrent.TimeUnit.MILLISECONDS)) { h.interrupt(); return null }
+        return r.get()?.getOrThrow()
+    }
 
     suspend fun borrar(ids: Set<Long>) = withContext(Dispatchers.IO) {
         val quedan = pistas.filter { t ->

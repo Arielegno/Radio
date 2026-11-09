@@ -182,7 +182,9 @@ object Guia {
             if (t.year == 0 && libre("year") && y in 1900..2100) t = t.copy(year = y)
         }
         val d2 = d.copy(portada = portada)
-        if ((t.cover.isEmpty() || (forzar && "cover" !in t0.manual)) && t0.cover.isEmpty() && d2.portada.isNotEmpty() && libre("cover")) {
+        // si salió de un recopilatorio a su álbum real, también se cambia la carátula
+        val salioDeRecopilatorio = Limpieza.esRecopilatorio(t0.album) && !Limpieza.esRecopilatorio(t.album) && t.album.isNotEmpty()
+        if ((t.cover.isEmpty() || (forzar && "cover" !in t0.manual) || salioDeRecopilatorio) && (t0.cover.isEmpty() || salioDeRecopilatorio) && d2.portada.isNotEmpty() && libre("cover")) {
             bajarImagen(d2.portada)?.let { b -> bib.guardarCaratulaDe(b, t.id).takeIf { it.isNotEmpty() }?.let { t = t.copy(cover = it) } }
         }
         t = t.copy(revisada = true, manual = if (forzar) emptySet() else t0.manual)

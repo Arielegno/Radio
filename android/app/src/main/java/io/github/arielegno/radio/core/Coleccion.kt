@@ -25,9 +25,21 @@ object Coleccion {
     fun generoPrincipal(t: Track): String = t.genre.split(',', ';', '/').firstOrNull()?.trim()?.takeIf { it.isNotEmpty() }?.replaceFirstChar { it.uppercase() } ?: OTROS_GENEROS
 
     /** Clave de grupo de una canción en cada vista. */
+    // «Melophobia (Deluxe Edition)», «Melophobia [Remastered]» y «Melophobia» son el mismo álbum
+    private val EDICION = Regex("\\s*[(\\[][^)\\]]*\\b(deluxe|remaster(ed)?|expanded|edition|edición|edicion|version|versión|anniversary|aniversario|bonus|explicit|special|super)\\b[^)\\]]*[)\\]]\\s*$|\\s+-\\s+(single|ep|deluxe( edition)?|remastered( \\d{4})?)\\s*$", RegexOption.IGNORE_CASE)
+    private val nombresAlbum = java.util.concurrent.ConcurrentHashMap<String, String>()
+    /** El nombre del álbum sin «Deluxe», «Remastered», «- Single»… (y escrito siempre igual, aunque cambien comas o mayúsculas). */
+    fun albumBase(a: String): String {
+        if (a.isBlank()) return ""
+        var b = a.trim(); var n = 0
+        while (n++ < 3) { val c = b.replace(EDICION, "").trim(); if (c == b || c.isEmpty()) break; b = c }
+        val k = normNombre(b).ifEmpty { return b }
+        return nombresAlbum.getOrPut(k) { b }
+    }
+
     fun clave(t: Track, vista: String): String = when (vista) {
         "artistas" -> Limpieza.artistaPrincipal(t.artist).ifBlank { SIN_ARTISTA }   // «Lana Del Rey, A$AP Rocky» va con Lana Del Rey
-        "albumes" -> t.album.ifBlank { SIN_ALBUM }
+        "albumes" -> albumBase(t.album).ifBlank { SIN_ALBUM }
         "generos" -> generoPrincipal(t)
         else -> if (t.year > 0) t.year.toString() else SIN_ANIO
     }

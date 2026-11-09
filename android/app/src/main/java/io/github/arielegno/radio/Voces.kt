@@ -110,26 +110,80 @@ class VozLuna(private val ctx: Context) {
         return if (a != b && VozPropia.instalada(va) && VozPropia.instalada(vb)) a to b else null
     }
 
+    /** Audio de Luna (y su compañero) ya generado, listo para sonar al instante. */
+    class Preparado(val piezas: List<VozPropia.Pieza>)
+
+    /**
+     * Separa el guion por locutor: «Luna: … Leo: …» (en líneas distintas o todo seguido).
+     * Devuelve (esElCompañero, texto) por cada turno. Sin marcas, todo es de Luna.
+     */
+    fun partir(texto0: String): List<Pair<Boolean, String>> {
+        val p = RadioApp.prefs
+        val host = p.str("host", "Luna").trim().ifEmpty { "Luna" }; val host2 = p.str("host2", "Leo").trim().ifEmpty { "Leo" }
+        val marca = Regex("(?:^|(?<=[\\s.!?¡¿,;:\"«»—–-]))(${Regex.escape(host)}|${Regex.escape(host2)})\\s*:", RegexOption.IGNORE_CASE)
+        val out = mutableListOf<Pair<Boolean, String>>()
+        var quien = false; var desde = 0
+        for (m in marca.findAll(texto0)) {
+            val antes = texto0.substring(desde, m.range.first).trim()
+            if (antes.isNotEmpty()) out += quien to antes
+            quien = m.groupValues[1].equals(host2, true) && !host2.equals(host, true)
+            desde = m.range.last + 1
+        }
+        texto0.substring(desde).trim().takeIf { it.isNotEmpty() }?.let { out += quien to it }
+        // turnos seguidos del mismo locutor se juntan
+        return out.fold(mutableListOf()) { acc, x -> if (acc.isNotEmpty() && acc.last().first == x.first) acc[acc.lastIndex] = x.first to (acc.last().second + " " + x.second) else acc += x; acc }
+    }
+
+    /** El guion para mostrar en pantalla: cada locutor en su propio renglón. */
+    fun paraMostrar(texto0: String): String {
+        val partes = partir(texto0)
+        if (partes.none { it.first }) return partes.joinToString(" ") { it.second }
+        val p = RadioApp.prefs
+        return partes.joinToString("\n") { (b, t) -> (if (b) p.str("host2", "Leo") else p.str("host", "Luna")) + ": " + t }
+    }
+
+    private fun velocidad(): Float = when (RadioApp.prefs.str("vozPreset", "natural")) { "radio" -> .9f; "narrador" -> 1f; "energico" -> 1.12f; "manual" -> RadioApp.prefs.int("velocidad", 100) / 100f; else -> 1f }
+
+    /** Genera de antemano lo que dirá Luna (solo con las voces de la app). null = se hablará en el momento. */
+    suspend fun preparar(texto0: String): Preparado? {
+        val p = RadioApp.prefs
+        val motor = p.str("motorVoz", "")
+        if (!motor.startsWith(VozPropia.PREFIJO)) return null
+        val principal = motor.removePrefix(VozPropia.PREFIJO)
+        val dos = duo()
+        val partes = partir(texto0)
+        val piezas = mutableListOf<VozPropia.Pieza>()
+        for ((esPareja, t) in partes) {
+            val id = if (esPareja && dos != null) dos.second else principal
+            piezas += VozPropia.generar(id, t, velocidad()) ?: return null
+        }
+        return if (piezas.isEmpty()) null else Preparado(piezas)
+    }
+
+    /** Hace sonar lo ya preparado. */
+    suspend fun decirPreparado(pr: Preparado): Boolean {
+        val vol = RadioApp.prefs.int("volVoz", 100).coerceIn(10, 100) / 100f
+        val dura = pr.piezas.sumOf { it.muestras.size * 1000L / it.sr }
+        return withTimeoutOrNull(dura + 15_000L) { VozPropia.reproducir(pr.piezas, vol) } ?: run { VozPropia.callar(); false }
+    }
+
     suspend fun decir(texto0: String): Boolean {
         if (texto0.isBlank()) return false
         val p = RadioApp.prefs
-        val host = p.str("host", "Luna"); val host2 = p.str("host2", "Leo")
-        val vel = when (p.str("vozPreset", "natural")) { "radio" -> .9f; "narrador" -> 1f; "energico" -> 1.12f; "manual" -> p.int("velocidad", 100) / 100f; else -> 1f }
+        val vel = velocidad()
         val vol = p.int("volVoz", 100).coerceIn(10, 100) / 100f
-        // Guion con dos locutores: «Luna: …» / «Leo: …», cada línea con su voz
-        val marca = Regex("^\\s*(${Regex.escape(host)}|${Regex.escape(host2)})\\s*:\\s*", RegexOption.IGNORE_CASE)
-        val lineas = texto0.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+        // Guion con dos locutores: «Luna: …» / «Leo: …», cada turno con su voz
+        val partes = partir(texto0)
         val dos = duo()
-        if (dos != null && lineas.count { marca.containsMatchIn(it) } >= 2) {
-            for (l in lineas) {
-                val quien = marca.find(l)?.groupValues?.get(1)
-                val voz = if (quien != null && quien.equals(host2, true)) dos.second else dos.first
-                val ok = withTimeoutOrNull(30_000L + l.length * 120L) { VozPropia.decir(voz, l.replace(marca, ""), vel, vol) }
+        if (dos != null && partes.any { it.first }) {
+            for ((esPareja, l) in partes) {
+                val voz = if (esPareja) dos.second else dos.first
+                val ok = withTimeoutOrNull(30_000L + l.length * 120L) { VozPropia.decir(voz, l, vel, vol) }
                 if (ok != true) { VozPropia.callar(); return false }
             }
             return true
         }
-        val texto = limpiarParaVoz(lineas.joinToString(" ") { it.replace(marca, "") })
+        val texto = limpiarParaVoz(partes.joinToString(" ") { it.second })
         if (texto.isBlank()) return false
         val motor = p.str("motorVoz", "")
         if (motor.startsWith(VozPropia.PREFIJO)) {

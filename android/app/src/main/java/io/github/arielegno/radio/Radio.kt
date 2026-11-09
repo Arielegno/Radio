@@ -25,6 +25,8 @@ import io.github.arielegno.radio.core.str
 import io.github.arielegno.radio.core.normNombre
 import io.github.arielegno.radio.core.asObj
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
@@ -63,6 +65,8 @@ class Radio(private val ctx: Context) {
     private var cancionNo = 0
     private var guion: CompletableDeferred<String>? = null
     private var guionPara = -1L
+    /** La voz de Luna ya generada mientras suena la canción (para hablar al instante y sin pausas). */
+    private var preparado: kotlinx.coroutines.Deferred<VozLuna.Preparado?>? = null
     private var enPausaLuna = false
     /** Luna habla encima de la música (bajita), como en la radio de verdad. */
     @Volatile private var encima = false
@@ -71,6 +75,7 @@ class Radio(private val ctx: Context) {
     /** Baja la música, deja hablar a Luna y la vuelve a subir poco a poco. */
     private suspend fun conMusicaBajita(bloque: suspend () -> Unit) {
         encima = true; fundido?.cancel()
+        Efectos.pausarNivelador(true)   // el nivelador subía la música bajita y tapaba a Luna
         val nivel = p.int("nivelEncima", 18).coerceIn(5, 60) / 100f
         try {
             for (i in 10 downTo 0) { player.volume = nivel + (1f - nivel) * i / 10f; delay(40) }   // baja en medio segundo
@@ -78,6 +83,7 @@ class Radio(private val ctx: Context) {
             bloque()
         } finally {
             encima = false
+            Efectos.pausarNivelador(false)
             for (i in 1..12) { player.volume = nivel + (1f - nivel) * i / 12f; delay(110) }   // sube en poco más de un segundo
             player.volume = 1f
         }
@@ -298,6 +304,9 @@ class Radio(private val ctx: Context) {
             val d = CompletableDeferred<String>(); guion = d
             val prev = t; val nxt = siguiente
             RadioApp.scope.launchSafe { d.complete(escribir(prev, nxt)) }
+            // mientras suena esta canción, la voz de Luna ya se va generando
+            preparado?.cancel()
+            preparado = RadioApp.scope.async(Dispatchers.Default) { try { voz.preparar(d.await()) } catch (e: Exception) { null } }
         }
     }
 
@@ -305,11 +314,17 @@ class Radio(private val ctx: Context) {
         if (enPausaLuna) return
         val g = guion ?: run { player.play(); return }
         enPausaLuna = true
+        val pr = preparado
         RadioApp.scope.launchSafe {
             try {
-                val texto = withTimeoutOrNull(12_000) { g.await() } ?: Luna.sinIA(LunaContexto(actual, siguiente), ajustes())
-                guion = null
-                if (aire && activa) { if (hablaEncima && !retenida) conMusicaBajita { hablar(texto) } else hablar(texto) }
+                // lo que dirá Luna y su voz ya preparada (si todavía no está, se espera un poco con la música bajita)
+                suspend fun hablarYa() {
+                    val texto = withTimeoutOrNull(12_000) { g.await() }
+                    val listo = if (texto != null) withTimeoutOrNull(25_000) { pr?.await() } else null
+                    guion = null; preparado = null
+                    hablar(texto ?: Luna.sinIA(LunaContexto(actual, siguiente), ajustes()), listo)
+                }
+                if (aire && activa) { if (hablaEncima && !retenida) conMusicaBajita { hablarYa() } else hablarYa() }
             } finally {
                 enPausaLuna = false
                 if (activa && !retenida && (apagarEn == 0L || apagarEn > System.currentTimeMillis())) player.play()
@@ -317,11 +332,11 @@ class Radio(private val ctx: Context) {
         }
     }
 
-    private suspend fun hablar(texto: String) {
-        textoLuna = texto
+    private suspend fun hablar(texto: String, listo: VozLuna.Preparado? = null) {
+        textoLuna = try { voz.paraMostrar(texto) } catch (e: Exception) { texto }
         anteriores += texto; while (anteriores.size > 6) anteriores.removeAt(0)
         lunaHablando = true
-        try { if (!voz.decir(texto)) mensaje = "Luna no pudo hablar: revisa la voz del teléfono en Ajustes." }
+        try { if (!(if (listo != null) voz.decirPreparado(listo) else voz.decir(texto))) mensaje = "Luna no pudo hablar: revisa la voz del teléfono en Ajustes." }
         finally { lunaHablando = false }
     }
 

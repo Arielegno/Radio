@@ -74,11 +74,14 @@ private fun tipografia(f: FontFamily): Typography {
 fun App() {
     LaunchedEffect(Unit) { Fuentes.cargar(); listo() }
     val h = remember { hashInicial() }
-    var seccion by remember { mutableStateOf(when { h.startsWith("#posters") -> "posters"; h.startsWith("#boveda") -> "boveda"; h.startsWith("#artistas") -> "artistas"; else -> "inicio" }) }
+    var seccion by remember { mutableStateOf(when { h.startsWith("#posters") -> "posters"; h.startsWith("#boveda") -> "boveda"; h.startsWith("#artistas") -> "artistas"; h.startsWith("#mas") -> "mas"; else -> "inicio" }) }
     LaunchedEffect(Unit) {
         (Regex("^#post=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1) ?: Regex("^#ejemplo=(\\d)$").find(h)?.groupValues?.get(1)?.let { "ejemplo-$it" })?.let { Nav.ir(Destino.Leer(it)) }
         Regex("^#perfil=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1)?.let { Nav.ir(Destino.Perfil(it)) }
         if (h.startsWith("#escribir")) Nav.ir(Destino.Editar(null))
+        if (h == "#buscar") Nav.ir(Destino.Buscar)
+        Regex("^#artista=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1)?.let { Nav.ir(Destino.Artista(it)) }
+        Regex("^#lista=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1)?.let { Nav.ir(Destino.Lista(it)) }
         if (h == "#entrar") Nav.dialogo = "cuenta"
         Cuenta.social()
     }
@@ -119,6 +122,9 @@ fun App() {
                             is Destino.Concierto -> androidx.compose.runtime.key(arriba.id) { ConciertoPantalla(arriba.id) }
                             Destino.Admin -> AdminPantalla()
                             Destino.Buscar -> BuscarPantalla()
+                            Destino.EditarPerfil -> EditarPerfilPantalla()
+                            is Destino.Lista -> androidx.compose.runtime.key(arriba.id) { ListaPantalla(arriba.id) }
+                            is Destino.EditarLista -> androidx.compose.runtime.key(arriba.id ?: "nueva") { EditarListaPantalla(arriba.id) }
                             Destino.Chats -> ChatsPantalla()
                             is Destino.Chat -> androidx.compose.runtime.key(arriba.id) { ChatPantalla(arriba.id) }
                             null -> {}
@@ -174,7 +180,7 @@ private fun Cargando(texto: String = "Cargando…") {
 @Composable
 private fun Inicio(lista: androidx.compose.foundation.lazy.LazyListState, abrir: (String) -> Unit) {
     var filtro by remember { mutableStateOf("todo") }
-    val datos by produceState<Result<List<Articulo>>?>(null, filtro, Cuenta.sigo) {
+    val datos by produceState<Result<List<Articulo>>?>(null, filtro, if (filtro == "siguiendo") Cuenta.sigo else null) {
         value = null
         value = runCatching { if (filtro == "siguiendo") (if (Cuenta.sigo.isEmpty()) emptyList() else Supa.portada(autores = Cuenta.sigo)) else Supa.portada() }
     }

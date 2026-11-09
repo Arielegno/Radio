@@ -68,6 +68,9 @@ sealed class Destino {
     data object Buscar : Destino()
     data object Chats : Destino()
     data class Chat(val id: String) : Destino()
+    data object EditarPerfil : Destino()
+    data class Lista(val id: String) : Destino()
+    data class EditarLista(val id: String?) : Destino()
 }
 
 /** Navegación con pila (el botón «Volver» quita la última pantalla). */

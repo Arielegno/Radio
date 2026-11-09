@@ -358,7 +358,7 @@ fun ConciertoPantalla(id: String) {
                         Text("Fuente: video" + (v.str("source_name").takeIf { it.isNotBlank() }?.let { " de $it" } ?: "") + " en $nombreProv" + if (v.bool("official")) " · canal oficial" else "", color = Tenue, fontSize = 14.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (url.isNotEmpty() && estado == "now") Boton("Ver el concierto") { abrirEnlace(url) }
-                            Boton("Compartir", principal = false) { abrirEnlace(Supa.WEB + "#rvb=" + id) }
+                            Boton("Compartir", principal = false) { compartirEnlace("Mira esto en la Revista de Radio de ruta", Supa.WEB + "#rvb=" + id) }
                             if (Cuenta.dentro && estado == "soon") Boton(if (avisar) "Te avisaremos" else "Avísame", principal = !avisar) {
                                 scope.launch { try { if (avisar) Cuenta.api("DELETE", "/rest/v1/vault_watch?vault_id=eq.$id&user_id=eq.${Cuenta.uid}") else Cuenta.api("POST", "/rest/v1/vault_watch", mapOf("vault_id" to id, "user_id" to Cuenta.uid), "return=minimal"); Aviso.mostrar(if (avisar) "Aviso quitado." else "Te llegará un aviso en la revista cuando empiece."); version++ } catch (e: Throwable) { Aviso.mostrar(e.message ?: "", true) } }
                             }

@@ -69,7 +69,7 @@ fun PerfilPantalla(id: String) {
         value = runCatching {
             val mio = Cuenta.uid == id
             when (pestana) {
-                "wall" -> emptyList<Articulo>() to emptyList()
+                "wall", "lists" -> emptyList<Articulo>() to emptyList()
                 "posts" -> Json.arr(Cuenta.api("GET", "/rest/v1/posts?select=$sel&author_id=eq.$id${if (mio) "" else Supa.publicados()}&order=created_at.desc&limit=30")).mapNotNull { it.asObj()?.let(Supa::deFila) } to emptyList()
                 "likes" -> Json.arr(Cuenta.api("GET", "/rest/v1/likes?select=posts($sel)&user_id=eq.$id&limit=30")).mapNotNull { it.asObj()?.map("posts")?.takeIf { m -> m.isNotEmpty() }?.let(Supa::deFila) } to emptyList()
                 "cols" -> emptyList<Articulo>() to Json.arr(Cuenta.api("GET", "/rest/v1/collections?select=id,title,public,collection_items(count)&owner=eq.$id&order=created_at.desc")).mapNotNull { it.asObj() }.map { c ->
@@ -112,7 +112,10 @@ fun PerfilPantalla(id: String) {
                                     else Text(p.str("name").take(1).uppercase(), color = Color(0xFF1B1E23), fontWeight = FontWeight.Bold, fontSize = 38.sp)
                                 }
                                 Spacer(Modifier.weight(1f))
-                                if (mio) Boton("Cerrar sesión", principal = false, modifier = Modifier.offset(y = (-24).dp)) { salir = true }
+                                if (mio) Row(Modifier.offset(y = (-24).dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Boton("Editar perfil") { Nav.ir(Destino.EditarPerfil) }
+                                    Boton("Salir", principal = false) { salir = true }
+                                }
                                 else Row(Modifier.offset(y = (-24).dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Boton("Mensaje", principal = false) { if (Nav.necesitaCuenta()) Nav.ir(Destino.Chat(id)) }
                                     Boton(if (id in Cuenta.sigo) "Siguiendo" else "Seguir", principal = id !in Cuenta.sigo) {
@@ -132,10 +135,11 @@ fun PerfilPantalla(id: String) {
                                     }
                                 }
                                 Text("desde ${Fechas.mesAnio(p.str("created_at")).lowercase()}", color = Tenue, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                                TarjetaEscuchando(p)
                                 if (!mio) Enlace("Denunciar perfil", Tenue) { if (Nav.necesitaCuenta()) denunciar = true }
                             }
-                            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf("wall" to "Muro", "posts" to "Artículos", "recs" to "Recomendados", "cols" to "Colecciones", "comments" to "Comentarios", "likes" to "Me gusta").forEach { (k, n) ->
+                            Row(Modifier.padding(bottom = 12.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("wall" to "Muro", "posts" to "Artículos", "lists" to "Listas", "recs" to "Recomendados", "cols" to "Colecciones", "comments" to "Comentarios", "likes" to "Me gusta").forEach { (k, n) ->
                                     val on = pestana == k
                                     Text(n, color = if (on) Color(0xFF1B1E23) else TextoClaro, fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(if (on) Amarillo else Color.Transparent).border(1.dp, if (on) Amarillo else Color(0x33FFFFFF), RoundedCornerShape(999.dp)).clickable { pestana = k }.padding(horizontal = 14.dp, vertical = 8.dp))
@@ -145,6 +149,7 @@ fun PerfilPantalla(id: String) {
                     }
                     val l = lista
                     if (pestana == "wall") item { Muro(p) }
+                    else if (pestana == "lists") item { ListasDePerfil(id) }
                     else when {
                         l == null -> item { Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Amarillo) } }
                         l.isFailure -> item { Text(l.exceptionOrNull()?.message ?: "", color = Tenue, modifier = Modifier.padding(18.dp)) }

@@ -87,6 +87,10 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
     fun pedirNotif() { if (Build.VERSION.SDK_INT >= 33 && !p.bool("notifPedido", false)) permisoNotif.launch(Manifest.permission.POST_NOTIFICATIONS) }
 
     LaunchedEffect(Unit) { if (r.entorno.permitido()) r.entorno.iniciar() }
+    // «Escuchando ahora» en el perfil de la Revista nativa (solo si se activó en Editar perfil)
+    LaunchedEffect(Unit) {
+        androidx.compose.runtime.snapshotFlow { r.actual }.collect { t -> if (t != null) runCatching { rr.revista.EscuchandoAhora.publicar(t.name, t.artist) } }
+    }
 
     var artistaPedido by remember { mutableStateOf("") }
     val acc = AccionesPortada(

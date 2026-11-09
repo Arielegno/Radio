@@ -52,6 +52,10 @@ private external fun jsRecortar(u: String, r: Double, d: Double, mx: Int): Promi
 actual suspend fun recortarFoto(dataUrl: String, proporcion: Float, encuadre: Float, max: Int): String =
     jsRecortar(dataUrl, proporcion.toDouble(), encuadre.toDouble(), max).await<JsString>().toString()
 
+@JsFun("(t, u) => { try { if (navigator.share) { navigator.share({ title: t, url: u }).catch(() => {}); return true; } } catch (e) {} try { navigator.clipboard.writeText(u); } catch (e) {} return false; }")
+private external fun jsCompartir(t: String, u: String): Boolean
+actual fun compartir(texto: String, url: String): Boolean = jsCompartir(texto, url)
+
 @JsFun("() => Date.now()")
 private external fun jsAhoraMs(): Double
 

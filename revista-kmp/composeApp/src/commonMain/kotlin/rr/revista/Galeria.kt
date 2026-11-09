@@ -242,7 +242,7 @@ fun PosterPantalla(id: String) {
                         }
                         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Boton("Descargar", principal = false) { abrirEnlace(p.grande) }
-                            Boton("Compartir", principal = false) { abrirEnlace(Supa.WEB + "#rvp=" + p.id) }
+                            Boton("Compartir", principal = false) { compartirEnlace("Mira esto en la Revista de Radio de ruta", Supa.WEB + "#rvp=" + p.id) }
                             Boton("Guardar en colección", principal = false) { if (Nav.necesitaCuenta()) coleccion = true }
                             artista?.let { (aid, _) -> Boton("Ver la ficha de ${p.artista}", principal = false) { Nav.ir(Destino.Artista(aid)) } }
                         }

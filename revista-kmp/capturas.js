@@ -39,6 +39,13 @@ const q = async p => { try { const r = await fetch(SB + p, { headers: { apikey: 
   await shot('#escribir-fondo', `${n++}-editor-fondo`, [0, 700]);
   await shot('#escribir-collage', `${n++}-collage`);
   await shot('#posters', `${n++}-posters`);
+  await shot('#artistas', `${n++}-artistas`);
+  const art = await q('/rest/v1/artists?select=id&order=created_at.desc&limit=1');
+  if (art[0]) await shot('#artista=' + art[0].id, `${n++}-artista`, [0, 900]);
+  await shot('#buscar', `${n++}-buscar`);
+  await shot('#mas', `${n++}-mas`);
+  const ls = await q('/rest/v1/song_lists?select=id&limit=1');
+  if (ls[0]) await shot('#lista=' + ls[0].id, `${n++}-lista`);
   await shot('#boveda', `${n++}-boveda`);
   fs.writeFileSync('capturas/consola.txt', log.join('\n'));
   await b.close();

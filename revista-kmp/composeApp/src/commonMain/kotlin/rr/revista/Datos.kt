@@ -28,6 +28,9 @@ expect suspend fun httpBytes(url: String): ByteArray
 expect fun ahoraIso(): String
 expect fun hashInicial(): String
 expect fun abrirEnlace(url: String)
+/** Abre el menú de compartir del teléfono; devuelve false si solo se pudo copiar el enlace. */
+expect fun compartir(texto: String, url: String): Boolean
+fun compartirEnlace(texto: String, url: String) { if (!compartir(texto, url)) Aviso.mostrar("Enlace copiado: pégalo donde quieras.") }
 
 data class Autor(val id: String, val nombre: String, val avatar: String)
 data class Resena(val disco: String, val artista: String, val anio: Int, val nota: Int)

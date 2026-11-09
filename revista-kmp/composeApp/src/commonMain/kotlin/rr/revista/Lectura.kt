@@ -137,7 +137,7 @@ internal fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Un
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 40.dp)) {
             Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 BotonVolver(cerrar, L.titulo); Spacer(Modifier.weight(1f))
-                Box(Modifier.size(42.dp).clip(CircleShape).background(Color(0x59000000)).clickable { abrirEnlace(Supa.WEB + "#rv=" + a.id) }, contentAlignment = Alignment.Center) { Icono("compartir", Color.White, 20.dp) }
+                Box(Modifier.size(42.dp).clip(CircleShape).background(Color(0x59000000)).clickable { compartirEnlace("Mira esto en la Revista de Radio de ruta", Supa.WEB + "#rv=" + a.id) }, contentAlignment = Alignment.Center) { Icono("compartir", Color.White, 20.dp) }
             }
             Column(Modifier.padding(horizontal = 18.dp)) {
                 if (L.d.col.isNotEmpty() && L.d.cpos == "cabecera")
@@ -196,7 +196,7 @@ internal fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Un
                         if (recomendado) accion { Cuenta.dejarDeRecomendar(a.id); recs = maxOf(0, recs - 1); Aviso.mostrar("Ya no lo recomiendas.") }
                         else accion { notaRec = true }
                     }
-                    Pastilla("compartir", "Compartir", false, L.acento) { abrirEnlace(Supa.WEB + "#rv=" + a.id) }
+                    Pastilla("compartir", "Compartir", false, L.acento) { compartirEnlace("Mira esto en la Revista de Radio de ruta", Supa.WEB + "#rv=" + a.id) }
                 }
                 Row(Modifier.padding(top = 6.dp)) {
                     if (!mio) Enlace("Denunciar", L.tenue) { accion { denuncia = "post" to a.id } }

@@ -153,7 +153,7 @@ fun ArtistaPantalla(id: String) {
                             ENLACES.filter { it.first in L }.forEach { (k, n) -> Boton(n, principal = false) { abrirEnlace(L.getValue(k)) } }
                         }
                         if (a.str("bio").isBlank()) Text("Sin biografía todavía.", color = Tenue) else TextoArticulo(art)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { Boton("Compartir", principal = false) { abrirEnlace(Supa.WEB + "#rva=" + id) }; Enlace("Denunciar", Tenue) { if (Nav.necesitaCuenta()) denunciar = true } }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { Boton("Compartir", principal = false) { compartirEnlace("Mira esto en la Revista de Radio de ruta", Supa.WEB + "#rva=" + id) }; Enlace("Denunciar", Tenue) { if (Nav.necesitaCuenta()) denunciar = true } }
                         if (d.gestores.isNotEmpty()) Text("Perfil gestionado por: " + d.gestores.joinToString(", ") { it.second }, color = Tenue, fontSize = 14.sp)
                         if (Cuenta.esAdmin) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x1AF2C230)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Solo tú ves esto", fontWeight = FontWeight.Bold)

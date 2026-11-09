@@ -15,6 +15,7 @@ class RadioApp : Application() {
     override fun onCreate() {
         super.onCreate()
         app = this
+        rr.revista.PlataformaAndroid.ctx = this
         prefs = Prefs(getSharedPreferences("radio", Context.MODE_PRIVATE))
         biblioteca = Biblioteca(this)
         stats = Datos.cargarStats(this)

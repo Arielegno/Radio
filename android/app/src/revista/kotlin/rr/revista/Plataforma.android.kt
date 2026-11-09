@@ -71,7 +71,6 @@ private fun conexion(metodo: String, url: String, cabeceras: Map<String, String>
         runCatching { HttpURLConnection::class.java.getDeclaredField("method").apply { isAccessible = true }.set(c, metodo) }
     }
     c.connectTimeout = 15_000; c.readTimeout = 30_000
-    c.setRequestProperty("Accept-Encoding", "identity")
     cabeceras.forEach { (k, v) -> c.setRequestProperty(k, v) }
     return c
 }
@@ -101,16 +100,30 @@ suspend fun subirArchivo(url: String, cabeceras: Map<String, String>, base64: St
 
 suspend fun httpBytes(url: String): ByteArray = withContext(Dispatchers.IO) {
     val completa = if (url.startsWith("http")) url else PlataformaAndroid.BASE + url
-    // Las letras se guardan en el teléfono para no bajarlas cada vez
-    val guardada = if (url.startsWith("fonts/")) File(PlataformaAndroid.ctx.filesDir, "revista_" + url.replace('/', '_')) else null
-    if (guardada != null && guardada.length() > 0) return@withContext guardada.readBytes()
+    // Las letras se guardan para siempre; las imágenes, en una memoria de hasta 80 MB que se limpia sola
+    val guardada = when {
+        url.startsWith("fonts/") -> File(PlataformaAndroid.ctx.filesDir, "revista_" + url.replace('/', '_'))
+        url.contains("/storage/v1/object/public/") || url.startsWith("https://upload.wikimedia.org/") -> File(cacheImagenes(), url.hashCode().toUInt().toString(16) + "_" + url.length + ".img")
+        else -> null
+    }
+    if (guardada != null && guardada.length() > 0) { guardada.setLastModified(System.currentTimeMillis()); return@withContext guardada.readBytes() }
     val c = conexion("GET", completa, emptyMap())
     try {
         if (c.responseCode !in 200..299) throw Exception("HTTP ${c.responseCode}")
         val b = c.inputStream.use { it.readBytes() }
-        guardada?.let { runCatching { it.writeBytes(b) } }
+        guardada?.let { runCatching { it.writeBytes(b); if (it.parentFile?.name == "revista_img") limpiarCache(it.parentFile!!) } }
         b
     } finally { c.disconnect() }
+}
+
+private fun cacheImagenes() = File(PlataformaAndroid.ctx.cacheDir, "revista_img").apply { mkdirs() }
+private var ultimaLimpieza = 0L
+private fun limpiarCache(dir: File) {
+    if (System.currentTimeMillis() - ultimaLimpieza < 60_000) return
+    ultimaLimpieza = System.currentTimeMillis()
+    val fs = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: return
+    var total = 0L
+    fs.forEach { f -> total += f.length(); if (total > 80L * 1024 * 1024) f.delete() }
 }
 
 fun leerDato(clave: String): String? = datos.getString(clave, null)
@@ -119,6 +132,10 @@ fun ahoraMs(): Double = System.currentTimeMillis().toDouble()
 fun ahoraIso(): String = java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS).toString()
 fun hashInicial(): String = PlataformaAndroid.hash
 fun listo() {}
+fun compartir(texto: String, url: String): Boolean {
+    val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "$texto\n$url")
+    return runCatching { PlataformaAndroid.ctx.startActivity(Intent.createChooser(i, "Compartir").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)
+}
 fun abrirEnlace(url: String) {
     runCatching { PlataformaAndroid.ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }

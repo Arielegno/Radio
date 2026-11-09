@@ -215,6 +215,7 @@ fun Editor(id: String?) {
                 }
                 OutlinedTextField(cuerpo, { if (it.text.length <= 20000) cuerpo = it }, minLines = 10, placeholder = { Text("Escribe tu reseña, tu lista o tu historia musical…", color = Tenue) },
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Amarillo, cursorColor = Amarillo, unfocusedBorderColor = Color(0x33FFFFFF)), modifier = Modifier.fillMaxWidth())
+                AyudaIA(b.titulo, cuerpo.text, { cuerpo = TextFieldValue(it) }, { b = b.copy(titulo = it) }, { b = b.copy(subtitulo = it) })
                 Text("Deja una línea en blanco entre párrafos. **negrita** · *cursiva* · «## » título · «> » cita · «- » lista. Pega un enlace de YouTube solo en un párrafo para que se vea el video.", color = Tenue, fontSize = 13.sp)
 
                 Titulito("Galería de fotos (hasta 8)")

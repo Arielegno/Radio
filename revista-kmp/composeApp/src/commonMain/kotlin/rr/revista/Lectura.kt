@@ -85,7 +85,11 @@ private class Look(a: Articulo) {
 
 @Composable
 fun Lectura(id: String, cerrar: () -> Unit) {
-    val datos by produceState<Result<Articulo?>?>(null, id) { value = runCatching { if (id.startsWith("ejemplo-")) Ejemplos.uno(id) else Supa.articulo(id) } }
+    val datos by produceState<Result<Articulo?>?>(null, id) { value = runCatching {
+        if (id.startsWith("ejemplo-")) Ejemplos.uno(id)
+        else try { Supa.articulo(id) } catch (e: Throwable) { Guardados.leer(id) ?: throw e }   // sin internet: la copia guardada
+    } }
+
     var versionComs by remember { mutableStateOf(0) }
     val coms by produceState<List<Comentario>>(emptyList(), id, versionComs) { value = if (id.startsWith("ejemplo-")) listOf(Comentario("", "", "Ejemplo", "", "Así se ven los comentarios de la comunidad.", ahoraIso())) else runCatching { Supa.comentarios(id) }.getOrDefault(emptyList()) }
     val r = datos
@@ -116,6 +120,8 @@ internal fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Un
     val portada = imagen(a.portada)
     val scope = rememberCoroutineScope()
     val ejemplo = a.id.startsWith("ejemplo-")
+    var leyendo by remember(a.id) { mutableStateOf(false) }
+    androidx.compose.runtime.DisposableEffect(a.id) { onDispose { leerEnVoz(null) } }
     var likes by remember(a.id) { mutableStateOf(a.likes) }
     var recs by remember(a.id) { mutableStateOf(a.recomendados) }
     var denuncia by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -197,6 +203,20 @@ internal fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Un
                         else accion { notaRec = true }
                     }
                     Pastilla("compartir", "Compartir", false, L.acento) { compartirEnlace("Mira esto en la Revista de Radio de ruta", Supa.WEB + "#rv=" + a.id) }
+                    if (!ejemplo) {
+                        Pastilla("altavoz", if (leyendo) "Detener lectura" else "Escuchar", leyendo, L.acento) {
+                            if (leyendo) { leerEnVoz(null); leyendo = false } else { leerEnVoz(a.titulo + ". " + a.subtitulo + ". " + Formato.plano(a.texto, 20000)); leyendo = true }
+                        }
+                        val guardado = Guardados.esta(a.id)
+                        Pastilla("guardar", if (guardado) "Guardado" else "Guardar", guardado, L.acento) {
+                            if (guardado) { Guardados.quitar(a.id); Aviso.mostrar("Quitado de Guardados.") }
+                            else scope.launch { try { Guardados.guardar(a.id); Aviso.mostrar("Guardado: puedes leerlo sin internet.") } catch (e: Throwable) { Aviso.mostrar(e.message ?: "", true) } }
+                        }
+                    }
+                    if (a.canciones.isNotEmpty()) Pastilla("play", "Poner en la radio", false, L.acento) {
+                        val n = ponerEnRadio(a.canciones, null)
+                        Aviso.mostrar(when { n < 0 -> "Esto funciona en la app de Android (con tu música descargada)."; n == 0 -> "No tienes ninguna de estas canciones en tu biblioteca."; else -> "Sonando en tu radio: $n canciones." })
+                    }
                 }
                 Row(Modifier.padding(top = 6.dp)) {
                     if (!mio) Enlace("Denunciar", L.tenue) { accion { denuncia = "post" to a.id } }
@@ -225,7 +245,7 @@ internal fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Un
 
 @Composable
 private fun Pastilla(icono: String, texto: String, activo: Boolean, acento: Color, onClick: () -> Unit) {
-    Row(Modifier.clip(RoundedCornerShape(999.dp)).background(if (activo) acento else Color(0x40000000)).border(1.dp, if (activo) acento else Color(0x33FFFFFF), RoundedCornerShape(999.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 9.dp),
+    Row(Modifier.clip(RoundedCornerShape(999.dp)).background(if (activo) acento else Color(0x40000000)).border(1.dp, if (activo) acento else Color(0x33FFFFFF), RoundedCornerShape(999.dp)).mano().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically) {
         val c = if (activo) Color(0xFF1B1E23) else Color.White
         Icono(icono, c, 18.dp); Spacer(Modifier.width(6.dp)); Text(texto, color = c, fontWeight = FontWeight.SemiBold)

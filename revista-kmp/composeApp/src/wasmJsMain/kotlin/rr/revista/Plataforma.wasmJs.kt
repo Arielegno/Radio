@@ -56,6 +56,40 @@ actual suspend fun recortarFoto(dataUrl: String, proporcion: Float, encuadre: Fl
 private external fun jsCompartir(t: String, u: String): Boolean
 actual fun compartir(texto: String, url: String): Boolean = jsCompartir(texto, url)
 
+@JsFun("""(t) => { try { const s = window.speechSynthesis; if (!s) return; s.cancel(); if (!t) return;
+  const v = s.getVoices().find(v => /^es/i.test(v.lang));
+  const partes = t.match(/[^.!?\n]+[.!?]*/g) || [t];   // en trozos: Chrome corta las frases muy largas
+  partes.map(p => p.trim()).filter(Boolean).forEach(p => { const u = new SpeechSynthesisUtterance(p); u.lang = 'es-419'; if (v) u.voice = v; s.speak(u); });
+} catch (e) {} }""")
+private external fun jsVoz(t: String)
+actual fun leerEnVoz(texto: String?) = jsVoz(texto ?: "")
+
+@JsFun("() => { try { const k = localStorage.getItem('rr_geminiKey') || ''; const m = localStorage.getItem('rr_geminiModel') || localStorage.getItem('rr_geminiModelSelect') || ''; return JSON.stringify({ k: k.trim(), m: m.trim() }); } catch (e) { return '{}'; } }")
+private external fun jsClaveIA(): String
+actual suspend fun pedirIA(prompt: String): String {
+    val c = Json.obj(jsClaveIA())
+    val clave = c.str("k"); if (clave.isEmpty()) throw ErrorRevista("Pon tu clave de Gemini en la radio web (Ajustes › Sistema y Claves) para usar la IA.")
+    val modelo = c.str("m").ifEmpty { "gemini-3.5-flash-lite" }.filter { it.isLetterOrDigit() || it == '-' || it == '.' }
+    val r = httpPedido("POST", "https://generativelanguage.googleapis.com/v1beta/models/$modelo:generateContent", mapOf("content-type" to "application/json", "x-goog-api-key" to clave),
+        Json.write(mapOf("contents" to listOf(mapOf("parts" to listOf(mapOf("text" to prompt)))))))
+    val o = Json.obj(r.texto)
+    if (r.estado !in 200..299) throw ErrorRevista(o.map("error").str("message").ifBlank { "La IA respondió con error ${r.estado}." })
+    val partes = ((o["candidates"] as? List<*>)?.firstOrNull() as? Map<*, *>)?.let { (it["content"] as? Map<*, *>)?.get("parts") as? List<*> } ?: emptyList<Any?>()
+    return partes.joinToString("") { (it as? Map<*, *>)?.get("text")?.toString() ?: "" }.trim().ifEmpty { throw ErrorRevista("La IA no respondió.") }
+}
+
+actual fun ponerEnRadio(canciones: List<Pair<String, String>>, artista: String?): Int = -1
+
+@JsFun("() => { try { history.pushState({ rr: (history.state && history.state.rr || 0) + 1 }, ''); } catch (e) {} }")
+private external fun jsEmpujar()
+@JsFun("(n) => { try { window.__rrIgnorar = (window.__rrIgnorar || 0) + 1; history.go(-n); } catch (e) {} }")
+private external fun jsAtras(n: Int)
+@JsFun("(f) => { window.addEventListener('popstate', () => { if (window.__rrIgnorar > 0) { window.__rrIgnorar--; return; } f(); }); }")
+private external fun jsAlVolver(f: () -> Unit)
+actual fun historialEmpujar() = jsEmpujar()
+actual fun historialAtras(n: Int) = jsAtras(n)
+actual fun alVolverNavegador(f: () -> Unit) = jsAlVolver(f)
+
 @JsFun("() => Date.now()")
 private external fun jsAhoraMs(): Double
 

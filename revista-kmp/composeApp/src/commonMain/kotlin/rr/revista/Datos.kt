@@ -28,6 +28,16 @@ expect suspend fun httpBytes(url: String): ByteArray
 expect fun ahoraIso(): String
 expect fun hashInicial(): String
 expect fun abrirEnlace(url: String)
+/** Lee un texto en voz alta (null = callar). */
+expect fun leerEnVoz(texto: String?)
+/** Pide algo a la IA de la persona (Gemini o Claude, con su clave). Lanza ErrorRevista si no hay clave. */
+expect suspend fun pedirIA(prompt: String): String
+/** Pone en la radio de la app las canciones que tengas (canción, artista); o todo un artista. Devuelve cuántas encontró, o -1 si aquí no hay radio. */
+expect fun ponerEnRadio(canciones: List<Pair<String, String>>, artista: String?): Int
+/** Historial del navegador: así el botón «atrás» (o el del ratón) vuelve dentro de la Revista. */
+expect fun historialEmpujar()
+expect fun historialAtras(n: Int)
+expect fun alVolverNavegador(f: () -> Unit)
 /** Abre el menú de compartir del teléfono; devuelve false si solo se pudo copiar el enlace. */
 expect fun compartir(texto: String, url: String): Boolean
 fun compartirEnlace(texto: String, url: String) { if (!compartir(texto, url)) Aviso.mostrar("Enlace copiado: pégalo donde quieras.") }
@@ -42,7 +52,7 @@ data class Articulo(
 )
 data class Comentario(val id: String, val autorId: String, val nombre: String, val avatar: String, val texto: String, val fecha: String, val padre: String = "")
 data class Poster(val id: String, val titulo: String, val artista: String, val anio: Int, val mini: String, val grande: String)
-data class Concierto(val id: String, val titulo: String, val artista: String, val anio: Int, val miniatura: String, val festival: String)
+data class Concierto(val id: String, val titulo: String, val artista: String, val anio: Int, val miniatura: String, val festival: String, val ciclo: String = "")
 
 /** La misma base de datos que usa la web (Supabase), solo lectura y con la clave pública. */
 object Supa {
@@ -109,11 +119,11 @@ object Supa {
 
     suspend fun boveda(): List<Concierto> {
         val hoy = ahoraIso().take(10)
-        val t = get("/rest/v1/vault?select=id,title,artist,festival,year,provider,video_id,cover,starts_on,ends_on&hidden=eq.false&starts_on=lte.$hoy&ends_on=gt.$hoy&order=starts_on.desc&limit=30")
+        val t = get("/rest/v1/vault?select=id,title,artist,festival,year,provider,video_id,cover,starts_on,ends_on,cycle&hidden=eq.false&starts_on=lte.$hoy&ends_on=gt.$hoy&order=starts_on.desc&limit=30")
         return Json.arr(t).mapNotNull { it.asObj() }.map { m ->
             val cover = Diseno.imagenOk(m.str("cover")); val p = m.str("provider"); val v = m.str("video_id")
             val mini = cover.ifEmpty { if (p == "youtube" && Regex("^[\\w-]{6,20}$").matches(v)) "https://i.ytimg.com/vi/$v/hqdefault.jpg" else if (p == "archive" && Regex("^[\\w.-]{3,100}$").matches(v)) "https://archive.org/services/img/$v" else "" }
-            Concierto(m.str("id"), m.str("title"), m.str("artist"), m.num("year").toInt(), mini, m.str("festival"))
+            Concierto(m.str("id"), m.str("title"), m.str("artist"), m.num("year").toInt(), mini, m.str("festival"), m.str("cycle"))
         }
     }
 }

@@ -157,23 +157,23 @@ fun GaleriaPantalla() {
     }
     LaunchedEffect(filtro, busqueda) { if (filtro != "retos") { delay(if (busqueda.isEmpty()) 0 else 350); cargar(false) } }
     Box(Modifier.fillMaxSize()) {
-        LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item(span = { GridItemSpan(2) }) {
+        LazyVerticalGrid(GridCells.Adaptive(165.dp), Modifier.fillMaxSize().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 Column {
                     Cabecera("Pósters", "Carteles de conciertos y giras: originales con licencia libre y de la comunidad", lateral = 6.dp)
                     Box(Modifier.padding(horizontal = 6.dp)) { Campo(busqueda, { busqueda = it }, "Buscar por banda, título o año…", max = 60) }
                     Box(Modifier.padding(6.dp)) { Pestanas(listOf("all" to "Todos", "original" to "Originales", "comunidad" to "De la comunidad", "retos" to "Retos"), filtro) { filtro = it } }
                 }
             }
-            if (filtro == "retos") item(span = { GridItemSpan(2) }) { Retos() }
+            if (filtro == "retos") item(span = { GridItemSpan(maxLineSpan) }) { Retos() }
             else {
-                if (error.isNotEmpty()) item(span = { GridItemSpan(2) }) { Text(error, color = Tenue, modifier = Modifier.padding(8.dp)) }
-                if (!cargando && lista.isEmpty() && error.isEmpty()) item(span = { GridItemSpan(2) }) { Text(if (busqueda.isNotBlank()) "No encontré pósters con esa búsqueda." else "La galería está vacía. Toca + para buscar originales o subir uno.", color = Tenue, modifier = Modifier.padding(8.dp)) }
+                if (error.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text(error, color = Tenue, modifier = Modifier.padding(8.dp)) }
+                if (!cargando && lista.isEmpty() && error.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text(if (busqueda.isNotBlank()) "No encontré pósters con esa búsqueda." else "La galería está vacía. Toca + para buscar originales o subir uno.", color = Tenue, modifier = Modifier.padding(8.dp)) }
                 items(lista, key = { it.id }) { p -> TarjetaPoster(p) { Nav.ir(Destino.Poster(p.id)) } }
-                if (cargando) item(span = { GridItemSpan(2) }) { Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Amarillo) } }
-                else if (hayMas) item(span = { GridItemSpan(2) }) { Boton("Cargar más", principal = false) { scope.launch { cargar(true) } } }
+                if (cargando) item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Amarillo) } }
+                else if (hayMas) item(span = { GridItemSpan(maxLineSpan) }) { Boton("Cargar más", principal = false) { scope.launch { cargar(true) } } }
             }
-            item(span = { GridItemSpan(2) }) { Spacer(Modifier.height(80.dp)) }
+            item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(80.dp)) }
         }
         Box(Modifier.align(Alignment.BottomEnd).padding(18.dp).size(60.dp).clip(RoundedCornerShape(20.dp)).background(Amarillo).clickable { if (Nav.necesitaCuenta()) menu = true }, contentAlignment = Alignment.Center) {
             Text("+", color = Color(0xFF1B1E23), fontSize = 34.sp, fontWeight = FontWeight.Bold)
@@ -243,6 +243,7 @@ fun PosterPantalla(id: String) {
                         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Boton("Descargar", principal = false) { abrirEnlace(p.grande) }
                             Boton("Compartir", principal = false) { compartirEnlace("Mira esto en la Revista de Radio de ruta", Supa.WEB + "#rvp=" + p.id) }
+                            if (p.artista.isNotBlank()) Boton("Comparar", principal = false) { Nav.ir(Destino.Comparar(p.artista)) }
                             Boton("Guardar en colección", principal = false) { if (Nav.necesitaCuenta()) coleccion = true }
                             artista?.let { (aid, _) -> Boton("Ver la ficha de ${p.artista}", principal = false) { Nav.ir(Destino.Artista(aid)) } }
                         }
@@ -309,8 +310,8 @@ fun ColeccionPantalla(id: String) {
             else -> {
                 val (c, ps) = r.getOrThrow()!!
                 val mia = Cuenta.uid == c.str("owner")
-                LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    item(span = { GridItemSpan(2) }) {
+                LazyVerticalGrid(GridCells.Adaptive(165.dp), Modifier.fillMaxSize().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
                         Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Enlace("‹ Volver", TextoClaro) { Nav.atras() }
                             Text(c.str("title"), fontFamily = Fuentes.de("condensada"), fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
@@ -325,7 +326,7 @@ fun ColeccionPantalla(id: String) {
                     items(ps, key = { it.id }) { p ->
                         TarjetaPoster(p, { if (mia) Enlace("Quitar", Tenue) { scope.launch { runCatching { Cuenta.api("DELETE", "/rest/v1/collection_items?collection_id=eq.$id&poster_id=eq.${p.id}") }; version++ } } }) { Nav.ir(Destino.Poster(p.id)) }
                     }
-                    item(span = { GridItemSpan(2) }) { Spacer(Modifier.height(30.dp)) }
+                    item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(30.dp)) }
                 }
                 if (borrar) DialogoConfirmar("¿Eliminar esta colección?", "Los pósters siguen en la galería.", "Eliminar", { borrar = false }) {
                     borrar = false; scope.launch { runCatching { Cuenta.api("DELETE", "/rest/v1/collections?id=eq.$id") }; Aviso.mostrar("Colección eliminada."); Nav.atras() }
@@ -377,8 +378,8 @@ fun BuscarOriginalesPantalla() {
     var res by remember { mutableStateOf<List<Galeria.Original>?>(null) }
     var buscando by remember { mutableStateOf(false) }
     var guardar by remember { mutableStateOf<Galeria.Original?>(null) }
-    LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize().background(Asfalto).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item(span = { GridItemSpan(2) }) {
+    LazyVerticalGrid(GridCells.Adaptive(165.dp), Modifier.fillMaxSize().background(Asfalto).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) { Enlace("‹ Volver", TextoClaro) { Nav.atras() }; Text("Buscar pósters originales", fontWeight = FontWeight.Bold, fontSize = 18.sp) }
                 Text("Busco en el archivo libre de Wikimedia Commons: imágenes con licencia libre que puedes guardar en la galería con su autor y su licencia.", color = Tenue, fontSize = 14.sp)
@@ -398,7 +399,7 @@ fun BuscarOriginalesPantalla() {
                 Boton("Guardar", principal = false, modifier = Modifier.padding(top = 4.dp)) { if (Nav.necesitaCuenta()) guardar = o }
             }
         }
-        item(span = { GridItemSpan(2) }) { Spacer(Modifier.height(30.dp)) }
+        item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(30.dp)) }
     }
     guardar?.let { o ->
         var t by remember(o) { mutableStateOf(o.titulo) }; var a by remember(o) { mutableStateOf(q) }; var y by remember(o) { mutableStateOf(if (o.anio > 0) o.anio.toString() else "") }

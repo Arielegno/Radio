@@ -133,6 +133,67 @@ fun ahoraMs(): Double = System.currentTimeMillis().toDouble()
 fun ahoraIso(): String = java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS).toString()
 fun hashInicial(): String = PlataformaAndroid.hash
 fun listo() {}
+// ---------- Voz, IA y radio: usan lo que ya tiene la app ----------
+private var tts: android.speech.tts.TextToSpeech? = null
+private var ttsListo = false
+private var pendienteVoz: String? = null
+fun leerEnVoz(texto: String?) {
+    if (texto.isNullOrBlank()) { tts?.stop(); runCatching { io.github.arielegno.radio.RadioApp.radio.retener(false) }; return }
+    val t = tts
+    if (t == null) {
+        pendienteVoz = texto
+        tts = android.speech.tts.TextToSpeech(PlataformaAndroid.ctx) { st ->
+            ttsListo = st == android.speech.tts.TextToSpeech.SUCCESS
+            if (ttsListo) { tts?.language = java.util.Locale("es", "419"); pendienteVoz?.let { hablar(it) }; pendienteVoz = null }
+        }
+    } else if (ttsListo) hablar(texto) else pendienteVoz = texto
+}
+private fun hablar(texto: String) {
+    val t = tts ?: return
+    // La radio se pausa mientras se lee el artículo
+    runCatching { io.github.arielegno.radio.RadioApp.radio.retener(true) }
+    t.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+        override fun onStart(id: String?) {}
+        override fun onDone(id: String?) { if (id == "fin") runCatching { android.os.Handler(android.os.Looper.getMainLooper()).post { io.github.arielegno.radio.RadioApp.radio.retener(false) } } }
+        @Deprecated("") override fun onError(id: String?) {}
+    })
+    val partes = texto.chunked(3500)
+    partes.forEachIndexed { i, p -> t.speak(p, if (i == 0) android.speech.tts.TextToSpeech.QUEUE_FLUSH else android.speech.tts.TextToSpeech.QUEUE_ADD, null, if (i == partes.lastIndex) "fin" else "p$i") }
+}
+
+suspend fun pedirIA(prompt: String): String = withContext(Dispatchers.IO) {
+    val p = io.github.arielegno.radio.RadioApp.prefs
+    val claude = p.str("proveedor", "gemini") == "claude"
+    val (codigo, texto) = if (claude) {
+        val clave = p.str("claudeKey", "").trim(); if (clave.isEmpty()) throw ErrorRevista("Pon tu clave de Claude en Ajustes de la app para usar la IA.")
+        val modelo = p.str("claudeModel", "claude-sonnet-5-5").trim().ifEmpty { "claude-sonnet-5-5" }
+        io.github.arielegno.radio.Red.crudo("POST", "https://api.anthropic.com/v1/messages", io.github.arielegno.radio.core.Luna.peticionClaude(modelo, "Eres un corrector y editor de una revista de música en español.", prompt),
+            mapOf("x-api-key" to clave, "anthropic-version" to "2023-06-01"), timeoutMs = 40_000)
+    } else {
+        val clave = p.str("geminiKey", "").trim(); if (clave.isEmpty()) throw ErrorRevista("Pon tu clave de Gemini en Ajustes de la app para usar la IA.")
+        val modelo = p.str("geminiModel", "").trim().ifEmpty { p.str("geminiModelSel", "gemini-3.5-flash-lite") }.filter { it.isLetterOrDigit() || it == '-' || it == '.' }
+        io.github.arielegno.radio.Red.crudo("POST", "https://generativelanguage.googleapis.com/v1beta/models/$modelo:generateContent", io.github.arielegno.radio.core.Luna.peticionGemini("Eres un corrector y editor de una revista de música en español.", prompt),
+            mapOf("x-goog-api-key" to clave), timeoutMs = 40_000)
+    }
+    if (codigo !in 200..299) throw ErrorRevista("La IA respondió con error $codigo.")
+    (if (claude) io.github.arielegno.radio.core.Luna.crudoClaude(texto) else io.github.arielegno.radio.core.Luna.crudoGemini(texto))?.trim()?.takeIf { it.isNotEmpty() } ?: throw ErrorRevista("La IA no respondió.")
+}
+
+private fun nk(s: String) = java.text.Normalizer.normalize(s.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "").replace(Regex("[^a-z0-9]+"), " ").trim()
+fun ponerEnRadio(canciones: List<Pair<String, String>>, artista: String?): Int {
+    val app = io.github.arielegno.radio.RadioApp
+    val pistas = app.biblioteca.pistas
+    val ids = if (artista != null) { val a = nk(artista); pistas.filter { nk(it.artist).contains(a) && a.isNotEmpty() }.map { it.id }.toSet() }
+              else { val q = canciones.map { nk(it.first) + "|" + nk(it.second) }.toSet(); pistas.filter { (nk(it.name) + "|" + nk(it.artist)) in q }.map { it.id }.toSet() }
+    if (ids.isEmpty()) return 0
+    android.os.Handler(android.os.Looper.getMainLooper()).post { runCatching { app.radio.iniciar(filtro = { it.id in ids }, mezclarEsta = false) } }
+    return ids.size
+}
+
+fun historialEmpujar() {}
+fun historialAtras(n: Int) {}
+fun alVolverNavegador(f: () -> Unit) {}
+
 fun compartir(texto: String, url: String): Boolean {
     val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "$texto\n$url")
     return runCatching { PlataformaAndroid.ctx.startActivity(Intent.createChooser(i, "Compartir").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)

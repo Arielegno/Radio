@@ -58,8 +58,8 @@ fun ArtistasPantalla() {
         value = runCatching { Json.arr(runCatching { Cuenta.api("GET", "/rest/v1/artists?select=id,name,genre,years,cover,style,verified&order=name.asc&limit=1000") }.getOrElse { Cuenta.api("GET", "/rest/v1/artists?select=id,name,genre,years,cover,style&order=name.asc&limit=1000") }).mapNotNull { it.asObj() } }
     }
     Box(Modifier.fillMaxSize()) {
-        LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item(span = { GridItemSpan(2) }) {
+        LazyVerticalGrid(GridCells.Adaptive(165.dp), Modifier.fillMaxSize().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 Column {
                     Cabecera("Artistas", "Perfiles de bandas y artistas hechos por la Revista", lateral = 6.dp)
                     Box(Modifier.padding(horizontal = 6.dp)) { Campo(q, { q = it }, "Buscar artista, banda o género…", max = 60) }
@@ -67,16 +67,16 @@ fun ArtistasPantalla() {
             }
             val r = datos
             when {
-                r == null -> item(span = { GridItemSpan(2) }) { Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Amarillo) } }
-                r.isFailure -> item(span = { GridItemSpan(2) }) { Text(r.exceptionOrNull()?.message ?: "", color = Tenue, modifier = Modifier.padding(8.dp)) }
+                r == null -> item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Amarillo) } }
+                r.isFailure -> item(span = { GridItemSpan(maxLineSpan) }) { Text(r.exceptionOrNull()?.message ?: "", color = Tenue, modifier = Modifier.padding(8.dp)) }
                 else -> {
                     val n = normNombre(q)
                     val l = r.getOrThrow().filter { n.isEmpty() || normNombre(it.str("name") + " " + it.str("genre") + " " + it.str("years")).contains(n) }
-                    if (l.isEmpty()) item(span = { GridItemSpan(2) }) { Text(if (r.getOrThrow().isEmpty()) "Aún no hay perfiles de artistas." + if (Cuenta.esEditor) " Toca + para crear uno." else "" else "No encontré ese artista.", color = Tenue, modifier = Modifier.padding(8.dp)) }
+                    if (l.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text(if (r.getOrThrow().isEmpty()) "Aún no hay perfiles de artistas." + if (Cuenta.esEditor) " Toca + para crear uno." else "" else "No encontré ese artista.", color = Tenue, modifier = Modifier.padding(8.dp)) }
                     items(l, key = { it.str("id") }) { a -> TarjetaArtista(a) { Nav.ir(Destino.Artista(a.str("id"))) } }
                 }
             }
-            item(span = { GridItemSpan(2) }) { Spacer(Modifier.height(80.dp)) }
+            item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(80.dp)) }
         }
         if (Cuenta.esEditor) Box(Modifier.align(Alignment.BottomEnd).padding(18.dp).size(60.dp).clip(RoundedCornerShape(20.dp)).background(Amarillo).clickable { Nav.ir(Destino.EditarArtista(null)) }, contentAlignment = Alignment.Center) {
             Text("+", color = Color(0xFF1B1E23), fontSize = 34.sp, fontWeight = FontWeight.Bold)
@@ -154,7 +154,9 @@ fun ArtistaPantalla(id: String) {
                             ENLACES.filter { it.first in L }.forEach { (k, n) -> Boton(n, principal = false) { abrirEnlace(L.getValue(k)) } }
                         }
                         if (a.str("bio").isBlank()) Text("Sin biografía todavía.", color = Tenue) else TextoArticulo(art)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { Boton("Compartir", principal = false) { compartirEnlace("Mira esto en la Revista de Radio de ruta", Supa.WEB + "#rva=" + id) }; Enlace("Denunciar", Tenue) { if (Nav.necesitaCuenta()) denunciar = true } }
+                        Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Boton("Poner en la radio") { val n = ponerEnRadio(emptyList(), a.str("name")); Aviso.mostrar(when { n < 0 -> "Esto funciona en la app de Android (con tu música descargada)."; n == 0 -> "No tienes canciones de ${a.str("name")} en tu biblioteca."; else -> "Sonando en tu radio: $n canciones de ${a.str("name")}." }) }
+                            Boton("Compartir", principal = false) { compartirEnlace("Mira esto en la Revista de Radio de ruta", Supa.WEB + "#rva=" + id) }; Enlace("Denunciar", Tenue) { if (Nav.necesitaCuenta()) denunciar = true } }
                         if (d.gestores.isNotEmpty()) Text("Perfil gestionado por: " + d.gestores.joinToString(", ") { it.second }, color = Tenue, fontSize = 14.sp)
                         if (Cuenta.esAdmin) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x1AF2C230)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Solo tú ves esto", fontWeight = FontWeight.Bold)

@@ -69,6 +69,11 @@ sealed class Destino {
     data object Chats : Destino()
     data class Chat(val id: String) : Destino()
     data object EditarPerfil : Destino()
+    data object Ediciones : Destino()
+    data class Edicion(val id: String) : Destino()
+    data object Guardados : Destino()
+    data class Comparar(val artista: String) : Destino()
+    data class EditarConcierto(val id: String?) : Destino()
     data class Lista(val id: String) : Destino()
     data class EditarLista(val id: String?) : Destino()
 }
@@ -78,9 +83,11 @@ object Nav {
     var pila by mutableStateOf(listOf<Destino>()); private set
     /** Ventana abierta encima de todo: "cuenta", "normas"… */
     var dialogo by mutableStateOf<String?>(null)
-    fun ir(d: Destino) { pila = pila + d }
-    fun atras() { if (pila.isNotEmpty()) pila = pila.dropLast(1) }
-    fun inicio() { pila = emptyList() }
+    private var conectado = false
+    private fun conectar() { if (!conectado) { conectado = true; alVolverNavegador { if (dialogo != null) dialogo = null else if (Visor.url != null) Visor.url = null else if (pila.isNotEmpty()) pila = pila.dropLast(1) } } }
+    fun ir(d: Destino) { conectar(); pila = pila + d; historialEmpujar() }
+    fun atras() { if (pila.isNotEmpty()) { pila = pila.dropLast(1); historialAtras(1) } }
+    fun inicio() { val n = pila.size; pila = emptyList(); if (n > 0) historialAtras(n) }
     /** Si no entraste, abre la ventana de cuenta y devuelve false. */
     fun necesitaCuenta(): Boolean { if (Cuenta.dentro) return true; dialogo = "cuenta"; return false }
 }
@@ -132,7 +139,7 @@ fun Boton(texto: String, principal: Boolean = true, ocupado: Boolean = false, ha
     val activo = habilitado && !ocupado
     Row(modifier.clip(RoundedCornerShape(12.dp)).background(if (principal) Amarillo.copy(alpha = if (activo) 1f else .5f) else Color(0x14FFFFFF))
         .then(if (principal) Modifier else Modifier.border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(12.dp)))
-        .clickable(enabled = activo, onClick = onClick).padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+        .then(if (activo) Modifier.mano() else Modifier).clickable(enabled = activo, onClick = onClick).padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
         if (ocupado) { CircularProgressIndicator(Modifier.size(18.dp), color = if (principal) Color(0xFF1B1E23) else Amarillo, strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)) }
         Text(texto, color = if (principal) Color(0xFF1B1E23) else TextoClaro, fontWeight = FontWeight.Bold)
     }
@@ -140,7 +147,7 @@ fun Boton(texto: String, principal: Boolean = true, ocupado: Boolean = false, ha
 
 @Composable
 fun Enlace(texto: String, color: Color = Amarillo, onClick: () -> Unit) =
-    Text(texto, color = color, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 4.dp))
+    Text(texto, color = color, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.clip(RoundedCornerShape(8.dp)).mano().clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 4.dp))
 
 /** «hace 5 min», «hace 3 h», o la fecha. */
 fun hace(iso: String): String {

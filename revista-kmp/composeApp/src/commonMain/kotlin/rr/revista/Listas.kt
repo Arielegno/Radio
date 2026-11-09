@@ -107,6 +107,10 @@ fun ListaPantalla(id: String) {
                     Text("${items.size} canciones", color = Color.White.copy(alpha = .8f))
                 }
                 if (l.str("note").isNotBlank()) Text(l.str("note"), fontSize = 16.sp, lineHeight = 22.sp)
+                if (items.isNotEmpty()) Boton("Poner en la radio") {
+                    val n = ponerEnRadio(items.map { it.str("title") to it.str("artist") }, null)
+                    Aviso.mostrar(when { n < 0 -> "Esto funciona en la app de Android (con tu música descargada)."; n == 0 -> "No tienes ninguna de estas canciones en tu biblioteca."; else -> "Sonando en tu radio: $n de ${items.size} canciones." })
+                }
                 if (items.isEmpty()) Text("La lista está vacía.", color = Tenue)
                 items.forEachIndexed { i, x ->
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {

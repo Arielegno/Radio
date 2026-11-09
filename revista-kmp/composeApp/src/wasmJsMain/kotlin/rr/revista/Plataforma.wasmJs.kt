@@ -18,6 +18,29 @@ private external fun jsLeer(k: String): String
 @JsFun("(k, v) => { try { if (v === '\\u0000') localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }")
 private external fun jsGuardar(k: String, v: String)
 
+@JsFun("""(gr, mi, varias) => new Promise(ok => {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; if (varias) inp.multiple = true;
+  inp.style.display = 'none'; document.body.appendChild(inp);
+  const achicar = (img, max) => { const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight)); const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', 0.82); };
+  const fin = r => { inp.remove(); ok(JSON.stringify(r)); };
+  inp.addEventListener('cancel', () => fin([]));
+  inp.addEventListener('change', async () => {
+    const out = [];
+    for (const f of [...inp.files].slice(0, 8)) {
+      try { const u = URL.createObjectURL(f); const img = new Image(); img.src = u; await img.decode(); out.push({ g: achicar(img, gr), m: achicar(img, mi) }); URL.revokeObjectURL(u); } catch (e) {}
+    }
+    fin(out);
+  });
+  inp.click();
+})""")
+private external fun jsElegir(gr: Int, mi: Int, varias: Boolean): Promise<JsString>
+
+@JsFun("""(url, cab, b64, tipo) => { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+  return fetch(url, { method: 'POST', headers: Object.assign(JSON.parse(cab), { 'Content-Type': tipo }), body: new Blob([u], { type: tipo }) }).then(r => r.text().then(t => JSON.stringify({ s: r.status, t: t }))); }""")
+private external fun jsSubir(url: String, cab: String, b64: String, tipo: String): Promise<JsString>
+
 @JsFun("() => Date.now()")
 private external fun jsAhoraMs(): Double
 
@@ -57,3 +80,15 @@ actual fun decodificarImagen(bytes: ByteArray): ImageBitmap? =
 
 actual fun crearFuente(bytes: ByteArray, nombre: String, peso: FontWeight): Font =
     androidx.compose.ui.text.platform.Font(nombre, bytes, peso)
+
+actual fun elegirImagenes(maxGrande: Int, maxMini: Int, varias: Boolean): Espera<List<Foto>> {
+    val p = jsElegir(maxGrande, maxMini, varias)
+    return object : Espera<List<Foto>> {
+        override suspend fun esperar(): List<Foto> = Json.arr(p.await<JsString>().toString()).mapNotNull { it.asObj() }.map { Foto(it.str("g"), it.str("m")) }
+    }
+}
+
+actual suspend fun subirArchivo(url: String, cabeceras: Map<String, String>, base64: String, tipo: String): Respuesta {
+    val o = Json.obj(jsSubir(url, Json.write(cabeceras), base64, tipo).await<JsString>().toString())
+    return Respuesta(o.num("s").toInt(), o.str("t"))
+}

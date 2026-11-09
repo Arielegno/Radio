@@ -111,7 +111,7 @@ private fun BotonVolver(cerrar: () -> Unit, color: Color) {
 }
 
 @Composable
-private fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Unit, recargarComs: () -> Unit) {
+internal fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Unit, recargarComs: () -> Unit) {
     val L = Look(a)
     val portada = imagen(a.portada)
     val scope = rememberCoroutineScope()
@@ -200,6 +200,7 @@ private fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Uni
                 }
                 Row(Modifier.padding(top = 6.dp)) {
                     if (!mio) Enlace("Denunciar", L.tenue) { accion { denuncia = "post" to a.id } }
+                    if (mio) Enlace("Editar artículo", L.acento) { Nav.ir(Destino.Editar(a.id)) }
                     if (mio || Cuenta.esAdmin) Enlace("Eliminar artículo", Color(0xFFFF8A7A)) { accion { borrar = "post" } }
                 }
                 Comentarios(a, coms, L, ejemplo, recargarComs, { tipo, cid -> accion { denuncia = tipo to cid } }) { cid -> accion { borrar = cid } }

@@ -51,6 +51,8 @@ import kotlinx.coroutines.delay
 sealed class Destino {
     data class Leer(val id: String) : Destino()
     data class Perfil(val id: String) : Destino()
+    /** Escribir (id = null) o editar un artículo. */
+    data class Editar(val id: String?) : Destino()
 }
 
 /** Navegación con pila (el botón «Volver» quita la última pantalla). */

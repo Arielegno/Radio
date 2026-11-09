@@ -37,6 +37,9 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 
 private val RECORTE = listOf(
     Triple(0xFF141414, 0xFFFFFFFF, "archivo"), Triple(0xFFFFFFFF, 0xFF141414, "playfair"), Triple(0xFFFF3D8B, 0xFF141414, "anton"),
@@ -45,14 +48,24 @@ private val RECORTE = listOf(
 
 /** Collage del diseño avanzado: cada recorte en su lugar (en % del lienzo), con su giro, tamaño y transparencia. */
 @Composable
-fun Collage(items: List<ItemCollage>, modifier: Modifier = Modifier) {
+fun Collage(items: List<ItemCollage>, modifier: Modifier = Modifier, seleccionado: Int = -1, alTocar: ((Int) -> Unit)? = null,
+            alMover: ((Int, Float, Float, Float, Float) -> Unit)? = null) {
     BoxWithConstraints(modifier.clipToBounds()) {
         val ancho = maxWidth
-        val orden = items.sortedBy { it.z }
-        Layout(content = { orden.forEach { Recorte(it, ancho) } }, modifier = Modifier.fillMaxSize()) { ms, c ->
+        val wPx = constraints.maxWidth.toFloat().coerceAtLeast(1f); val hPx = constraints.maxHeight.toFloat().coerceAtLeast(1f)
+        val orden = items.withIndex().sortedBy { it.value.z }
+        Layout(content = {
+            orden.forEach { (i, it) ->
+                if (alMover == null) Recorte(it, ancho)
+                else Box(Modifier
+                    .then(if (i == seleccionado) Modifier.border(2.dp, Color(0xFFF2C230), RoundedCornerShape(4.dp)) else Modifier)
+                    .pointerInput(i) { detectTapGestures { alTocar?.invoke(i) } }
+                    .pointerInput(i) { detectTransformGestures { _, pan, zoom, giro -> alTocar?.invoke(i); alMover(i, pan.x / wPx, pan.y / hPx, zoom, giro) } }) { Recorte(it, ancho) }
+            }
+        }, modifier = Modifier.fillMaxSize()) { ms, c ->
             val ps = ms.map { it.measure(Constraints()) }
             layout(c.maxWidth, c.maxHeight) {
-                ps.forEachIndexed { i, p -> val it = orden[i]; p.place((c.maxWidth * it.x / 100 - p.width / 2.0).toInt(), (c.maxHeight * it.y / 100 - p.height / 2.0).toInt()) }
+                ps.forEachIndexed { k, p -> val it = orden[k].value; p.place((c.maxWidth * it.x / 100 - p.width / 2.0).toInt(), (c.maxHeight * it.y / 100 - p.height / 2.0).toInt()) }
             }
         }
     }

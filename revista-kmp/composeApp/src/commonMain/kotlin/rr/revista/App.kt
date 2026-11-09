@@ -94,9 +94,14 @@ fun App() {
                             "mas" -> Mas()
                             else -> Inicio(listaInicio) { Nav.ir(Destino.Leer(it)) }
                         }
+                        if (arriba == null && seccion == "inicio") Box(Modifier.align(Alignment.BottomEnd).padding(18.dp).size(60.dp).clip(RoundedCornerShape(20.dp))
+                            .background(Brush.linearGradient(listOf(Color(0xFFFF8A3D), Color(0xFFFF5F9E)))).clickable {
+                                if (Nav.necesitaCuenta()) { if (Cuenta.suspendida) Aviso.mostrar("Tu cuenta está suspendida: puedes leer, pero no publicar.", true) else Nav.ir(Destino.Editar(null)) }
+                            }, contentAlignment = Alignment.Center) { Text("+", color = Color(0xFF1B1E23), fontSize = 34.sp, fontWeight = FontWeight.Bold) }
                         when (arriba) {
                             is Destino.Leer -> androidx.compose.runtime.key(arriba.id) { Lectura(arriba.id) { Nav.atras() } }
                             is Destino.Perfil -> androidx.compose.runtime.key(arriba.id) { PerfilPantalla(arriba.id) }
+                            is Destino.Editar -> androidx.compose.runtime.key(arriba.id ?: "nuevo") { Editor(arriba.id) }
                             null -> {}
                         }
                     }

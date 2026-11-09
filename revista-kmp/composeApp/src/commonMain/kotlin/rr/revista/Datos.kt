@@ -8,6 +8,15 @@ expect fun leerDato(clave: String): String?
 expect fun guardarDato(clave: String, valor: String?)
 expect fun ahoraMs(): Double
 
+/** Algo que se pide ahora (por ejemplo, abrir el selector de fotos al tocar) y se espera después. */
+interface Espera<T> { suspend fun esperar(): T }
+/** Imagen elegida y achicada a JPEG: grande y miniatura (data:image/jpeg;base64,…). */
+data class Foto(val grande: String, val mini: String)
+/** Abre el selector de imágenes del teléfono. Hay que llamarlo directo al tocar un botón. */
+expect fun elegirImagenes(maxGrande: Int, maxMini: Int, varias: Boolean): Espera<List<Foto>>
+/** Sube un archivo (en base64) al almacén. */
+expect suspend fun subirArchivo(url: String, cabeceras: Map<String, String>, base64: String, tipo: String): Respuesta
+
 suspend fun httpTexto(url: String, cabeceras: Map<String, String>): String {
     val r = httpPedido("GET", url, cabeceras, null)
     if (r.estado !in 200..299) throw Exception("HTTP ${r.estado} ${r.texto.take(160)}")

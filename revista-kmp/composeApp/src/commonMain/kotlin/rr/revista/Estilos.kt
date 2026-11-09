@@ -7,7 +7,25 @@ data class Estilo(
 ) {
     val claro: Boolean get() = th in CLAROS
 
+    /** Solo lo que cambió respecto de lo normal (revStDiff en la web). */
+    fun aMapa(): Map<String, Any?> {
+        val d = Estilo(); val m = linkedMapOf<String, Any?>()
+        if (th != d.th) m["th"] = th; if (ft != d.ft) m["ft"] = ft; if (ac != d.ac) m["ac"] = ac; if (al != d.al) m["al"] = al
+        if (dc != d.dc) m["dc"] = dc; if (sz != d.sz) m["sz"] = sz; if (cv != d.cv) m["cv"] = cv; if (stk != d.stk) m["stk"] = stk; if (mh != d.mh) m["mh"] = mh
+        return m
+    }
+
+    /** Al elegir una estética de revista se ajustan la letra y el acento (REV_PRE en la web). */
+    fun conTema(t: String): Estilo = when (t) {
+        "y2k" -> copy(th = t, ft = "retro", ac = "rosa"); "punk" -> copy(th = t, ft = "poster", ac = "rojo"); "clasica" -> copy(th = t, ft = "editorial", ac = "rojo")
+        "vintage" -> copy(th = t, ft = "poster", ac = "rojo"); "teen" -> copy(th = t, ft = "bloque", ac = "coral"); "tokio" -> copy(th = t, ft = "burbuja", ac = "rosa")
+        "tabloide" -> copy(th = t, ft = "bloque", ac = "azul"); "cromo" -> copy(th = t, ft = "glitch", ac = "azul"); else -> copy(th = t)
+    }
+
     companion object {
+        val NOMBRES_TEMA = mapOf("asfalto" to "Asfalto", "senal" to "Señal", "papel" to "Papel", "neon" to "Neón", "atardecer" to "Atardecer", "vinilo" to "Vinilo",
+            "y2k" to "Pop Y2K", "punk" to "Fanzine punk", "clasica" to "Rock clásico", "vintage" to "Cartel vintage", "teen" to "Teen 2002", "tokio" to "Tokio kawaii", "tabloide" to "Tabloide", "cromo" to "Cromo 2000")
+        val NOMBRES_FUENTE = mapOf("cartel" to "Cartel", "editorial" to "Editorial", "maquina" to "Máquina", "manuscrita" to "Manuscrita", "afiche" to "Afiche", "poster" to "Póster", "retro" to "Retro", "burbuja" to "Burbuja", "glitch" to "Glitch", "bloque" to "Bloque")
         val TEMAS = listOf("asfalto", "senal", "papel", "neon", "atardecer", "vinilo", "y2k", "punk", "clasica", "vintage", "teen", "tokio", "tabloide", "cromo")
         val FUENTES = listOf("cartel", "editorial", "maquina", "manuscrita", "afiche", "poster", "retro", "burbuja", "glitch", "bloque")
         val ACENTOS = mapOf("amarillo" to 0xFFF2C230, "azul" to 0xFF4F8FF0, "coral" to 0xFFFF6B5A, "verde" to 0xFF3ECF8E, "violeta" to 0xFFA78BFA, "rojo" to 0xFFE3242B, "rosa" to 0xFFFF3D8B, "tinta" to 0xFF9AA3B0)
@@ -69,7 +87,32 @@ data class Diseno(
 ) {
     val vacio: Boolean get() = this == Diseno()
 
+    /** Solo lo que cambió (dzDiff en la web), en el mismo formato que guarda la web. */
+    fun aMapa(): Map<String, Any?> {
+        val d = Diseno(); val m = linkedMapOf<String, Any?>()
+        fun h(c: Long) = "#" + (c and 0xFFFFFF).toString(16).padStart(6, '0')
+        if (bg != d.bg) m["bg"] = bg; if (c1 != d.c1) m["c1"] = h(c1); if (c2 != d.c2) m["c2"] = h(c2); if (gt != d.gt) m["gt"] = gt; if (ga != d.ga) m["ga"] = ga
+        if (blur != d.blur) m["blur"] = blur; if (dim != d.dim) m["dim"] = dim; if (vin) m["vin"] = 1; if (grain) m["grain"] = 1
+        if (tf != d.tf) m["tf"] = tf; if (hf != d.hf) m["hf"] = hf; if (fs != 0) m["fs"] = fs; if (lh != 0.0) m["lh"] = lh; if (ts != 0) m["ts"] = ts
+        tc?.let { m["tc"] = h(it) }; hc?.let { m["hc"] = h(it) }; if (ta != d.ta) m["ta"] = ta; if (tsh) m["tsh"] = 1
+        if (panel != d.panel) m["panel"] = panel; if (pop != d.pop) m["pop"] = pop; if (pbl != d.pbl) m["pbl"] = pbl; if (rad != d.rad) m["rad"] = rad
+        if (cpos != d.cpos) m["cpos"] = cpos; if (ch != d.ch) m["ch"] = ch
+        if (col.isNotEmpty()) m["col"] = col.map { i ->
+            val o = linkedMapOf<String, Any?>("k" to i.k, "x" to i.x, "y" to i.y, "w" to i.w, "r" to i.r, "z" to i.z, "o" to i.o)
+            i.c?.let { o["c"] = h(it) }
+            when (i.k) { "img" -> { o["s"] = i.s; o["cut"] = i.cut }; "txt" -> { o["t"] = i.t; o["v"] = i.v }; "stk" -> { o["v"] = i.v; o["t"] = i.t }; else -> o["v"] = i.v }
+            o
+        }
+        return m
+    }
+
     companion object {
+        val NOMBRES_FONDO = mapOf("none" to "Ninguno", "cover" to "Tu portada difuminada", "color" to "Mis colores", "aurora" to "Aurora", "atardecer" to "Atardecer", "neon" to "Neón", "oceano" to "Océano",
+            "fuego" to "Fuego", "noche" to "Noche estrellada", "grunge" to "Grunge", "vinilo" to "Vinilo", "rayas" to "Rayas", "menta" to "Menta", "pastel" to "Arcoíris pastel", "cromo" to "Cromo 2000",
+            "y2k" to "Pop Y2K", "tokio" to "Tokio kawaii", "trama" to "Trama punk", "cuadros" to "Cuadros", "periodico" to "Periódico")
+        val NOMBRES_LETRA = mapOf("" to "Del tema", "sistema" to "Normal", "lora" to "Lora", "playfair" to "Elegante", "mono" to "Máquina", "caveat" to "Manuscrita", "abril" to "Abril", "anton" to "Cartel",
+            "shrikhand" to "Retro", "rampart" to "Burbuja", "glitch" to "Glitch", "archivo" to "Bloque")
+        val NOMBRES_PANEL = mapOf("none" to "Sin panel", "vidrio" to "Vidrio", "negro" to "Oscuro", "blanco" to "Claro", "papel" to "Papel", "cinta" to "Recorte")
         val FONDOS = listOf("none", "cover", "color", "aurora", "atardecer", "neon", "oceano", "fuego", "noche", "grunge", "vinilo", "rayas", "menta", "pastel", "cromo", "y2k", "tokio", "trama", "cuadros", "periodico")
         val FONDOS_CLAROS = setOf("menta", "pastel", "cromo", "y2k", "tokio", "trama", "periodico")
         val LETRAS = listOf("", "sistema", "lora", "playfair", "mono", "caveat", "abril", "anton", "shrikhand", "rampart", "glitch", "archivo")

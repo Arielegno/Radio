@@ -64,6 +64,7 @@ sealed class Destino {
     data object Agenda : Destino()
     data object Club : Destino()
     data class Concierto(val id: String) : Destino()
+    data object Admin : Destino()
 }
 
 /** Navegación con pila (el botón «Volver» quita la última pantalla). */

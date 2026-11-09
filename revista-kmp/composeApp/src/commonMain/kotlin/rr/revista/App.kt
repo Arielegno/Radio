@@ -116,6 +116,7 @@ fun App() {
                             Destino.Agenda -> AgendaPantalla()
                             Destino.Club -> ClubPantalla()
                             is Destino.Concierto -> androidx.compose.runtime.key(arriba.id) { ConciertoPantalla(arriba.id) }
+                            Destino.Admin -> AdminPantalla()
                             null -> {}
                         }
                     }
@@ -336,8 +337,8 @@ private fun Boveda() {
 private fun Mas() {
     Column(Modifier.fillMaxSize().padding(bottom = 20.dp)) {
         Cabecera("Más", "Todo lo de la Revista")
-        listOf(Triple("Debates", "Encuestas de la comunidad", Destino.Debates), Triple("Agenda", "Conciertos y festivales", Destino.Agenda), Triple("Club de escucha", "Un disco por semana, canción por canción", Destino.Club),
-            Triple("Notificaciones", "Me gusta, comentarios y seguidores", Destino.Notificaciones)).forEach { (t, s, d) ->
+        (listOf(Triple("Debates", "Encuestas de la comunidad", Destino.Debates), Triple("Agenda", "Conciertos y festivales", Destino.Agenda), Triple("Club de escucha", "Un disco por semana, canción por canción", Destino.Club),
+            Triple("Notificaciones", "Me gusta, comentarios y seguidores", Destino.Notificaciones)) + (if (Cuenta.esAdmin) listOf(Triple("Admin", "Denuncias, usuarios, estadísticas y ajustes", Destino.Admin)) else emptyList())).forEach { (t, s, d) ->
             Column(Modifier.padding(horizontal = 18.dp, vertical = 5.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel).clickable { if (d == Destino.Notificaciones && !Nav.necesitaCuenta()) return@clickable; Nav.ir(d) }.padding(16.dp)) {
                 Text(t, fontWeight = FontWeight.Bold, fontSize = 18.sp); Text(s, color = Tenue, fontSize = 14.sp)
             }

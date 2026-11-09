@@ -18,3 +18,8 @@
 -keep class kotlin.jvm.functions.** { *; }
 -keep class kotlin.Unit { *; }
 -keepclassmembers class * implements kotlin.jvm.functions.Function1 { public java.lang.Object invoke(java.lang.Object); }
+
+# Para que los reportes de errores digan en qué archivo y línea del código pasó el error
+# (sin esto, los nombres salen cambiados por letras y no se entiende nada)
+-dontobfuscate
+-keepattributes SourceFile,LineNumberTable

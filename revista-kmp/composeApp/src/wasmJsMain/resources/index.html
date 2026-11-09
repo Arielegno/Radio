@@ -22,6 +22,9 @@ html,body{margin:0;height:100%;background:#14161a;overflow:hidden}
   var ok = false;
   try { ok = typeof WebAssembly === 'object' && WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 95, 1, 120, 0])); } catch (e) {}
   if (!ok) { document.getElementById('carga').innerHTML = '<b>Revista</b><span>Tu navegador es muy viejo para la versión nativa.</span><a href="https://arielegno.github.io/Radio/#revista">Abrir la Revista normal</a>'; return; }
+  // La versión nativa dibuja con la tarjeta gráfica (WebGL). Si está apagada (Firefox o Edge con «aceleración por hardware» desactivada), se explica cómo activarla.
+  var gl = null; try { var cv = document.createElement('canvas'); gl = cv.getContext('webgl2') || cv.getContext('webgl'); } catch (e) {}
+  if (!gl) { document.getElementById('carga').innerHTML = '<b>Revista</b><span>Tu navegador tiene apagada la aceleración gráfica (WebGL), que la versión nativa necesita.<br>Actívala en Ajustes › Sistema › «Usar aceleración por hardware» y recarga la página.</span><a href="https://arielegno.github.io/Radio/#revista">Mientras tanto, abrir la Revista normal</a>'; return; }
   var s = document.createElement('script'); s.src = 'composeApp.js'; document.body.appendChild(s);
 })();
 </script>

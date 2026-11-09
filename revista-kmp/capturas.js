@@ -51,7 +51,7 @@ const q = async p => { try { const r = await fetch(SB + p, { headers: { apikey: 
   // Computadora y tableta: Chromium (igual que Chrome y Edge) y Firefox
   for (const [motor, nombreM] of [[chromium, 'chromium'], [firefox, 'firefox']]) {
     let nav;
-    try { nav = await motor.launch(); } catch (e) { log.push(`[${nombreM}] no se pudo abrir: ${e.message}`); continue; }
+    try { nav = await motor.launch(nombreM === 'firefox' ? { firefoxUserPrefs: { 'webgl.force-enabled': true, 'webgl.disabled': false, 'gfx.webrender.software': true } } : {}); } catch (e) { log.push(`[${nombreM}] no se pudo abrir: ${e.message}`); continue; }
     for (const [vw, vh, tipo] of [[1440, 900, 'pc'], [820, 1180, 'tableta']]) {
       if (tipo === 'tableta' && nombreM === 'firefox') continue;
       const c = await nav.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: 1, locale: 'es-419', timezoneId: 'America/Tegucigalpa' });

@@ -90,14 +90,14 @@ private data class Efemeride(val anio: Int, val texto: String, val url: String)
 fun HoyEnLaMusica(modifier: Modifier = Modifier) {
     val hoy = ahoraIso().take(10)
     val lista by produceState<List<Efemeride>?>(null, hoy) {
-        val clave = "rr_hoy_n_" + hoy
+        val clave = "rr_hoy_m_" + hoy
         val guardado = leerDato(clave)
         val texto = guardado ?: runCatching {
             val mm = hoy.substring(5, 7); val dd = hoy.substring(8, 10)
             val r = httpPedido("GET", "https://api.wikimedia.org/feed/v1/wikipedia/es/onthisday/events/$mm/$dd", emptyMap(), null)
             if (r.estado !in 200..299) "[]" else {
                 val mus = Regex("\\b(banda|grupo musical|cantante|m[uú]sico|compositor|[aá]lbum|disco|sencillo|canci[oó]n|concierto|festival|gira|rock|jazz|punk|pop|orquesta|guitarrista|baterista|bajista|rapero|reguet[oó]n|salsa|cumbia)\\b", RegexOption.IGNORE_CASE)
-                val ev = (Json.obj(r.texto)["events"] as? List<*>).orEmpty().mapNotNull { it.asObj() }.filter { mus.containsMatchIn(it.str("text")) }.take(4)
+                val ev = (Json.obj(r.texto)["events"] as? List<*>).orEmpty().mapNotNull { it.asObj() }.filter { mus.containsMatchIn(it.str("text")) && !Regex("terrorist|militar|ej[eé]rcito|guerra|atentado|asesin|pol[ií]tic|presos", RegexOption.IGNORE_CASE).containsMatchIn(it.str("text")) }.take(4)
                 Json.write(ev.map { e ->
                     val pag = (e["pages"] as? List<*>)?.firstOrNull()?.asObj()
                     mapOf("y" to e.num("year"), "t" to e.str("text").take(220), "u" to (pag?.map("content_urls")?.map("mobile")?.str("page") ?: ""))

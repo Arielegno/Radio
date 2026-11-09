@@ -189,8 +189,7 @@ private fun BarraAbajo(actual: String, ir: (String) -> Unit) {
 fun Cabecera(titulo: String, sub: String, lateral: androidx.compose.ui.unit.Dp = 18.dp) {
     Column(Modifier.padding(start = lateral, end = lateral, top = 18.dp, bottom = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Amarillo), contentAlignment = Alignment.Center) { Icono("nota", Color(0xFF1B1E23), 24.dp) }
-            Spacer(Modifier.width(10.dp))
+            if (!LocalAncho.current.esAncha) { Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Amarillo), contentAlignment = Alignment.Center) { Icono("nota", Color(0xFF1B1E23), 24.dp) }; Spacer(Modifier.width(10.dp)) }
             Text(titulo, fontFamily = Fuentes.de("condensada"), fontWeight = FontWeight.ExtraBold, fontSize = 34.sp, lineHeight = 36.sp, modifier = Modifier.weight(1f))
             Box(Modifier.size(40.dp).clip(CircleShape).clickable { Nav.ir(Destino.Buscar) }, contentAlignment = Alignment.Center) { Icono("lupa", TextoClaro, 23.dp) }
             BotonChats(); Campana(); Spacer(Modifier.width(6.dp))
@@ -281,7 +280,7 @@ private val NOMBRE_TEMA = mapOf("asfalto" to "Asfalto", "senal" to "Señal", "pa
 private fun Destacado(a: Articulo, ancha: Boolean = false, abrir: () -> Unit) {
     val img = imagen(a.portada)
     val ac = col(Estilo.ACENTOS[a.estilo.ac] ?: 0xFFF2C230)
-    Box(Modifier.padding(horizontal = 18.dp, vertical = 10.dp).fillMaxWidth().aspectRatio(if (ancha) 2.3f else .82f).clip(RoundedCornerShape(24.dp)).background(Panel).mano().clickable(onClick = abrir)) {
+    Box(Modifier.padding(horizontal = 18.dp, vertical = 10.dp).fillMaxWidth().aspectRatio(LocalAncho.current.let { w -> if (w >= 900.dp) 2.3f else if (w >= 600.dp) 1.45f else .82f }).clip(RoundedCornerShape(24.dp)).background(Panel).mano().clickable(onClick = abrir)) {
         if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xF20B0C0F))))
         Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {

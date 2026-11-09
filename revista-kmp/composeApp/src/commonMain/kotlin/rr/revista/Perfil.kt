@@ -71,6 +71,10 @@ fun PerfilPantalla(id: String) {
             when (pestana) {
                 "posts" -> Json.arr(Cuenta.api("GET", "/rest/v1/posts?select=$sel&author_id=eq.$id${if (mio) "" else Supa.publicados()}&order=created_at.desc&limit=30")).mapNotNull { it.asObj()?.let(Supa::deFila) } to emptyList()
                 "likes" -> Json.arr(Cuenta.api("GET", "/rest/v1/likes?select=posts($sel)&user_id=eq.$id&limit=30")).mapNotNull { it.asObj()?.map("posts")?.takeIf { m -> m.isNotEmpty() }?.let(Supa::deFila) } to emptyList()
+                "cols" -> emptyList<Articulo>() to Json.arr(Cuenta.api("GET", "/rest/v1/collections?select=id,title,public,collection_items(count)&owner=eq.$id&order=created_at.desc")).mapNotNull { it.asObj() }.map { c ->
+                    val n = ((c["collection_items"] as? List<*>)?.firstOrNull() as? Map<*, *>)?.get("count")?.toString() ?: "0"
+                    Actividad(c.str("title"), "$n pósters" + if (!c.bool("public", true)) " · privada" else "", "col:" + c.str("id"))
+                }
                 "recs" -> Json.arr(Cuenta.api("GET", "/rest/v1/recommends?select=note,created_at,posts($sel)&user_id=eq.$id&order=created_at.desc&limit=30")).mapNotNull { it.asObj()?.map("posts")?.takeIf { m -> m.isNotEmpty() }?.let(Supa::deFila) } to emptyList()
                 else -> emptyList<Articulo>() to Json.arr(Cuenta.api("GET", "/rest/v1/comments?select=id,body,created_at,post_id,posts(title)&author_id=eq.$id&order=created_at.desc&limit=30")).mapNotNull { it.asObj() }.map { c ->
                     Actividad(c.str("body"), "En «${c.map("posts").str("title").ifBlank { "artículo" }}» · ${Fechas.corta(c.str("created_at"))}", c.str("post_id"))
@@ -127,7 +131,7 @@ fun PerfilPantalla(id: String) {
                                 if (!mio) Enlace("Denunciar perfil", Tenue) { if (Nav.necesitaCuenta()) denunciar = true }
                             }
                             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf("posts" to "Artículos", "recs" to "Recomendados", "comments" to "Comentarios", "likes" to "Me gusta").forEach { (k, n) ->
+                                listOf("posts" to "Artículos", "recs" to "Recomendados", "cols" to "Colecciones", "comments" to "Comentarios", "likes" to "Me gusta").forEach { (k, n) ->
                                     val on = pestana == k
                                     Text(n, color = if (on) Color(0xFF1B1E23) else TextoClaro, fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(if (on) Amarillo else Color.Transparent).border(1.dp, if (on) Amarillo else Color(0x33FFFFFF), RoundedCornerShape(999.dp)).clickable { pestana = k }.padding(horizontal = 14.dp, vertical = 8.dp))
@@ -141,10 +145,10 @@ fun PerfilPantalla(id: String) {
                         l.isFailure -> item { Text(l.exceptionOrNull()?.message ?: "", color = Tenue, modifier = Modifier.padding(18.dp)) }
                         else -> {
                             val (arts, acts) = l.getOrThrow()
-                            if (arts.isEmpty() && acts.isEmpty()) item { Text(when (pestana) { "posts" -> "Aún no ha publicado artículos."; "recs" -> "Todavía no recomienda artículos."; "comments" -> "Sin comentarios todavía."; else -> "Todavía no le ha dado me gusta a nada." }, color = Tenue, modifier = Modifier.padding(18.dp)) }
+                            if (arts.isEmpty() && acts.isEmpty()) item { Text(when (pestana) { "posts" -> "Aún no ha publicado artículos."; "recs" -> "Todavía no recomienda artículos."; "comments" -> "Sin comentarios todavía."; "cols" -> "Sin colecciones públicas."; else -> "Todavía no le ha dado me gusta a nada." }, color = Tenue, modifier = Modifier.padding(18.dp)) }
                             items(arts, key = { "a" + it.id }) { a -> Tarjeta(a) { Nav.ir(Destino.Leer(a.id)) } }
                             items(acts, key = { "c" + it.post + it.texto.hashCode() }) { c ->
-                                Column(Modifier.padding(horizontal = 18.dp, vertical = 6.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).clickable { Nav.ir(Destino.Leer(c.post)) }.padding(14.dp)) {
+                                Column(Modifier.padding(horizontal = 18.dp, vertical = 6.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).clickable { if (c.post.startsWith("col:")) Nav.ir(Destino.Coleccion(c.post.removePrefix("col:"))) else Nav.ir(Destino.Leer(c.post)) }.padding(14.dp)) {
                                     Text(c.sub, color = Tenue, fontSize = 13.sp); Text(c.texto, modifier = Modifier.padding(top = 4.dp))
                                 }
                             }

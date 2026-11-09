@@ -438,3 +438,30 @@ private fun Galeria(fotos: List<String>) {
         }
     }
 }
+
+/** Cabecera de una ficha con la estética elegida (para artistas y vistas previas). */
+@Composable
+internal fun CabeceraEstilo(a: Articulo) {
+    val L = Look(a); val portada = imagen(a.portada)
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).drawBehind { fondoTema(L.e, L.t) }.padding(if (L.e.cv == "m") 0.dp else 14.dp)) {
+        when {
+            L.e.cv == "m" -> PortadaRevista(a, L, portada)
+            L.e.cv == "f" && portada != null -> Box(Modifier.fillMaxWidth().aspectRatio(.8f).clip(RoundedCornerShape(14.dp))) {
+                Image(portada, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.3f to Color.Transparent, 1f to Color(0xE6000000))))
+                Column(Modifier.align(Alignment.BottomStart).padding(18.dp)) { Titulo(a, L, Color.White); Subtitulo(a, L, Color.White.copy(alpha = .85f)) }
+            }
+            else -> {
+                if (portada != null) Image(portada, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 10f).clip(RoundedCornerShape(14.dp)))
+                Spacer(Modifier.height(12.dp)); Titulo(a, L, L.titulo); Subtitulo(a, L, L.tenue)
+            }
+        }
+    }
+}
+
+/** El texto con la estética elegida, sobre su propio fondo para que se lea bien. */
+@Composable
+internal fun TextoArticulo(a: Articulo) {
+    val L = Look(a)
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).drawBehind { fondoTema(L.e, L.t) }.padding(16.dp)) { Cuerpo(a, L) }
+}

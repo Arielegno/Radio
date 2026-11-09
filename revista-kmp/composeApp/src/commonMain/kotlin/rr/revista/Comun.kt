@@ -53,6 +53,12 @@ sealed class Destino {
     data class Perfil(val id: String) : Destino()
     /** Escribir (id = null) o editar un artículo. */
     data class Editar(val id: String?) : Destino()
+    data class Poster(val id: String) : Destino()
+    data class Coleccion(val id: String) : Destino()
+    data class SubirPoster(val reto: String?) : Destino()
+    data object BuscarOriginales : Destino()
+    data class Artista(val id: String) : Destino()
+    data class EditarArtista(val id: String?) : Destino()
 }
 
 /** Navegación con pila (el botón «Volver» quita la última pantalla). */

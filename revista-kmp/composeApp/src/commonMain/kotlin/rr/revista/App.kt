@@ -73,7 +73,7 @@ private fun tipografia(f: FontFamily): Typography {
 fun App() {
     LaunchedEffect(Unit) { Fuentes.cargar(); listo() }
     val h = remember { hashInicial() }
-    var seccion by remember { mutableStateOf(when { h.startsWith("#posters") -> "posters"; h.startsWith("#boveda") -> "boveda"; else -> "inicio" }) }
+    var seccion by remember { mutableStateOf(when { h.startsWith("#posters") -> "posters"; h.startsWith("#boveda") -> "boveda"; h.startsWith("#artistas") -> "artistas"; else -> "inicio" }) }
     LaunchedEffect(Unit) {
         (Regex("^#post=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1) ?: Regex("^#ejemplo=(\\d)$").find(h)?.groupValues?.get(1)?.let { "ejemplo-$it" })?.let { Nav.ir(Destino.Leer(it)) }
         Regex("^#perfil=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1)?.let { Nav.ir(Destino.Perfil(it)) }
@@ -91,7 +91,8 @@ fun App() {
                 Column(Modifier.widthIn(max = 720.dp).fillMaxSize()) {
                     Box(Modifier.weight(1f)) {
                         when (seccion) {
-                            "posters" -> Posters()
+                            "posters" -> GaleriaPantalla()
+                            "artistas" -> ArtistasPantalla()
                             "boveda" -> Boveda()
                             "mas" -> Mas()
                             else -> Inicio(listaInicio) { Nav.ir(Destino.Leer(it)) }
@@ -104,6 +105,12 @@ fun App() {
                             is Destino.Leer -> androidx.compose.runtime.key(arriba.id) { Lectura(arriba.id) { Nav.atras() } }
                             is Destino.Perfil -> androidx.compose.runtime.key(arriba.id) { PerfilPantalla(arriba.id) }
                             is Destino.Editar -> androidx.compose.runtime.key(arriba.id ?: "nuevo") { Editor(arriba.id) }
+                            is Destino.Poster -> androidx.compose.runtime.key(arriba.id) { PosterPantalla(arriba.id) }
+                            is Destino.Coleccion -> androidx.compose.runtime.key(arriba.id) { ColeccionPantalla(arriba.id) }
+                            is Destino.SubirPoster -> SubirPosterPantalla(arriba.reto)
+                            Destino.BuscarOriginales -> BuscarOriginalesPantalla()
+                            is Destino.Artista -> androidx.compose.runtime.key(arriba.id) { ArtistaPantalla(arriba.id) }
+                            is Destino.EditarArtista -> androidx.compose.runtime.key(arriba.id ?: "nuevo") { EditarArtistaPantalla(arriba.id) }
                             null -> {}
                         }
                     }
@@ -119,9 +126,9 @@ fun App() {
 @Composable
 private fun BarraAbajo(actual: String, ir: (String) -> Unit) {
     Row(Modifier.fillMaxWidth().background(Color(0xF21B1E23)).padding(horizontal = 8.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceAround) {
-        listOf(Triple("inicio", "casa", "Inicio"), Triple("boveda", "pelicula", "Bóveda"), Triple("posters", "imagen", "Pósters"), Triple("mas", "menu", "Más")).forEach { (k, ic, n) ->
+        listOf(Triple("inicio", "casa", "Inicio"), Triple("boveda", "pelicula", "Bóveda"), Triple("posters", "imagen", "Pósters"), Triple("artistas", "nota", "Artistas"), Triple("mas", "menu", "Más")).forEach { (k, ic, n) ->
             val on = actual == k
-            Column(Modifier.clip(RoundedCornerShape(14.dp)).clickable { ir(k) }.background(if (on) Amarillo.copy(alpha = .16f) else Color.Transparent).padding(horizontal = 16.dp, vertical = 6.dp),
+            Column(Modifier.clip(RoundedCornerShape(14.dp)).clickable { ir(k) }.background(if (on) Amarillo.copy(alpha = .16f) else Color.Transparent).padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally) {
                 Icono(ic, if (on) Amarillo else Tenue, 24.dp)
                 Text(n, fontSize = 12.sp, color = if (on) Amarillo else Tenue, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal)

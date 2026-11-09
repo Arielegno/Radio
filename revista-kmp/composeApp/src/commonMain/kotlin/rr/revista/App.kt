@@ -111,6 +111,11 @@ fun App() {
                             Destino.BuscarOriginales -> BuscarOriginalesPantalla()
                             is Destino.Artista -> androidx.compose.runtime.key(arriba.id) { ArtistaPantalla(arriba.id) }
                             is Destino.EditarArtista -> androidx.compose.runtime.key(arriba.id ?: "nuevo") { EditarArtistaPantalla(arriba.id) }
+                            Destino.Notificaciones -> NotificacionesPantalla()
+                            Destino.Debates -> DebatesPantalla()
+                            Destino.Agenda -> AgendaPantalla()
+                            Destino.Club -> ClubPantalla()
+                            is Destino.Concierto -> androidx.compose.runtime.key(arriba.id) { ConciertoPantalla(arriba.id) }
                             null -> {}
                         }
                     }
@@ -144,6 +149,7 @@ fun Cabecera(titulo: String, sub: String) {
             Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Amarillo), contentAlignment = Alignment.Center) { Icono("nota", Color(0xFF1B1E23), 24.dp) }
             Spacer(Modifier.width(10.dp))
             Text(titulo, fontFamily = Fuentes.de("condensada"), fontWeight = FontWeight.ExtraBold, fontSize = 34.sp, lineHeight = 36.sp, modifier = Modifier.weight(1f))
+            Campana(); Spacer(Modifier.width(6.dp))
             BotonCuenta()
         }
         Text(sub, color = Tenue, fontSize = 15.sp, modifier = Modifier.padding(top = 4.dp))
@@ -308,7 +314,7 @@ private fun Boveda() {
             r.isFailure -> item { Text("No se pudo abrir la bóveda.", color = Tenue, modifier = Modifier.padding(18.dp)) }
             r.getOrThrow().isEmpty() -> item { Text("Hoy no hay conciertos en cartelera.", color = Tenue, modifier = Modifier.padding(18.dp)) }
             else -> items(r.getOrThrow(), key = { it.id }) { v ->
-                Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Panel).clickable { abrirEnlace(Supa.WEB + "#rvb=" + v.id) }) {
+                Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Panel).clickable { Nav.ir(Destino.Concierto(v.id)) }) {
                     val img = imagen(v.miniatura)
                     Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color(0xFF2A2E36))) {
                         if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -329,11 +335,16 @@ private fun Boveda() {
 @Composable
 private fun Mas() {
     Column(Modifier.fillMaxSize().padding(bottom = 20.dp)) {
-        Cabecera("Más", "Versión nativa de la Revista (prototipo)")
+        Cabecera("Más", "Todo lo de la Revista")
+        listOf(Triple("Debates", "Encuestas de la comunidad", Destino.Debates), Triple("Agenda", "Conciertos y festivales", Destino.Agenda), Triple("Club de escucha", "Un disco por semana, canción por canción", Destino.Club),
+            Triple("Notificaciones", "Me gusta, comentarios y seguidores", Destino.Notificaciones)).forEach { (t, s, d) ->
+            Column(Modifier.padding(horizontal = 18.dp, vertical = 5.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel).clickable { if (d == Destino.Notificaciones && !Nav.necesitaCuenta()) return@clickable; Nav.ir(d) }.padding(16.dp)) {
+                Text(t, fontWeight = FontWeight.Bold, fontSize = 18.sp); Text(s, color = Tenue, fontSize = 14.sp)
+            }
+        }
         Column(Modifier.padding(18.dp).clip(RoundedCornerShape(20.dp)).background(Panel).padding(18.dp)) {
-            Text("Esta es la Revista hecha en Kotlin: el mismo código sirve para la app de Android y para el navegador.", fontSize = 16.sp, lineHeight = 23.sp)
-            Text("Por ahora es solo para leer. Escribir, comentar, dar me gusta, subir pósters y el panel de admin siguen en la Revista web.", color = Tenue, fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.padding(top = 10.dp))
-            Text("Abrir la Revista web", color = Color(0xFF1B1E23), fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp).clip(RoundedCornerShape(12.dp)).background(Amarillo).clickable { abrirEnlace(Supa.WEB + "#revista") }.padding(horizontal = 18.dp, vertical = 12.dp))
+            Text("Esta es la Revista hecha en Kotlin: el mismo código sirve para la app de Android y para el navegador.", fontSize = 15.sp, lineHeight = 21.sp)
+            Text("Abrir la Revista web", color = Color(0xFF1B1E23), fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp).clip(RoundedCornerShape(12.dp)).background(Amarillo).clickable { abrirEnlace(Supa.WEB + "#revista") }.padding(horizontal = 18.dp, vertical = 12.dp))
         }
     }
 }

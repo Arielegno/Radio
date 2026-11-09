@@ -51,7 +51,7 @@ private data class Actividad(val texto: String, val sub: String, val post: Strin
 fun PerfilPantalla(id: String) {
     val scope = rememberCoroutineScope()
     var version by remember { mutableStateOf(0) }
-    var pestana by remember(id) { mutableStateOf("posts") }
+    var pestana by remember(id) { mutableStateOf("wall") }
     var denunciar by remember { mutableStateOf(false) }
     var salir by remember { mutableStateOf(false) }
     val datos by produceState<Result<DatosPerfil?>?>(null, id, version) {
@@ -69,6 +69,7 @@ fun PerfilPantalla(id: String) {
         value = runCatching {
             val mio = Cuenta.uid == id
             when (pestana) {
+                "wall" -> emptyList<Articulo>() to emptyList()
                 "posts" -> Json.arr(Cuenta.api("GET", "/rest/v1/posts?select=$sel&author_id=eq.$id${if (mio) "" else Supa.publicados()}&order=created_at.desc&limit=30")).mapNotNull { it.asObj()?.let(Supa::deFila) } to emptyList()
                 "likes" -> Json.arr(Cuenta.api("GET", "/rest/v1/likes?select=posts($sel)&user_id=eq.$id&limit=30")).mapNotNull { it.asObj()?.map("posts")?.takeIf { m -> m.isNotEmpty() }?.let(Supa::deFila) } to emptyList()
                 "cols" -> emptyList<Articulo>() to Json.arr(Cuenta.api("GET", "/rest/v1/collections?select=id,title,public,collection_items(count)&owner=eq.$id&order=created_at.desc")).mapNotNull { it.asObj() }.map { c ->
@@ -131,7 +132,7 @@ fun PerfilPantalla(id: String) {
                                 if (!mio) Enlace("Denunciar perfil", Tenue) { if (Nav.necesitaCuenta()) denunciar = true }
                             }
                             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf("posts" to "Artículos", "recs" to "Recomendados", "cols" to "Colecciones", "comments" to "Comentarios", "likes" to "Me gusta").forEach { (k, n) ->
+                                listOf("wall" to "Muro", "posts" to "Artículos", "recs" to "Recomendados", "cols" to "Colecciones", "comments" to "Comentarios", "likes" to "Me gusta").forEach { (k, n) ->
                                     val on = pestana == k
                                     Text(n, color = if (on) Color(0xFF1B1E23) else TextoClaro, fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(if (on) Amarillo else Color.Transparent).border(1.dp, if (on) Amarillo else Color(0x33FFFFFF), RoundedCornerShape(999.dp)).clickable { pestana = k }.padding(horizontal = 14.dp, vertical = 8.dp))
@@ -140,7 +141,8 @@ fun PerfilPantalla(id: String) {
                         }
                     }
                     val l = lista
-                    when {
+                    if (pestana == "wall") item { Muro(p) }
+                    else when {
                         l == null -> item { Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Amarillo) } }
                         l.isFailure -> item { Text(l.exceptionOrNull()?.message ?: "", color = Tenue, modifier = Modifier.padding(18.dp)) }
                         else -> {

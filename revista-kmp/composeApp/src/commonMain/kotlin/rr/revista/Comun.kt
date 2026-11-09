@@ -59,6 +59,11 @@ sealed class Destino {
     data object BuscarOriginales : Destino()
     data class Artista(val id: String) : Destino()
     data class EditarArtista(val id: String?) : Destino()
+    data object Notificaciones : Destino()
+    data object Debates : Destino()
+    data object Agenda : Destino()
+    data object Club : Destino()
+    data class Concierto(val id: String) : Destino()
 }
 
 /** Navegación con pila (el botón «Volver» quita la última pantalla). */

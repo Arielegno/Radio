@@ -61,10 +61,10 @@ async function revFetch(path, o = {}) {
   return data;
 }
 async function revAuth(mode, email, pass, name, invite) {
-  const c = revCfg();
+  const c = revCfg(); if (mode === 'signup') try { localStorage.setItem('rr_last_auth', 'signup'); } catch {}
   let r;
   try {
-    r = await fetch(c.url + (mode === 'signup' ? '/auth/v1/signup' : '/auth/v1/token?grant_type=password'), { method: 'POST', headers: { apikey: c.key, 'Content-Type': 'application/json' }, body: JSON.stringify(mode === 'signup' ? { email, password: pass, data: invite ? { name, invite, rules: '2026-11' } : { name, rules: '2026-11' } } : { email, password: pass }) });
+    r = await fetch(c.url + (mode === 'signup' ? '/auth/v1/signup?redirect_to=' + encodeURIComponent(location.href.split('#')[0]) : '/auth/v1/token?grant_type=password'), { method: 'POST', headers: { apikey: c.key, 'Content-Type': 'application/json' }, body: JSON.stringify(mode === 'signup' ? { email, password: pass, data: invite ? { name, invite, rules: '2026-11' } : { name, rules: '2026-11' } } : { email, password: pass }) });
   } catch (e) { throw new Error(revErr(e.message)); }
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(revErr(d.msg || d.message || d.error_description || d.error));
@@ -407,6 +407,7 @@ async function revDrawPost() {
 <div class="nv-pill" role="toolbar" aria-label="Acciones del artículo"><button type="button" class="${liked ? 'on' : ''}" data-act="like" aria-label="Me gusta" aria-pressed="${liked}">${ICO('heart')} ${revCnt(p.likes)}</button><button type="button" data-act="nvgocom" aria-label="Comentarios">${ICO('chat')} ${rev.comments.length}</button>${!mine && !rev.v3 ? `<button type="button" class="${recd ? 'on' : ''}" data-act="rec" aria-label="Recomendar" aria-pressed="${recd}">${ICO('repeat')} ${revCnt(p.recommends)}</button>` : ''}<button type="button" data-act="sharepost" aria-label="Compartir">${ICO('share')}</button></div></article>
 <section class="rv-com"><h4 class="rv-h">Comentarios (${rev.comments.length})</h4>${tops.map(c => cm(c, true) + kids(c.id).map(k => cm(k, false)).join('')).join('') || '<p class="hint">Sé la primera persona en comentar.</p>'}
 ${rev.replyTo ? `<p class="rv-replyto">Respondiendo a <b>${esc(rev.replyTo.name)}</b> <button type="button" class="rv-x" data-act="noreply">cancelar</button></p>` : ''}<textarea id="rvCom" rows="3" maxlength="1000" placeholder="Escribe un comentario…"></textarea><button type="button" data-act="comment">Comentar</button></section>`;
+  try { dzApply(box.querySelector('article.rv-art'), p.design, p.cover); } catch {}
   if (rev.shown !== p.id) { rev.shown = p.id; box.scrollIntoView({ block: 'start' }); }
 }
 /* --- Cuenta --- */
@@ -435,11 +436,15 @@ async function revAcct() {
   if (!/^\S+@\S+\.\S+$/.test(email) || pass.length < 6) return toast('Revisa el correo y la contraseña (mínimo 6).', true);
   if (mode === 'signup' && name.length < 2) return toast('Escribe tu nombre (mínimo 2 letras).', true);
   if (inv && !(v.invite || '').trim()) return toast('Escribe el código de invitación.', true);
+  toast(mode === 'signup' ? 'Creando tu cuenta…' : 'Entrando…', false, 15000);
   try {
     const ok = await revAuth(mode, email, pass, name, inv ? (v.invite || '').trim() : '');
     if (ok) { toast('¡Listo! Ya estás dentro.'); await revSocial(true); if (rev.me && rev.me.name) revSaveSes({ ...revMe(), name: rev.me.name }); revBar(); if (rev.view === 'feed') revFeed(true); }
-    else toast('Cuenta creada. Confirma tu correo y luego toca «Entrar».', false, 7000);
-  } catch (e) { toast(e.message, true, 6000); }
+    else toast('Cuenta creada. Te llegó un correo: toca «Confirm email address» y volverás aquí ya con tu cuenta abierta. Revisa también spam.', false, 10000);
+  } catch (e) {
+    if (/Confirma tu correo/.test(e.message)) return revResend(email);
+    toast(e.message, true, 6000);
+  }
 }
 function revLogout() { revSaveSes(null); rev.likes = new Set(); rev.follows = new Set(); rev.socialUid = null; rev.me = null; toast('Sesión cerrada.'); revSection('art'); }
 /* --- Editor de artículos --- */
@@ -457,6 +462,7 @@ ${rev.v5off ? '' : `<div class="rv-aiw"><span>Ayuda de tu IA:</span><button type
 <label for="rvSub">Subtítulo (opcional)</label><input id="rvSub" maxlength="200" autocomplete="off" value="${esc(p ? p.subtitle || '' : (d && d.subtitle) || '')}">
 <label>Imagen de portada</label><div id="rvCovPrev"></div><div class="row"><button type="button" class="alt" data-act="pickcover">Elegir imagen</button><button type="button" class="alt" data-act="nocover">Quitar</button></div><input type="file" id="rvCovFile" accept="image/*" hidden>
 <label>Estética del artículo</label><div id="rvStyle"></div><div id="rvPrev" class="rv-art rv-st"></div>
+<label>Diseño avanzado: fondo, difuminados, transparencia, letra y collage</label><div id="rvDzUI"></div>
 ${rev.v3 ? '' : `<div id="rvReviewUI">${revReviewUI(p ? revReview(p.review) : d && revReview(d.review))}</div>`}
 <label for="rvText">Texto</label><div class="row" style="margin-bottom:6px"><button type="button" class="alt" data-act="fmt" data-f="b"><b>N</b></button><button type="button" class="alt" data-act="fmt" data-f="i"><i>K</i></button><button type="button" class="alt" data-act="fmt" data-f="h">Título</button><button type="button" class="alt" data-act="fmt" data-f="q">Cita</button><button type="button" class="alt" data-act="fmt" data-f="l">Lista</button></div>
 <textarea id="rvText" rows="14" maxlength="20000" placeholder="Escribe tu reseña, tu lista o tu historia musical…">${esc(p ? p.body : (d && d.body) || '')}</textarea>
@@ -468,7 +474,7 @@ ${rev.v5off ? '' : `<label>Galería de fotos (hasta 8)</label><div id="rvGalPrev
 <div class="row" style="margin-top:14px">${rev.v5off ? '' : '<button type="button" class="alt" data-act="publish" data-v="draft">Guardar borrador</button>'}<button type="button" data-act="publish" data-v="pub">${p && p.status !== 'draft' ? 'Guardar cambios' : 'Publicar'}</button></div></div>`;
   rev.gal = (p ? (Array.isArray(p.gallery) ? p.gallery.slice() : []) : ((d && d.gallery) || [])).filter(u => revPic(u)); rev.editGal = p && Array.isArray(p.gallery) ? p.gallery.slice() : [];
   if (!rev.v5off) revDrawGal();
-  revDrawCov(); revDrawTrk(); revStChanged();
+  dzInit(p, d); revDrawCov(); revDrawTrk(); revStChanged();
 }
 const revDrawCov = () => { $('rvCovPrev').innerHTML = rev.cover ? `<img class="rv-cov" src="${esc(rev.cover)}" alt="" style="max-height:140px">` : '<p class="hint">Sin imagen.</p>'; revStChanged(true); };
 const revDrawTrk = () => { $('rvTrk').innerHTML = rev.tracks.map((t, i) => `<div class="rv-tr">${ICO('music')}<div><b>${esc(t.name)}</b><span>${esc(t.artist || '')}</span></div><button type="button" class="alt" data-act="deltr" data-i="${i}">Quitar</button></div>`).join(''); };
@@ -481,6 +487,7 @@ function revStChanged(onlyPrev) {
   if (t === 'st') {
     const body = ($('rvText').value || '').split(/\n{2,}/).slice(0, 2).join('\n\n').slice(0, 600) || 'Aquí se verá tu texto con esta estética.';
     el.innerHTML = revHeader($('rvTitle').value || 'Tu título', $('rvSub').value, rev.cover, st, '', Date.now()) + `<div class="rv-txt" data-dc="${st.dc}">${revFmt(body)}</div>`;
+    dzPrev();
   } else if (t === 'pst') {
     el.innerHTML = `<div class="rv-prof-top">${revAv({ name: $('rvPName').value || '?', avatar: rev.pav }, 72)}<div><h2>${esc($('rvPName').value || 'Tu nombre')}</h2></div></div><p class="rv-bio">${esc($('rvPBio').value || 'Tu biografía.')}</p>`;
   } else {
@@ -490,7 +497,7 @@ function revStChanged(onlyPrev) {
 let revDraftT = 0;
 function revSaveDraft() {
   if (rev.view !== 'edit' || rev.editId) return; clearTimeout(revDraftT);
-  revDraftT = setTimeout(() => { try { localStorage.setItem('rr_rev_draft', JSON.stringify({ title: $('rvTitle').value, subtitle: $('rvSub').value, body: $('rvText').value, tracks: rev.tracks, cover: rev.cover, st: rev.st, tags: $('rvTags') ? revTags($('rvTags').value) : [], gallery: (rev.gal || []).filter(u => !u.startsWith('data:')) })); } catch {} }, 600);
+  revDraftT = setTimeout(() => { try { localStorage.setItem('rr_rev_draft', JSON.stringify({ title: $('rvTitle').value, subtitle: $('rvSub').value, body: $('rvText').value, tracks: rev.tracks, cover: rev.cover, st: rev.st, tags: $('rvTags') ? revTags($('rvTags').value) : [], gallery: (rev.gal || []).filter(u => !u.startsWith('data:')), dz: dzDraft() })); } catch {} }, 600);
 }
 function revFormat(f) {
   const t = $('rvText'), a = t.selectionStart, b = t.selectionEnd, s = t.value.slice(a, b);
@@ -531,6 +538,7 @@ async function revPublish(mode) {
     let id = rev.editId;
     if (id) await revFetch(`/rest/v1/posts?id=eq.${id}`, { method: 'PATCH', body: row, prefer: 'return=minimal' });
     else { const r = await revFetch('/rest/v1/posts', { method: 'POST', body: { ...row, author_id: me.uid }, prefer: 'return=representation' }); id = r[0].id; try { localStorage.removeItem('rr_rev_draft'); } catch {} }
+    let dzErr = ''; try { await dzSave(id); } catch (e) { dzErr = e.message; } if (dzErr) setTimeout(() => toast(dzErr, true, 9000), 1800);
     if (rev.editId && rev.editCover && rev.editCover !== cover) revUnPair(rev.editCover);
     if (rev.editId && row.gallery) (rev.editGal || []).filter(u => !row.gallery.includes(u)).forEach(revUnPair);
     if (row.status === 'draft' || (row.publish_at && new Date(row.publish_at) > new Date())) { toast(row.status === 'draft' ? 'Borrador guardado. Solo tú lo ves.' : 'Publicación programada.'); }
@@ -1574,14 +1582,34 @@ async function revForgot() {
   if (!/^\S+@\S+\.\S+$/.test(email)) return toast('Revisa el correo.', true);
   const c = revCfg();
   try {
+    try { localStorage.setItem('rr_last_auth', 'recover'); } catch {}
     const r = await fetch(`${c.url}/auth/v1/recover?redirect_to=${encodeURIComponent(location.href.split('#')[0])}`, { method: 'POST', headers: { apikey: c.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
     if (r.status === 429) return toast('Ya pediste varios enlaces. Espera unos minutos.', true, 6000);
     toast('Si ese correo tiene cuenta, te llegó un enlace. Revisa también la carpeta de spam.', false, 8000);
   } catch (e) { toast(revErr(e.message), true); }
 }
+// Correo sin confirmar: ofrece mandar el correo de confirmación otra vez
+async function revResend(email) {
+  if (!(await uiConfirm('Falta confirmar tu correo', 'Tu cuenta existe, pero todavía no confirmaste el correo. ¿Te mando el correo de confirmación otra vez? Ábrelo en este mismo teléfono.', 'Reenviar correo', false))) return;
+  const c = revCfg();
+  try {
+    try { localStorage.setItem('rr_last_auth', 'signup'); } catch {}
+    const r = await fetch(`${c.url}/auth/v1/resend?redirect_to=${encodeURIComponent(location.href.split('#')[0])}`, { method: 'POST', headers: { apikey: c.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'signup', email }) });
+    if (r.status === 429) return toast('Ya pediste varios correos. Espera unos minutos.', true, 6000);
+    toast(r.ok ? 'Listo: revisa tu correo (y la carpeta de spam) y toca el enlace.' : 'No se pudo reenviar. Inténtalo en unos minutos.', !r.ok, 8000);
+  } catch { toast('Sin conexión con el servidor de la revista.', true); }
+}
 async function revRecover() {
   const d = window.revRecovery; window.revRecovery = null; const c = revCfg();
-  if (d.error) return toast(/expired|invalid/i.test(d.error) ? 'El enlace ya venció o se usó. Pide uno nuevo en «Olvidé mi contraseña».' : 'No se pudo usar el enlace: ' + d.error, true, 8000);
+  if (d.error) return toast(/expired|invalid/i.test(d.error) ? (d.kind === 'signup' ? 'El enlace de confirmación venció o ya se usó. Toca «Entrar» con tu correo: si falta confirmar, te ofrezco mandarlo otra vez.' : 'El enlace ya venció o se usó. Pide uno nuevo en «Olvidé mi contraseña».') : 'No se pudo usar el enlace: ' + d.error, true, 10000);
+  if (d.kind === 'signup') { // vino del correo de confirmación: entra directo
+    try {
+      const u = await (await fetch(c.url + '/auth/v1/user', { headers: { apikey: c.key, Authorization: 'Bearer ' + d.access } })).json();
+      if (!u || !u.id) throw 0;
+      revSaveSes({ access: d.access, refresh: d.refresh, exp: Date.now() + (d.exp || 3600) * 1000, uid: u.id, name: ((u.user_metadata || {}).name || '').slice(0, 40) });
+      toast('¡Correo confirmado! Ya estás dentro.'); await revSocial(true); revBar(); return revSection('art');
+    } catch { return toast('Correo confirmado. Ahora toca «Entrar» con tu correo y contraseña.', false, 8000); }
+  }
   try {
     const u = await (await fetch(c.url + '/auth/v1/user', { headers: { apikey: c.key, Authorization: 'Bearer ' + d.access } })).json();
     if (!u || !u.id) throw new Error('El enlace ya no es válido. Pide uno nuevo.');
@@ -2709,3 +2737,415 @@ async function revAct(b) {
   if (window.revDeepInit) { rev.deep = window.revDeepInit; window.revDeepInit = null; }
 }
 
+/* ===== Diseño avanzado de artículos: fondo, difuminados, transparencias, letra y modo collage =====
+   Todo se guarda como datos (nunca CSS ni HTML): cada valor sale de una lista permitida o se valida. */
+const DZ_BG = {
+  none: ['Ninguno', ''], cover: ['Tu portada difuminada', ''], color: ['Mis colores', ''],
+  aurora: ['Aurora', 'linear-gradient(160deg,#0f2027,#2c5364 45%,#3ecf8e)'],
+  atardecer: ['Atardecer', 'linear-gradient(180deg,#ff7e5f,#feb47b 45%,#6a3093)'],
+  neon: ['Neón', 'radial-gradient(circle at 20% 20%,#ff3d8b 0,transparent 45%),radial-gradient(circle at 80% 70%,#29d3f0 0,transparent 45%),#0b0a14'],
+  oceano: ['Océano', 'linear-gradient(200deg,#1a2a6c,#2a7ab0 50%,#a8e6cf)'],
+  fuego: ['Fuego', 'linear-gradient(10deg,#200122,#6f0000 40%,#ff8a3d)'],
+  noche: ['Noche estrellada', 'radial-gradient(1.2px 1.2px at 20% 30%,#fff 50%,transparent 51%) 0 0/90px 90px,radial-gradient(1.6px 1.6px at 70% 60%,#fff 50%,transparent 51%) 0 0/130px 130px,linear-gradient(#0b1026,#1c2541)'],
+  grunge: ['Grunge', 'radial-gradient(ellipse at 30% 40%,rgba(224,72,154,.85),transparent 55%),radial-gradient(ellipse at 75% 65%,rgba(181,211,52,.7),transparent 50%),#15161a'],
+  vinilo: ['Vinilo', 'repeating-radial-gradient(circle at 50% 50%,#111 0 2px,#1c1c1c 2px 4px)'],
+  rayas: ['Rayas', 'repeating-linear-gradient(45deg,#1b1e23 0 18px,#f2c230 18px 36px)'],
+  menta: ['Menta', 'linear-gradient(135deg,#d4fc79,#96e6a1)'],
+  pastel: ['Arcoíris pastel', 'linear-gradient(120deg,#f6d5f7,#fbe9d7 30%,#d4f1f4 60%,#e2d1f9)'],
+  cromo: ['Cromo 2000', 'linear-gradient(160deg,#e9eef5,#9fb3c8 50%,#f4f7fb)'],
+  y2k: ['Pop Y2K', 'linear-gradient(135deg,#b6f23a,#29d3f0 60%,#ff8a3d)'],
+  tokio: ['Tokio kawaii', 'radial-gradient(#fff 20%,transparent 21%) 0 0/24px 24px,#ffd6e8'],
+  trama: ['Trama punk', 'radial-gradient(#ff3d8b 30%,transparent 31%) 0 0/14px 14px,#f1e9d8'],
+  cuadros: ['Cuadros', 'conic-gradient(#111 25%,#f4f4f4 0 50%,#111 0 75%,#f4f4f4 0) 0 0/40px 40px'],
+  periodico: ['Periódico', 'repeating-linear-gradient(0deg,rgba(0,0,0,.07) 0 1px,transparent 1px 22px),#efe8da']
+};
+const DZ_BGL = new Set(['menta', 'pastel', 'cromo', 'y2k', 'tokio', 'trama', 'periodico']);
+const DZ_TF = { '': 'Del tema', sistema: 'system-ui,sans-serif', lora: 'Lora,serif', playfair: "'Playfair Display',serif", mono: "'Space Mono',monospace", caveat: 'Caveat,cursive',
+  abril: "'Abril Fatface',serif", anton: 'Anton,sans-serif', shrikhand: 'Shrikhand,cursive', rampart: "'Rampart One',cursive", glitch: "'Rubik Glitch',cursive", archivo: "'Archivo Black',sans-serif" };
+const DZ_TFN = { '': 'Del tema', sistema: 'Normal', lora: 'Lora', playfair: 'Elegante', mono: 'Máquina', caveat: 'Manuscrita', abril: 'Abril', anton: 'Cartel', shrikhand: 'Retro', rampart: 'Burbuja', glitch: 'Glitch', archivo: 'Bloque' };
+const DZ_PANEL = { none: 'Sin panel', vidrio: 'Vidrio', negro: 'Oscuro', blanco: 'Claro', papel: 'Papel', cinta: 'Recorte' };
+const DZ_CUT = { rect: 'Foto', roto: 'Papel roto', polaroid: 'Polaroid', circulo: 'Círculo', ovalo: 'Óvalo', estrella: 'Estrella', corazon: 'Corazón' };
+const DZ_TXT = { recorte: 'Letras recortadas', titular: 'Titular', maquina: 'Máquina', marcador: 'Marcador', neon: 'Neón', cinta: 'Cinta' };
+const DZ_STK = { estallido: 'Estallido', circulo: 'Círculo', etiqueta: 'Etiqueta', estrella: '★', chispa: '✦', corazon: '♥', rayo: '⚡', flor: '✿', nota: '♫', calavera: '☠', paz: '☮' };
+const DZ_GLYPH = { estrella: '★', chispa: '✦', corazon: '♥', rayo: '⚡', flor: '✿', nota: '♫', calavera: '☠', paz: '☮' };
+const DZ_SHP = { circulo: 'Círculo', franja: 'Franja', trama: 'Trama', rayas: 'Rayas', cuadros: 'Cuadros', spray: 'Spray', marco: 'Marco' };
+const DZ_TAPE = { beige: 'rgba(237,229,207,.85)', rosa: 'rgba(255,128,180,.75)', azul: 'rgba(120,180,255,.7)', negra: 'rgba(20,20,20,.9)', amarilla: 'rgba(242,194,48,.8)' };
+const DZ_COLS = ['#141414', '#ffffff', '#f2c230', '#ff3d8b', '#e3242b', '#29d3f0', '#3ecf8e', '#a78bfa', '#ff8a3d', '#2d47c4'];
+const DZ_DEF = { bg: 'none', c1: '#ff3d8b', c2: '#29d3f0', gt: 'lin', ga: 160, blur: 18, dim: 0, vin: 0, grain: 0,
+  tf: '', hf: '', fs: 0, lh: 0, ts: 0, tc: '', hc: '', ta: '', tsh: 0, panel: 'none', pop: 70, pbl: 10, rad: 16, cpos: 'fondo', ch: 'vertical', col: [] };
+const dzHex = v => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : '';
+const dzNum = (v, a, b, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(b, Math.max(a, Math.round(n * 10) / 10)) : d; };
+const dzOne = (v, o, d) => typeof v === 'string' && Object.hasOwn(o, v) ? v : d;
+function dzItem(i) {
+  if (!i || typeof i !== 'object') return null;
+  const k = ['img', 'txt', 'stk', 'tape', 'shp'].includes(i.k) ? i.k : null; if (!k) return null;
+  const it = { k, x: dzNum(i.x, -20, 120, 50), y: dzNum(i.y, -20, 120, 50), w: dzNum(i.w, 2, 140, 30), r: dzNum(i.r, -180, 180, 0), z: dzNum(i.z, 0, 99, 1) | 0, o: dzNum(i.o, 10, 100, 100) };
+  const c = dzHex(i.c); if (c) it.c = c;
+  if (k === 'img') { const s = revPic(i.s); if (!s) return null; it.s = s; it.cut = dzOne(i.cut, DZ_CUT, 'rect'); }
+  else if (k === 'txt') { it.t = revClean(String(i.t || '').replace(/\r/g, ''), 60) || 'Texto'; it.v = dzOne(i.v, DZ_TXT, 'recorte'); }
+  else if (k === 'stk') { it.v = dzOne(i.v, DZ_STK, 'estallido'); it.t = revClean(String(i.t || ''), 24); }
+  else if (k === 'tape') it.v = dzOne(i.v, DZ_TAPE, 'beige');
+  else it.v = dzOne(i.v, DZ_SHP, 'circulo');
+  return it;
+}
+// revClean quita saltos de línea; para el texto del collage se permiten (máximo 3 líneas)
+function dzCleanTxt(t) { return String(t || '').replace(/[\u0000-\u0009\u000b-\u001f<>]/g, '').split('\n').slice(0, 3).join('\n').trim().slice(0, 60); }
+function dzClean(o) {
+  o = o && typeof o === 'object' ? o : {}; const d = { ...DZ_DEF };
+  d.bg = dzOne(o.bg, DZ_BG, 'none'); d.c1 = dzHex(o.c1) || DZ_DEF.c1; d.c2 = dzHex(o.c2) || DZ_DEF.c2; d.gt = ['lin', 'rad', 'con'].includes(o.gt) ? o.gt : 'lin';
+  d.ga = dzNum(o.ga, 0, 360, 160) | 0; d.blur = dzNum(o.blur, 0, 40, 18) | 0; d.dim = dzNum(o.dim, 0, 90, 0) | 0; d.vin = o.vin ? 1 : 0; d.grain = o.grain ? 1 : 0;
+  d.tf = dzOne(o.tf, DZ_TF, ''); d.hf = dzOne(o.hf, DZ_TF, ''); d.fs = o.fs ? dzNum(o.fs, 13, 28, 0) | 0 : 0; d.lh = o.lh ? dzNum(o.lh, 1.2, 2.2, 0) : 0; d.ts = o.ts ? dzNum(o.ts, 20, 80, 0) | 0 : 0;
+  d.tc = dzHex(o.tc); d.hc = dzHex(o.hc); d.ta = ['', 'l', 'j', 'c'].includes(o.ta) ? o.ta : ''; d.tsh = o.tsh ? 1 : 0;
+  d.panel = dzOne(o.panel, DZ_PANEL, 'none'); d.pop = dzNum(o.pop, 0, 100, 70) | 0; d.pbl = dzNum(o.pbl, 0, 30, 10) | 0; d.rad = dzNum(o.rad, 0, 40, 16) | 0;
+  d.cpos = o.cpos === 'cabecera' ? 'cabecera' : 'fondo'; d.ch = ['vertical', 'cuadrado', 'horizontal'].includes(o.ch) ? o.ch : 'vertical';
+  d.col = (Array.isArray(o.col) ? o.col : []).slice(0, 30).map(i => { const it = dzItem(i); if (it && it.k === 'txt') it.t = dzCleanTxt(i.t) || 'Texto'; return it; }).filter(Boolean);
+  return d;
+}
+// Solo lo que cambió (para guardar poco)
+function dzDiff(d) { const r = {}; Object.keys(DZ_DEF).forEach(k => { if (k === 'col') { if (d.col.length) r.col = d.col; } else if (d[k] !== DZ_DEF[k]) r[k] = d[k]; }); return r; }
+const dzEmpty = d => !Object.keys(dzDiff(d)).length;
+function dzLum(h) { const n = parseInt(h.slice(1), 16); return ((n >> 16 & 255) * .299 + (n >> 8 & 255) * .587 + (n & 255) * .114) / 255; }
+function dzGrad(d) {
+  return d.gt === 'rad' ? `radial-gradient(circle at 30% 20%,${d.c1},${d.c2})` : d.gt === 'con' ? `conic-gradient(from ${d.ga}deg,${d.c1},${d.c2},${d.c1})` : `linear-gradient(${d.ga}deg,${d.c1},${d.c2})`;
+}
+const DZ_GRAIN = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E\")";
+const DZ_RECORTE = [['#141414', '#fff', "'Archivo Black',sans-serif"], ['#fff', '#141414', "'Playfair Display',serif"], ['#ff3d8b', '#141414', 'Anton,sans-serif'], ['#f2c230', '#141414', "'Abril Fatface',serif"], ['#e3242b', '#fff', "'Space Mono',monospace"], ['#f1e9d8', '#141414', 'Lora,serif']];
+function dzItemHtml(it, i) {
+  const st = `left:${it.x}%;top:${it.y}%;width:${it.k === 'txt' ? 'auto' : it.w + '%'};transform:translate(-50%,-50%) rotate(${it.r}deg);z-index:${it.z};opacity:${it.o / 100}`;
+  const c = it.c || '';
+  let inner = '';
+  if (it.k === 'img') inner = `<img src="${esc(it.s)}" alt="" loading="lazy" decoding="async" draggable="false">`;
+  else if (it.k === 'txt') {
+    const fz = `font-size:${(it.w / 6).toFixed(2)}cqw`;
+    if (it.v === 'recorte') {
+      let n = 0;
+      inner = `<span class="dz-rec" style="${fz}">${[...it.t].map(ch => { if (ch === '\n') return '<br>'; if (ch === ' ') return '<i class="dz-sp"></i>'; const p = DZ_RECORTE[(n * 7 + ch.charCodeAt(0)) % DZ_RECORTE.length], g = ((n++ * 37) % 11) - 5; return `<b style="background:${p[0]};color:${p[1]};font-family:${p[2]};transform:rotate(${g}deg)">${esc(ch)}</b>`; }).join('')}</span>`;
+    } else inner = `<span class="dz-t dz-t-${it.v}" style="${fz}${c ? `;--c:${c}` : ''}">${esc(it.t).replace(/\n/g, '<br>')}</span>`;
+  } else if (it.k === 'stk') {
+    const g = DZ_GLYPH[it.v];
+    inner = g ? `<span class="dz-glyph" style="font-size:${(it.w * 0.8).toFixed(1)}cqw;color:${c || '#ff3d8b'}">${g}</span>` : `<span class="dz-stk dz-stk-${it.v}" style="--c:${c || '#f2c230'};font-size:${(it.w / 7).toFixed(2)}cqw"><span>${esc(it.t || '¡Nuevo!')}</span></span>`;
+  } else if (it.k === 'tape') inner = `<i class="dz-tape" style="background:${DZ_TAPE[it.v]}"></i>`;
+  else inner = `<i class="dz-shp dz-shp-${it.v}" style="--c:${c || '#ff3d8b'}"></i>`;
+  return `<div class="dz-it dz-${it.k}${it.k === 'img' ? ' dz-cut-' + it.cut : ''}" data-i="${i}" style="${st}">${inner}</div>`;
+}
+const dzColHtml = col => col.map(dzItemHtml).join('');
+// Aplica el diseño a un artículo (o a la vista previa del editor).
+function dzApply(el, raw, cover) {
+  if (!el) return;
+  [...el.classList].filter(c => c === 'rv-dz' || c.startsWith('dz-')).forEach(c => el.classList.remove(c));
+  el.querySelectorAll(':scope > .dz-bg, :scope > .dz-cab').forEach(x => x.remove());
+  ['--dz-tf', '--dz-hf', '--dz-fs', '--dz-lh', '--dz-ts', '--dz-tc', '--dz-hc', '--dz-pop', '--dz-pbl', '--dz-rad'].forEach(k => el.style.removeProperty(k));
+  const d = dzClean(raw); if (dzEmpty(d)) return;
+  revFonts(); el.classList.add('rv-dz');
+  let bgCss = '', light = null;
+  const im = d.bg === 'cover' ? revPic(cover) : '';
+  if (d.bg === 'color') { bgCss = dzGrad(d); light = (dzLum(d.c1) + dzLum(d.c2)) / 2 > 0.6; }
+  else if (d.bg === 'cover') light = im ? false : null;
+  else if (d.bg !== 'none') { bgCss = DZ_BG[d.bg][1]; light = DZ_BGL.has(d.bg); }
+  if (light !== null && d.dim >= 35) light = false;
+  const colFondo = d.col.length && d.cpos === 'fondo';
+  if (bgCss || im || colFondo || d.vin || d.grain || d.dim) {
+    const bg = document.createElement('div'); bg.className = 'dz-bg'; bg.setAttribute('aria-hidden', 'true');
+    bg.innerHTML = `<div class="dz-stick">${bgCss ? `<i class="dz-fill" style="background:${bgCss}"></i>` : ''}${im ? `<img class="dz-fill dz-bimg" src="${esc(im)}" alt="" style="filter:blur(${d.blur}px)">` : ''}${colFondo ? `<div class="dz-col dz-colf">${dzColHtml(d.col)}</div>` : ''}${d.dim ? `<i class="dz-fill" style="background:rgba(0,0,0,${d.dim / 100})"></i>` : ''}${d.vin ? '<i class="dz-fill dz-vin"></i>' : ''}${d.grain ? `<i class="dz-fill dz-grain" style="background-image:${DZ_GRAIN}"></i>` : ''}</div>`;
+    el.prepend(bg); el.classList.add('dz-hasbg');
+  }
+  if (d.col.length && d.cpos === 'cabecera') {
+    const c = document.createElement('div'); c.className = `dz-cab dz-col dz-a-${d.ch}`; c.setAttribute('aria-hidden', 'true'); c.innerHTML = dzColHtml(d.col);
+    const b = el.querySelector(':scope > .dz-bg'); if (b) b.after(c); else el.prepend(c);
+  }
+  const S = (k, v) => el.style.setProperty(k, v);
+  if (d.tf) { el.classList.add('dz-tf'); S('--dz-tf', DZ_TF[d.tf]); }
+  if (d.hf) { el.classList.add('dz-hf'); S('--dz-hf', DZ_TF[d.hf]); }
+  if (d.fs) { el.classList.add('dz-fs'); S('--dz-fs', d.fs + 'px'); }
+  if (d.lh) { el.classList.add('dz-lh'); S('--dz-lh', String(d.lh)); }
+  if (d.ts) { el.classList.add('dz-ts'); S('--dz-ts', d.ts + 'px'); }
+  if (d.ta) el.classList.add('dz-ta-' + d.ta);
+  if (d.tsh) el.classList.add('dz-tsh');
+  const hc = d.hc || (light === null ? '' : light ? '#141414' : '#f4f4f4');
+  const tc = d.tc || (['papel', 'blanco'].includes(d.panel) ? '#1b1b1b' : ['negro', 'vidrio'].includes(d.panel) && light !== true ? '#f2f2f2' : d.panel === 'vidrio' && light ? '#141414' : hc);
+  if (hc) { el.classList.add('dz-hc'); S('--dz-hc', hc); }
+  if (tc) { el.classList.add('dz-tc'); S('--dz-tc', tc); }
+  if (d.panel !== 'none') { el.classList.add('dz-p', 'dz-p-' + d.panel); S('--dz-pop', String(d.pop / 100)); S('--dz-pbl', d.pbl + 'px'); S('--dz-rad', d.rad + 'px'); }
+}
+document.head.insertAdjacentHTML('beforeend', `<style id="dz-css">
+.rv-dz{position:relative;isolation:isolate}
+.rv-dz.dz-hasbg{padding:14px;border-radius:18px}
+.dz-bg{position:absolute;inset:0;z-index:-1;overflow:clip;border-radius:inherit;pointer-events:none}
+.dz-stick{position:sticky;top:0;height:100vh;max-height:100%;width:100%;overflow:clip}
+.dz-fill{position:absolute;inset:0;display:block}
+img.dz-bimg{width:100%;height:100%;object-fit:cover;transform:scale(1.15)}
+.dz-vin{background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.65))}
+.dz-grain{mix-blend-mode:overlay;opacity:.5;background-size:160px 160px}
+.dz-col{position:relative;container-type:size;overflow:clip}
+.dz-colf{position:absolute;inset:0}
+.dz-cab{width:100%;border-radius:14px;margin:0 0 12px;background:transparent}
+.dz-a-vertical{aspect-ratio:9/16;max-height:80vh}.dz-a-cuadrado{aspect-ratio:1}.dz-a-horizontal{aspect-ratio:16/9}
+.dz-it{position:absolute;line-height:1;user-select:none;-webkit-user-select:none}
+.dz-img img{display:block;width:100%;height:auto;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.dz-cut-roto img{clip-path:polygon(0% 3%,8% 0%,17% 4%,26% 1%,35% 3%,46% 0%,57% 4%,68% 1%,79% 3%,90% 0%,100% 2%,98% 14%,100% 27%,97% 40%,100% 53%,98% 66%,100% 79%,97% 90%,100% 100%,89% 97%,78% 100%,66% 96%,55% 100%,44% 97%,33% 100%,22% 96%,11% 100%,0% 97%,2% 85%,0% 72%,3% 60%,0% 47%,2% 34%,0% 21%,3% 10%);box-shadow:none;filter:drop-shadow(0 5px 8px rgba(0,0,0,.4))}
+.dz-cut-polaroid{background:#fbfaf6;padding:4% 4% 16%;box-shadow:0 8px 20px rgba(0,0,0,.35)}.dz-cut-polaroid img{box-shadow:none}
+.dz-cut-circulo img,.dz-cut-ovalo img,.dz-cut-estrella img,.dz-cut-corazon img{aspect-ratio:1;object-fit:cover;box-shadow:none}
+.dz-cut-circulo img{clip-path:circle(50%)}.dz-cut-ovalo img{aspect-ratio:3/4;clip-path:ellipse(50% 50%)}
+.dz-cut-estrella img{clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
+.dz-cut-corazon img{clip-path:polygon(50% 18%,61% 5%,75% 1%,90% 7%,99% 22%,97% 40%,85% 58%,50% 95%,15% 58%,3% 40%,1% 22%,10% 7%,25% 1%,39% 5%)}
+.dz-rec{display:inline-block;white-space:nowrap;text-align:center}.dz-rec b{display:inline-block;padding:.08em .18em;margin:.04em;font-weight:900;box-shadow:0 2px 3px rgba(0,0,0,.3)}.dz-rec .dz-sp{display:inline-block;width:.4em}
+.dz-t{display:inline-block;white-space:nowrap;text-align:center}
+.dz-t-titular{font-family:Anton,sans-serif;text-transform:uppercase;color:var(--c,#141414);background:#f2c230;padding:.05em .25em;letter-spacing:.02em}
+.dz-t-maquina{font-family:'Space Mono',monospace;color:var(--c,#141414);background:#fff;padding:.15em .4em;box-shadow:0 2px 4px rgba(0,0,0,.3)}
+.dz-t-marcador{font-family:Caveat,cursive;color:var(--c,#ff3d8b);font-weight:600}
+.dz-t-neon{font-family:Shrikhand,cursive;color:#fff;text-shadow:0 0 .12em var(--c,#29d3f0),0 0 .35em var(--c,#29d3f0),0 0 .7em var(--c,#29d3f0)}
+.dz-t-cinta{font-family:'Archivo Black',sans-serif;color:#fff;background:var(--c,#141414);padding:.12em .5em;transform:skewX(-8deg)}
+.dz-glyph{display:block;text-align:center;line-height:1;text-shadow:0 3px 6px rgba(0,0,0,.35)}
+.dz-stk{display:flex;align-items:center;justify-content:center;aspect-ratio:1;background:var(--c);color:#141414;font-family:'Archivo Black',sans-serif;text-transform:uppercase;text-align:center;line-height:1.05;padding:12%}
+.dz-stk-estallido{clip-path:polygon(50% 0,58% 15%,72% 5%,74% 21%,90% 16%,85% 32%,100% 35%,89% 48%,100% 60%,85% 65%,92% 82%,75% 79%,72% 96%,59% 86%,50% 100%,41% 86%,28% 96%,25% 79%,8% 82%,15% 65%,0% 60%,11% 48%,0% 35%,15% 32%,10% 16%,26% 21%,28% 5%,42% 15%)}
+.dz-stk-circulo{border-radius:50%;border:.25em dashed rgba(0,0,0,.55)}.dz-stk-etiqueta{aspect-ratio:2.6;border-radius:.4em;box-shadow:0 3px 6px rgba(0,0,0,.35)}
+.dz-tape{display:block;width:100%;aspect-ratio:3.6;clip-path:polygon(2% 0,98% 0,100% 15%,97% 30%,100% 50%,97% 70%,100% 85%,98% 100%,2% 100%,0 85%,3% 70%,0 50%,3% 30%,0 15%)}
+.dz-shp{display:block;width:100%}
+.dz-shp-circulo{aspect-ratio:1;border-radius:50%;background:var(--c)}
+.dz-shp-franja{aspect-ratio:5;background:var(--c)}
+.dz-shp-trama{aspect-ratio:1;border-radius:50%;background:radial-gradient(var(--c) 32%,transparent 33%) 0 0/12% 12%;mask:radial-gradient(circle,#000 40%,transparent 72%);-webkit-mask:radial-gradient(circle,#000 40%,transparent 72%)}
+.dz-shp-rayas{aspect-ratio:1.4;background:repeating-linear-gradient(45deg,var(--c) 0 8%,transparent 8% 16%)}
+.dz-shp-cuadros{aspect-ratio:1.4;background:conic-gradient(var(--c) 25%,transparent 0 50%,var(--c) 0 75%,transparent 0) 0 0/20% 28%}
+.dz-shp-spray{aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,var(--c) 0,transparent 68%);filter:blur(4px)}
+.dz-shp-marco{aspect-ratio:.75;border:.9em solid var(--c);box-shadow:inset 0 0 0 2px rgba(0,0,0,.2)}
+.rv-dz.dz-tf .rv-txt{font-family:var(--dz-tf)!important}
+.rv-dz.dz-hf h2,.rv-dz.dz-hf .rv-txt h3,.rv-dz.dz-hf .rv-txt h4{font-family:var(--dz-hf)!important}
+.rv-dz.dz-fs .rv-txt{font-size:var(--dz-fs)!important}.rv-dz.dz-fs .rv-txt p,.rv-dz.dz-fs .rv-txt li{font-size:inherit!important}
+.rv-dz.dz-lh .rv-txt,.rv-dz.dz-lh .rv-txt p{line-height:var(--dz-lh)!important}
+.rv-dz.dz-ts h2{font-size:var(--dz-ts)!important;line-height:1.05!important}
+.rv-dz.dz-ta-j .rv-txt p{text-align:justify!important}.rv-dz.dz-ta-c .rv-txt{text-align:center!important}.rv-dz.dz-ta-l .rv-txt{text-align:left!important}
+.rv-dz.dz-tsh h2,.rv-dz.dz-tsh .rv-txt{text-shadow:0 2px 8px rgba(0,0,0,.55)}
+.rv-dz.dz-hc>h2,.rv-dz.dz-hc>.rv-sub,.rv-dz.dz-hc>.rv-by,.rv-dz.dz-hc>.rv-by *,.rv-dz.dz-hc .rv-ov h2{color:var(--dz-hc)!important}
+.rv-dz.dz-tc .rv-txt,.rv-dz.dz-tc .rv-txt *{color:var(--dz-tc)!important}
+.rv-dz.dz-p .rv-txt{padding:16px 18px;border-radius:var(--dz-rad);backdrop-filter:blur(var(--dz-pbl));-webkit-backdrop-filter:blur(var(--dz-pbl))}
+.rv-dz.dz-p-vidrio .rv-txt{background:rgba(255,255,255,calc(var(--dz-pop) * .22));border:1px solid rgba(255,255,255,calc(var(--dz-pop) * .4))}
+.rv-dz.dz-p-negro .rv-txt{background:rgba(12,12,14,var(--dz-pop))}
+.rv-dz.dz-p-blanco .rv-txt{background:rgba(255,255,255,var(--dz-pop))}
+.rv-dz.dz-p-papel .rv-txt{background:rgba(241,233,216,var(--dz-pop));box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.rv-dz.dz-p-cinta .rv-txt{background:rgba(250,248,240,var(--dz-pop));border-radius:2px;box-shadow:0 6px 18px rgba(0,0,0,.35);clip-path:polygon(0 1%,6% 0,14% 1.2%,25% 0,37% 1%,49% 0,61% 1.3%,73% 0,85% 1%,94% 0,100% 1%,99.4% 50%,100% 99%,92% 100%,81% 98.8%,69% 100%,57% 99%,45% 100%,33% 98.9%,21% 100%,9% 99%,0 100%,.6% 50%)}
+#rvDzUI{margin:6px 0 14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px}
+#rvDzUI .dz-tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px}
+#rvDzUI .dz-tabs button,#dzEd .dz-chip,#rvDzUI .dz-chip{background:transparent;border:1px solid rgba(255,255,255,.22);color:inherit;border-radius:999px;padding:6px 12px;min-height:36px;white-space:nowrap;font-size:14px}
+#rvDzUI .dz-tabs button.on,#rvDzUI .dz-chip.on,#dzEd .dz-chip.on{background:var(--line,#f2c230);color:#1b1e23;border-color:transparent}
+#rvDzUI .dz-row,#dzEd .dz-row{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+#rvDzUI .dz-sw{width:22px;height:22px;border-radius:6px;display:inline-block;vertical-align:middle;margin-right:6px;border:1px solid rgba(255,255,255,.3)}
+#rvDzUI label.dz-l,#dzEd label.dz-l{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:14px}
+#rvDzUI label.dz-l input[type=range],#dzEd label.dz-l input[type=range]{flex:1}
+#rvDzUI .dz-dot,#dzEd .dz-dot{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.35);padding:0;min-height:0}
+#rvDzUI .dz-dot.on,#dzEd .dz-dot.on{outline:3px solid var(--line,#f2c230);outline-offset:2px}
+#rvDzUI input[type=color],#dzEd input[type=color]{width:44px;height:34px;border:0;background:none;padding:0}
+#dzEd{position:fixed;inset:0;z-index:2400;background:#101114;color:#eee;display:flex;flex-direction:column;font:15px system-ui,sans-serif}
+#dzEd .dz-top{display:flex;gap:8px;align-items:center;padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 8px;border-bottom:1px solid #2a2d33}
+#dzEd .dz-top b{flex:1}
+#dzEd button{font:inherit;border:0;border-radius:10px;padding:8px 12px;min-height:40px;background:#262a31;color:#eee}
+#dzEd button.dz-ok{background:var(--line,#f2c230);color:#1b1e23;font-weight:700}
+#dzEd .dz-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:10px;overflow:hidden;background:repeating-conic-gradient(#1a1c20 0 25%,#15171a 0 50%) 0 0/24px 24px}
+#dzEd .dz-canvas{position:relative;height:100%;max-width:100%;box-shadow:0 10px 30px rgba(0,0,0,.6);touch-action:none}
+#dzEd .dz-canvas .dz-it{cursor:grab;touch-action:none}
+#dzEd .dz-canvas .dz-it.sel{outline:2px dashed var(--line,#f2c230);outline-offset:4px}
+#dzEd .dz-bar{padding:8px 10px calc(env(safe-area-inset-bottom,0px) + 8px);border-top:1px solid #2a2d33;max-height:42vh;overflow-y:auto}
+#dzEd .dz-add{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+#dzEd textarea{width:100%;box-sizing:border-box;background:#1b1e23;color:#eee;border:1px solid #333;border-radius:10px;padding:8px;font:inherit}
+</style>`);
+
+/* --- Editor: pestañas Fondo · Texto · Panel · Collage --- */
+let dzOrig = '{}';
+function dzInit(p, d) {
+  rev.dz = dzClean(p ? p.design : d && d.dz); dzOrig = JSON.stringify(dzDiff(rev.dz)); rev.dzTab = rev.dzTab || 'fondo';
+  rev.dzOk = !(p && p.design === undefined); // si el artículo vino sin la columna, la base aún no tiene la mejora v6
+  const box = $('rvDzUI'); if (!box) return;
+  box.addEventListener('click', dzUIClick); box.addEventListener('input', dzUIInput);
+  dzUI(); dzPrev();
+}
+const dzDraft = () => rev.dz ? dzDiff(rev.dz) : null;
+function dzPrev() { if (rev.view === 'edit' && rev.dz) dzApply($('rvPrev'), rev.dz, rev.cover); }
+function dzUI() {
+  const box = $('rvDzUI'); if (!box || !rev.dz) return; const d = rev.dz, t = rev.dzTab;
+  const chip = (k, v, lab, extra = '') => `<button type="button" class="dz-chip${d[k] === v ? ' on' : ''}" data-dzs="${k}" data-v="${esc(String(v))}">${extra}${lab}</button>`;
+  const rng = (k, lab, a, b, st = 1, suf = '') => `<label class="dz-l">${lab}<input type="range" min="${a}" max="${b}" step="${st}" value="${d[k] || (k === 'fs' ? 17 : k === 'lh' ? 1.6 : k === 'ts' ? 34 : 0)}" data-dzk="${k}"><output>${d[k] || !/^(fs|lh|ts)$/.test(k) ? d[k] + suf : 'auto'}</output></label>`;
+  const dots = (k) => `<div class="dz-row"><button type="button" class="dz-chip${d[k] ? '' : ' on'}" data-dzs="${k}" data-v="">Auto</button>${DZ_COLS.map(c => `<button type="button" class="dz-dot${d[k] === c ? ' on' : ''}" style="background:${c}" data-dzs="${k}" data-v="${c}" aria-label="${c}"></button>`).join('')}<input type="color" value="${d[k] || '#ffffff'}" data-dzk="${k}" aria-label="Otro color"></div>`;
+  let h = `<div class="dz-tabs">${[['fondo', 'Fondo'], ['texto', 'Letra'], ['panel', 'Transparencia'], ['collage', 'Collage']].map(([k, n]) => `<button type="button" class="${t === k ? 'on' : ''}" data-dzt="${k}">${n}</button>`).join('')}</div>`;
+  if (t === 'fondo') {
+    h += `<p class="hint">El fondo que se ve detrás del artículo al abrirlo.</p><div class="dz-row">${Object.keys(DZ_BG).map(k => chip('bg', k, DZ_BG[k][0], DZ_BG[k][1] ? `<i class="dz-sw" style="background:${DZ_BG[k][1]}"></i>` : '')).join('')}</div>`;
+    if (d.bg === 'color') h += `<div class="dz-row"><label class="dz-l">Color 1 <input type="color" value="${d.c1}" data-dzk="c1"></label><label class="dz-l">Color 2 <input type="color" value="${d.c2}" data-dzk="c2"></label></div><div class="dz-row">${chip('gt', 'lin', 'Difuminado lineal')}${chip('gt', 'rad', 'Radial')}${chip('gt', 'con', 'Cónico')}</div>${d.gt !== 'rad' ? rng('ga', 'Ángulo', 0, 360, 5, '°') : ''}`;
+    if (d.bg === 'cover') h += rng('blur', 'Desenfoque', 0, 40, 1, 'px') + (rev.cover ? '' : '<p class="hint">Primero elige una imagen de portada.</p>');
+    h += rng('dim', 'Oscurecer', 0, 90, 5, '%') + `<div class="dz-row">${chip('vin', d.vin ? 0 : 1, 'Viñeta').replace(' on', '').replace('class="dz-chip', `class="dz-chip${d.vin ? ' on' : ''}`)}${chip('grain', d.grain ? 0 : 1, 'Grano de foto').replace(' on', '').replace('class="dz-chip', `class="dz-chip${d.grain ? ' on' : ''}`)}</div>`;
+  } else if (t === 'texto') {
+    h += `<p class="dz-l"><b>Letra del texto</b></p><div class="dz-row">${Object.keys(DZ_TF).map(k => chip('tf', k, DZ_TFN[k])).join('')}</div>
+<p class="dz-l"><b>Letra del título</b></p><div class="dz-row">${Object.keys(DZ_TF).map(k => chip('hf', k, DZ_TFN[k])).join('')}</div>
+${rng('fs', 'Tamaño del texto', 13, 28, 1, 'px')}${rng('lh', 'Interlineado', 1.2, 2.2, 0.1)}${rng('ts', 'Tamaño del título', 20, 80, 1, 'px')}
+<div class="dz-row">${chip('ta', '', 'Alineación del tema')}${chip('ta', 'l', 'Izquierda')}${chip('ta', 'j', 'Justificado')}${chip('ta', 'c', 'Centrado')}${chip('tsh', d.tsh ? 0 : 1, 'Sombra en las letras').replace(' on', '').replace('class="dz-chip', `class="dz-chip${d.tsh ? ' on' : ''}`)}</div>
+<p class="dz-l"><b>Color del texto</b></p>${dots('tc')}<p class="dz-l"><b>Color del título</b></p>${dots('hc')}
+<div class="dz-row"><button type="button" class="dz-chip" data-dzreset="texto">Volver a la letra del tema</button></div>`;
+  } else if (t === 'panel') {
+    h += `<p class="hint">Un panel detrás del texto para que se lea bien sobre el fondo.</p><div class="dz-row">${Object.keys(DZ_PANEL).map(k => chip('panel', k, DZ_PANEL[k])).join('')}</div>${d.panel !== 'none' ? rng('pop', 'Opacidad', 0, 100, 5, '%') + rng('pbl', 'Desenfoque detrás', 0, 30, 1, 'px') + rng('rad', 'Bordes redondeados', 0, 40, 1, 'px') : ''}`;
+  } else {
+    h += `<p class="hint">Pega recortes, fotos, letras de revista, stickers y cintas. Arrástralos con el dedo; con dos dedos los agrandas y giras.</p>
+<div class="dz-row">${chip('cpos', 'fondo', 'Collage de fondo')}${chip('cpos', 'cabecera', 'Collage arriba del artículo')}</div>
+${d.cpos === 'cabecera' ? `<div class="dz-row">${chip('ch', 'vertical', 'Vertical')}${chip('ch', 'cuadrado', 'Cuadrado')}${chip('ch', 'horizontal', 'Horizontal')}</div>` : ''}
+<div class="dz-row"><button type="button" data-dzcol="1">${ICO('image')} Abrir modo collage${d.col.length ? ` (${d.col.length})` : ''}</button>${d.col.length ? '<button type="button" class="alt" data-dzcol="0">Borrar collage</button>' : ''}</div>`;
+  }
+  if (!rev.dzOk) h += '<p class="hint">Para guardar el diseño avanzado, el administrador debe ejecutar <b>revista_supabase_v6.sql</b> en Supabase.</p>';
+  box.innerHTML = h;
+}
+function dzChanged(redraw) { if (redraw) dzUI(); dzPrev(); revSaveDraft(); }
+function dzUIClick(e) {
+  const b = e.target.closest('button'); if (!b) return; const d = rev.dz;
+  if (b.dataset.dzt) { rev.dzTab = b.dataset.dzt; return dzUI(); }
+  if (b.dataset.dzs) { const k = b.dataset.dzs, v = b.dataset.v; const n = { ...d, [k]: /^(vin|grain|tsh)$/.test(k) ? Number(v) : v }; rev.dz = dzClean({ ...n, col: d.col }); rev.dz.col = d.col; return dzChanged(true); }
+  if (b.dataset.dzreset === 'texto') { rev.dz = { ...d, tf: '', hf: '', fs: 0, lh: 0, ts: 0, tc: '', hc: '', ta: '', tsh: 0 }; return dzChanged(true); }
+  if (b.dataset.dzcol === '1') return dzCollage();
+  if (b.dataset.dzcol === '0') { uiConfirm('Borrar collage', '¿Quitar todos los recortes del collage?', 'Borrar', true).then(ok => { if (ok) { rev.dz.col = []; dzChanged(true); } }); }
+}
+function dzUIInput(e) {
+  const k = e.target.dataset.dzk; if (!k) return; const v = e.target.value;
+  const col = rev.dz.col; rev.dz = dzClean({ ...rev.dz, [k]: e.target.type === 'range' ? Number(v) : v }); rev.dz.col = col;
+  const o = e.target.parentElement && e.target.parentElement.querySelector('output'); if (o) o.textContent = rev.dz[k] + ({ ga: '°', blur: 'px', dim: '%', fs: 'px', ts: 'px', pop: '%', pbl: 'px', rad: 'px' }[k] || '');
+  if (e.target.type === 'color' && /^(tc|hc)$/.test(k)) e.target.parentElement.querySelectorAll('.dz-dot,.dz-chip').forEach(x => x.classList.remove('on'));
+  dzPrev(); revSaveDraft();
+}
+
+/* --- Modo collage (pantalla completa) --- */
+function dzCollage() {
+  const d = rev.dz, col = JSON.parse(JSON.stringify(d.col)); let sel = -1;
+  const ar = d.cpos === 'cabecera' ? ({ vertical: '9/16', cuadrado: '1/1', horizontal: '16/9' }[d.ch]) : '9/16';
+  const ed = document.createElement('div'); ed.id = 'dzEd'; ed.setAttribute('role', 'dialog'); ed.setAttribute('aria-label', 'Modo collage');
+  ed.innerHTML = `<div class="dz-top"><button type="button" data-z="cancel">Cancelar</button><b>Collage</b><button type="button" class="dz-ok" data-z="ok">Listo</button></div>
+<div class="dz-stage"><div class="dz-canvas dz-col" style="aspect-ratio:${ar}"></div></div><div class="dz-bar"></div><input type="file" accept="image/*" multiple hidden>`;
+  document.body.appendChild(ed); revFonts();
+  const cv = ed.querySelector('.dz-canvas'), bar = ed.querySelector('.dz-bar'), file = ed.querySelector('input[type=file]');
+  // Fondo del lienzo: el mismo fondo del artículo para ver cómo queda
+  const prevBg = () => { const t = rev.dz; cv.style.background = t.bg === 'color' ? dzGrad(t) : t.bg === 'cover' && revPic(rev.cover) ? `center/cover url("${revPic(rev.cover)}")` : (DZ_BG[t.bg] && DZ_BG[t.bg][1]) || '#2a2d33'; };
+  prevBg();
+  // En pantallas anchas el lienzo no debe pasarse del ancho
+  const fit = () => { const s = ed.querySelector('.dz-stage'), [a, b] = ar.split('/').map(Number); const W = s.clientWidth - 20, H = s.clientHeight - 20; if (W / H < a / b) { cv.style.height = 'auto'; cv.style.width = W + 'px'; } else { cv.style.width = 'auto'; cv.style.height = H + 'px'; } };
+  const draw = () => { cv.innerHTML = dzColHtml(col); if (sel >= 0 && cv.children[sel]) cv.querySelector(`[data-i="${sel}"]`).classList.add('sel'); };
+  const topZ = () => col.reduce((m, it) => Math.max(m, it.z), 0) + 1;
+  const add = it => { if (col.length >= 30) return toast('Máximo 30 recortes.'); const n = dzItem({ x: Math.round(32 + Math.random() * 36), y: Math.round(28 + Math.random() * 40), r: Math.round(Math.random() * 10 - 5), z: topZ(), o: 100, ...it }); if (!n) return; if (n.k === 'txt') n.t = dzCleanTxt(it.t) || 'Texto'; col.push(n); sel = col.length - 1; draw(); panel(); };
+  const opts = (k, o, cur) => Object.keys(o).map(v => `<button type="button" class="dz-chip${cur === v ? ' on' : ''}" data-zk="${k}" data-v="${v}">${typeof o[v] === 'string' && !o[v].startsWith('rgba') ? o[v] : v}</button>`).join('');
+  const colors = cur => DZ_COLS.map(c => `<button type="button" class="dz-dot${cur === c ? ' on' : ''}" style="background:${c}" data-zk="c" data-v="${c}" aria-label="${c}"></button>`).join('') + `<input type="color" value="${cur || '#ff3d8b'}" data-zc="1" aria-label="Otro color">`;
+  function panel() {
+    const it = col[sel];
+    let h = `<div class="dz-add"><button type="button" data-z="img">${ICO('image')} Foto</button><button type="button" data-z="cover">Portada</button><button type="button" data-z="txt">Aa Letras</button><button type="button" data-z="stk">★ Sticker</button><button type="button" data-z="tape">Cinta</button><button type="button" data-z="shp">● Forma</button></div>`;
+    if (!it) h += '<p class="hint" style="margin:8px 2px">Toca un recorte para editarlo. Arrástralo para moverlo; con dos dedos lo agrandas y lo giras.</p>';
+    else {
+      h += `<label class="dz-l">Tamaño<input type="range" min="2" max="140" value="${it.w}" data-zr="w"></label><label class="dz-l">Giro<input type="range" min="-180" max="180" value="${it.r}" data-zr="r"></label><label class="dz-l">Transparencia<input type="range" min="10" max="100" value="${it.o}" data-zr="o"></label>`;
+      if (it.k === 'img') h += `<div class="dz-row">${opts('cut', DZ_CUT, it.cut)}</div>`;
+      if (it.k === 'txt') h += `<textarea rows="2" maxlength="60" data-zt="1">${esc(it.t)}</textarea><div class="dz-row">${opts('v', DZ_TXT, it.v)}</div>${it.v !== 'recorte' ? `<div class="dz-row">${colors(it.c)}</div>` : ''}`;
+      if (it.k === 'stk') h += `<div class="dz-row">${opts('v', DZ_STK, it.v)}</div>${DZ_GLYPH[it.v] ? '' : `<textarea rows="1" maxlength="24" data-zt="1">${esc(it.t || '')}</textarea>`}<div class="dz-row">${colors(it.c)}</div>`;
+      if (it.k === 'tape') h += `<div class="dz-row">${Object.keys(DZ_TAPE).map(v => `<button type="button" class="dz-chip${it.v === v ? ' on' : ''}" data-zk="v" data-v="${v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div>`;
+      if (it.k === 'shp') h += `<div class="dz-row">${opts('v', DZ_SHP, it.v)}</div><div class="dz-row">${colors(it.c)}</div>`;
+      h += `<div class="dz-row"><button type="button" data-z="front">Al frente</button><button type="button" data-z="back">Atrás</button><button type="button" data-z="dup">Duplicar</button><button type="button" data-z="del">Borrar</button></div>`;
+    }
+    bar.innerHTML = h;
+  }
+  const close = () => { ro.disconnect(); ed.remove(); };
+  ed.addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return; const z = b.dataset.z, it = col[sel];
+    if (z === 'cancel') return close();
+    if (z === 'ok') { rev.dz.col = dzClean({ col }).col; close(); return dzChanged(true); }
+    if (z === 'img') return file.click();
+    if (z === 'cover') { if (!rev.cover) return toast('Primero elige una imagen de portada.'); return add({ k: 'img', s: rev.cover, w: 60, cut: 'roto' }); }
+    if (z === 'txt') { const v = await uiDialog({ title: 'Letras para el collage', fields: [{ key: 't', label: 'Texto (máximo 60)' }], ok: 'Pegar' }); if (v && v.t && v.t.trim()) add({ k: 'txt', t: v.t, v: 'recorte', w: 40 }); return; }
+    if (z === 'stk') return add({ k: 'stk', v: 'estallido', t: '¡Nuevo!', w: 30 });
+    if (z === 'tape') return add({ k: 'tape', v: 'beige', w: 30, r: -20 });
+    if (z === 'shp') return add({ k: 'shp', v: 'circulo', w: 40, c: '#ff3d8b', z: 0 });
+    if (!it) return;
+    if (z === 'del') { col.splice(sel, 1); sel = -1; }
+    else if (z === 'dup') { if (col.length >= 30) return toast('Máximo 30 recortes.'); col.push({ ...it, x: Math.min(100, it.x + 6), y: Math.min(100, it.y + 6), z: topZ() }); sel = col.length - 1; }
+    else if (z === 'front') it.z = topZ();
+    else if (z === 'back') { col.forEach(o => { if (o !== it) o.z = Math.min(99, o.z + 1); }); it.z = 0; }
+    else if (b.dataset.zk) { it[b.dataset.zk] = b.dataset.v; }
+    else return;
+    draw(); panel();
+  });
+  bar.addEventListener('input', e => {
+    const it = col[sel]; if (!it) return;
+    if (e.target.dataset.zr) { it[e.target.dataset.zr] = Number(e.target.value); draw(); return; }
+    if (e.target.dataset.zt) { it.t = it.k === 'txt' ? dzCleanTxt(e.target.value) || 'Texto' : revClean(e.target.value, 24); draw(); return; }
+    if (e.target.dataset.zc) { it.c = dzHex(e.target.value) || it.c; draw(); }
+  });
+  file.addEventListener('change', async () => {
+    const fs = [...file.files]; file.value = '';
+    for (const f of fs) { try { add({ k: 'img', s: (await revResize(f, 900, 0.8)).data(), w: 50, cut: 'rect' }); } catch { toast('No pude leer esa imagen.', true); } }
+  });
+  // Arrastrar con un dedo; agrandar y girar con dos
+  const pts = new Map(); let g = null;
+  cv.addEventListener('pointerdown', e => {
+    const el = e.target.closest('.dz-it');
+    if (!el) {
+      if (pts.size === 1 && sel >= 0) { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); g = null; e.preventDefault(); }
+      else if (!pts.size) { sel = -1; draw(); panel(); }
+      return;
+    }
+    const i = Number(el.dataset.i); if (sel !== i) { sel = i; draw(); panel(); }
+    cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); g = null; e.preventDefault();
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId) || sel < 0) return; const it = col[sel], R = cv.getBoundingClientRect(), p0 = pts.get(e.pointerId);
+    if (pts.size === 1) { it.x = dzNum(it.x + (e.clientX - p0.x) / R.width * 100, -20, 120, 50); it.y = dzNum(it.y + (e.clientY - p0.y) / R.height * 100, -20, 120, 50); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); }
+    else if (pts.size === 2) {
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); const [a, b] = [...pts.values()];
+      const dist = Math.hypot(b.x - a.x, b.y - a.y), ang = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+      if (!g) g = { dist, ang, w: it.w, r: it.r }; else { it.w = dzNum(g.w * dist / Math.max(1, g.dist), 2, 140, it.w); let r = g.r + ang - g.ang; r = ((r + 540) % 360) - 180; it.r = Math.round(r); }
+    }
+    const el = cv.querySelector(`[data-i="${sel}"]`); if (el) el.outerHTML = dzItemHtml(it, sel).replace('class="dz-it', 'class="dz-it sel');
+  });
+  const up = e => { pts.delete(e.pointerId); g = null; if (!pts.size) panel(); };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  const ro = new ResizeObserver(fit); ro.observe(ed.querySelector('.dz-stage'));
+  draw(); panel(); fit();
+}
+
+/* --- Guardar: sube las fotos del collage y guarda el diseño en su propia columna --- */
+async function dzSave(id) {
+  if (!rev.dz) return; const d = rev.dz;
+  for (const it of d.col) if (it.k === 'img' && it.s.startsWith('data:')) {
+    toast('Subiendo recortes del collage…', false, 20000);
+    const b = revDataBlob(it.s); if (!b) continue;
+    it.s = await revUpload(b, 'k-' + revUid() + '.jpg');
+  }
+  const diff = dzDiff(d), js = JSON.stringify(diff);
+  if (js === dzOrig) return;
+  try { await revFetch(`/rest/v1/posts?id=eq.${id}`, { method: 'PATCH', body: { design: diff }, prefer: 'return=minimal' }); dzOrig = js; }
+  catch (e) { throw new Error(/design|column|schema/i.test(e.message) ? 'El texto se guardó, pero el diseño avanzado no: falta ejecutar revista_supabase_v6.sql en Supabase.' : 'No se pudo guardar el diseño: ' + e.message); }
+}
+
+/* ===== Videos de la Revista (Bóveda, artículos): la radio se pausa mientras suena un video y vuelve sola al salir ===== */
+const RV_VIDSEL = '#view-revista iframe[src*="youtube"],#view-revista iframe[src*="vimeo"],#view-revista iframe[src*="archive.org"]';
+let rvHold = null;
+function rvHoldTick() {
+  if (document.documentElement.classList.contains('en-app-android')) return; // en la app de Android lo maneja la app
+  const frames = [...document.querySelectorAll(RV_VIDSEL)];
+  // Si saliste de la Revista con un video abierto, se detiene (si no, sonaría escondido encima de la radio)
+  frames.filter(f => f.offsetParent === null).forEach(f => {
+    const box = f.closest('#bvPlay'), v = rev.vItem;
+    f.remove();
+    if (box && v) box.innerHTML = `<button type="button" class="bv-poster" data-act="bvplay" aria-label="Ver el concierto">${vaultImg(v)}<span class="bv-pbtn">▶</span></button>`;
+  });
+  const on = frames.some(f => f.isConnected && f.offsetParent !== null);
+  if (on && !rvHold) {
+    let was = false;
+    try { was = local() ? (!audio.paused || S.state === 'break') : !!S.playing; } catch {}
+    rvHold = { was, t: 0, off: false };
+    if (was) toast('Pausé la radio mientras ves el video. Vuelve sola al salir.');
+  }
+  if (on && rvHold && !rvHold.off) {
+    try { if (speechSynthesis.speaking) { speakId++; speechSynthesis.cancel(); } } catch {}
+    try { if (cloud && !cloud.paused) cloud.pause(); } catch {}
+    try {
+      if (local()) { if (!audio.paused) { userPaused = true; audio.pause(); } }
+      else if (S.playing && Date.now() - rvHold.t > 8000) { rvHold.t = Date.now(); spot('/me/player/pause', 'PUT').then(() => { S.playing = false; try { updatePlayIcon(); } catch {} }).catch(() => {}); }
+    } catch {}
+  } else if (!on && rvHold) {
+    const h = rvHold; rvHold = null;
+    if (h.was && !h.off) try {
+      if (local()) { if (audio.paused && audio.src) { userPaused = false; audio.play().catch(() => {}); } }
+      else spot('/me/player/play', 'PUT').catch(() => {});
+    } catch {}
+  }
+}
+// Si tocas los controles de la radio mientras hay un video, se respeta lo que elijas
+document.addEventListener('click', e => { if (rvHold && e.target.closest && e.target.closest('#pp,#carPP,#skip,#prev')) rvHold.off = true; }, true);
+setInterval(rvHoldTick, 1000);
+try { new MutationObserver(() => rvHoldTick()).observe($('view-revista'), { childList: true, subtree: true }); } catch {}

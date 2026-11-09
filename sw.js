@@ -2,7 +2,7 @@
 // (la red sigue en segundo plano y la actualiza). Así la app no se queda en negro con mala señal.
 // Sube el número de CACHE (rr22, rr23...) cada vez que cambies el index.html.
 // 'rr-artistas' guarda las fotos de los artistas y NO se borra al actualizar.
-const CACHE = 'rr64';
+const CACHE = 'rr67';
 const PRECACHE = [
   './',
   './index.html',

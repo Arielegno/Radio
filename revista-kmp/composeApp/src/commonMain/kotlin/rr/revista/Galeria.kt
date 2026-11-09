@@ -160,7 +160,7 @@ fun GaleriaPantalla() {
         LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item(span = { GridItemSpan(2) }) {
                 Column {
-                    Cabecera("Pósters", "Carteles de conciertos y giras: originales con licencia libre y de la comunidad")
+                    Cabecera("Pósters", "Carteles de conciertos y giras: originales con licencia libre y de la comunidad", lateral = 6.dp)
                     Box(Modifier.padding(horizontal = 6.dp)) { Campo(busqueda, { busqueda = it }, "Buscar por banda, título o año…", max = 60) }
                     Box(Modifier.padding(6.dp)) { Pestanas(listOf("all" to "Todos", "original" to "Originales", "comunidad" to "De la comunidad", "retos" to "Retos"), filtro) { filtro = it } }
                 }

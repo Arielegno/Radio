@@ -87,7 +87,7 @@ fun App() {
     }
     val listaInicio = rememberLazyListState()
     val arriba = Nav.pila.lastOrNull()
-    if (!Fuentes.cargadas) return
+    if (!Fuentes.cargadas) { Box(Modifier.fillMaxSize().background(Asfalto), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Amarillo) }; return }
     val base = Fuentes.de("barlow")
     MaterialTheme(colorScheme = darkColorScheme(primary = Amarillo, onPrimary = Color(0xFF1B1E23), background = Asfalto, surface = Panel, onBackground = TextoClaro, onSurface = TextoClaro), typography = tipografia(base)) {
         CompositionLocalProvider(LocalTextStyle provides TextStyle(fontFamily = base, color = TextoClaro, fontSize = 16.sp)) {
@@ -155,8 +155,8 @@ private fun BarraAbajo(actual: String, ir: (String) -> Unit) {
 }
 
 @Composable
-fun Cabecera(titulo: String, sub: String) {
-    Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 10.dp)) {
+fun Cabecera(titulo: String, sub: String, lateral: androidx.compose.ui.unit.Dp = 18.dp) {
+    Column(Modifier.padding(start = lateral, end = lateral, top = 18.dp, bottom = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Amarillo), contentAlignment = Alignment.Center) { Icono("nota", Color(0xFF1B1E23), 24.dp) }
             Spacer(Modifier.width(10.dp))

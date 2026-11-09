@@ -107,6 +107,7 @@ suspend fun httpBytes(url: String): ByteArray = withContext(Dispatchers.IO) {
         else -> null
     }
     if (guardada != null && guardada.length() > 0) { guardada.setLastModified(System.currentTimeMillis()); return@withContext guardada.readBytes() }
+    if (url.startsWith("fonts/")) runCatching { return@withContext PlataformaAndroid.ctx.assets.open("revista_fonts/" + url.removePrefix("fonts/")).use { it.readBytes() } }
     val c = conexion("GET", completa, emptyMap())
     try {
         if (c.responseCode !in 200..299) throw Exception("HTTP ${c.responseCode}")

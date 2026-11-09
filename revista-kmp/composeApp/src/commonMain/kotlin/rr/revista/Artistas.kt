@@ -61,7 +61,7 @@ fun ArtistasPantalla() {
         LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item(span = { GridItemSpan(2) }) {
                 Column {
-                    Cabecera("Artistas", "Perfiles de bandas y artistas hechos por la Revista")
+                    Cabecera("Artistas", "Perfiles de bandas y artistas hechos por la Revista", lateral = 6.dp)
                     Box(Modifier.padding(horizontal = 6.dp)) { Campo(q, { q = it }, "Buscar artista, banda o género…", max = 60) }
                 }
             }
@@ -99,7 +99,8 @@ private fun TarjetaArtista(a: Map<String, Any?>, abrir: () -> Unit) {
         else Text(a.str("name").take(1).uppercase(), color = col(t.texto).copy(alpha = .5f), fontSize = 64.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Color(0xE6000000))))
         Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
-            Text(a.str("name") + if (a.bool("verified")) " · verificada" else "", color = Color.White, fontFamily = Fuentes.titulo(e.ft), fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 22.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            if (a.bool("verified")) Text("VERIFICADA", color = Color(0xFF1B1E23), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 4.dp).clip(RoundedCornerShape(999.dp)).background(Amarillo).padding(horizontal = 7.dp, vertical = 2.dp))
+            Text(a.str("name"), color = Color.White, fontFamily = Fuentes.titulo(e.ft), fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 22.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
             val sub = sinPuntos(a.str("genre"), a.str("years"))
             if (sub.isNotEmpty()) Text(sub, color = Color.White.copy(alpha = .8f), fontSize = 12.sp, maxLines = 1)
         }

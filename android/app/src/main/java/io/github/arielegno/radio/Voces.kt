@@ -101,13 +101,39 @@ class VozLuna(private val ctx: Context) {
     }
 
     /** Habla y espera a que termine. Devuelve false si no se pudo. */
-    suspend fun decir(texto: String): Boolean {
-        if (texto.isBlank()) return false
+    /** ¿Están listos los dos locutores? (las dos voces de la app descargadas y el modo activado) */
+    fun duo(): Pair<String, String>? {
         val p = RadioApp.prefs
+        if (!p.bool("dosLocutores", false)) return null
+        val a = p.str("motorVoz", "").removePrefix(VozPropia.PREFIJO); val b = p.str("vozPareja", "")
+        val va = VozPropia.porId(a) ?: return null; val vb = VozPropia.porId(b) ?: return null
+        return if (a != b && VozPropia.instalada(va) && VozPropia.instalada(vb)) a to b else null
+    }
+
+    suspend fun decir(texto0: String): Boolean {
+        if (texto0.isBlank()) return false
+        val p = RadioApp.prefs
+        val host = p.str("host", "Luna"); val host2 = p.str("host2", "Leo")
+        val vel = when (p.str("vozPreset", "natural")) { "radio" -> .9f; "narrador" -> 1f; "energico" -> 1.12f; "manual" -> p.int("velocidad", 100) / 100f; else -> 1f }
+        val vol = p.int("volVoz", 100).coerceIn(10, 100) / 100f
+        // Guion con dos locutores: «Luna: …» / «Leo: …», cada línea con su voz
+        val marca = Regex("^\\s*(${Regex.escape(host)}|${Regex.escape(host2)})\\s*:\\s*", RegexOption.IGNORE_CASE)
+        val lineas = texto0.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+        val dos = duo()
+        if (dos != null && lineas.count { marca.containsMatchIn(it) } >= 2) {
+            for (l in lineas) {
+                val quien = marca.find(l)?.groupValues?.get(1)
+                val voz = if (quien != null && quien.equals(host2, true)) dos.second else dos.first
+                val ok = withTimeoutOrNull(30_000L + l.length * 120L) { VozPropia.decir(voz, l.replace(marca, ""), vel, vol) }
+                if (ok != true) { VozPropia.callar(); return false }
+            }
+            return true
+        }
+        val texto = limpiarParaVoz(lineas.joinToString(" ") { it.replace(marca, "") })
+        if (texto.isBlank()) return false
         val motor = p.str("motorVoz", "")
         if (motor.startsWith(VozPropia.PREFIJO)) {
-            val vel = when (p.str("vozPreset", "natural")) { "radio" -> .9f; "narrador" -> 1f; "energico" -> 1.12f; "manual" -> p.int("velocidad", 100) / 100f; else -> 1f }
-            val ok = withTimeoutOrNull(30_000L + texto.length * 120L) { VozPropia.decir(motor.removePrefix(VozPropia.PREFIJO), texto, vel, p.int("volVoz", 100).coerceIn(10, 100) / 100f) }
+            val ok = withTimeoutOrNull(30_000L + texto.length * 120L) { VozPropia.decir(motor.removePrefix(VozPropia.PREFIJO), texto, vel, vol) }
             if (ok == true) return true
             VozPropia.callar()
             // si la voz propia falla (por ejemplo, se borró), se usa la del teléfono

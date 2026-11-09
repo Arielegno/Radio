@@ -109,16 +109,18 @@ object VozPropia {
             model = OfflineTtsModelConfig(
                 vits = OfflineTtsVitsModelConfig(model = m.absolutePath, tokens = File(d, "tokens.txt").absolutePath,
                     dataDir = File(d, "espeak-ng-data").takeIf { it.isDirectory }?.absolutePath ?: ""),
-                numThreads = 2, debug = false, provider = "cpu"),
+                numThreads = maxOf(2, minOf(4, Runtime.getRuntime().availableProcessors() / 2)), debug = false, provider = "cpu"),
+            silenceScale = 0.1f,   // menos silencio entre frases
         )
         tts = OfflineTts(assetManager = null, config = cfg); cargada = v.id
         return tts
     }
 
-    /** Habla con la voz propia y espera a que termine. velocidad 1.0 = normal. */
-    suspend fun decir(id: String, texto: String, velocidad: Float, volumen: Float): Boolean = withContext(Dispatchers.Default) {
+    /** Habla con la voz propia y espera a que termine. velocidad 1.0 = normal. efecto: "", "fm", "telefono", "estadio", "walkie". */
+    suspend fun decir(id: String, texto: String, velocidad: Float, volumen: Float, efecto: String = RadioApp.prefs.str("efectoVoz", "")): Boolean = withContext(Dispatchers.Default) {
         val v = porId(id) ?: return@withContext false
         if (!disponible || !instalada(v)) return@withContext false
+        val limpio = limpiarParaVoz(texto); if (limpio.isBlank()) return@withContext true
         turno.withLock {
             parar = false; hablando = true
             try {
@@ -130,14 +132,32 @@ object VozPropia {
                     .setAudioFormat(AudioFormat.Builder().setSampleRate(sr).setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
                     .setBufferSizeInBytes(maxOf(min, sr * 4)).setTransferMode(AudioTrack.MODE_STREAM).build()
                 pista = p
-                p.setVolume(volumen.coerceIn(0f, 1f)); p.play()
-                var escritos = 0
-                // Se genera por partes y suena mientras se genera el resto (casi sin espera)
-                t.generateWithCallback(texto, 0, velocidad.coerceIn(.5f, 2f)) { muestras ->
-                    if (parar) 0 else { p.write(muestras, 0, muestras.size, AudioTrack.WRITE_BLOCKING); escritos += muestras.size; 1 }
+                p.setVolume(volumen.coerceIn(0f, 1f))
+                val fx = Efecto(efecto, sr)
+                // Se genera y suena a la vez; antes de empezar se junta un colchón de ~2,5 s para que no haya huecos
+                val cola = java.util.concurrent.LinkedBlockingQueue<FloatArray>()
+                val generadas = java.util.concurrent.atomic.AtomicLong(0)
+                val listo = java.util.concurrent.atomic.AtomicBoolean(false)
+                var escritos = 0L
+                val reproductor = Thread {
+                    try {
+                        while (!parar && !listo.get() && generadas.get() < sr * 2.5) Thread.sleep(20)
+                        p.play()
+                        while (!parar) {
+                            val c = cola.poll(200, java.util.concurrent.TimeUnit.MILLISECONDS) ?: if (listo.get() && cola.isEmpty()) break else continue
+                            val o = fx.procesar(c); p.write(o, 0, o.size, AudioTrack.WRITE_BLOCKING); escritos += o.size
+                        }
+                        if (!parar) { val cola2 = fx.cola(); if (cola2.isNotEmpty()) { p.write(cola2, 0, cola2.size, AudioTrack.WRITE_BLOCKING); escritos += cola2.size } }
+                    } catch (e: Throwable) {}
                 }
+                reproductor.start()
+                try {
+                    t.generateWithCallback(limpio, 0, velocidad.coerceIn(.5f, 2f)) { muestras ->
+                        if (parar) 0 else { cola.put(muestras.copyOf()); generadas.addAndGet(muestras.size.toLong()); 1 }
+                    }
+                } finally { listo.set(true) }
+                reproductor.join()
                 if (!parar) {
-                    // esperar a que termine de sonar lo que quedó en el búfer
                     val fin = System.currentTimeMillis() + escritos * 1000L / sr + 1500
                     while (!parar && p.playbackHeadPosition < escritos && System.currentTimeMillis() < fin) Thread.sleep(40)
                 }
@@ -151,4 +171,67 @@ object VozPropia {
     }
 
     fun callar() { parar = true; try { pista?.pause(); pista?.flush() } catch (e: Exception) {} }
+}
+
+/** Deja el texto listo para leer en voz alta: sin markdown, emojis ni puntos suspensivos (que hacen pausas largas). */
+fun limpiarParaVoz(t: String): String = t
+    .replace(Regex("[*_#`~>|]"), " ")
+    .replace(Regex("\\((.*?)\\)"), ", $1, ")
+    .replace(Regex("[\\[\\]{}]"), " ")
+    .replace(Regex("…|\\.{2,}"), ".")
+    .replace(Regex("\\s+[—–-]\\s+"), ", ")
+    .replace(Regex("[\\p{So}\\p{Cs}\\x{1F000}-\\x{1FAFF}\\x{2600}-\\x{27BF}]"), " ")
+    .replace(Regex("\\s*\\n+\\s*"), " ")
+    .replace(Regex("\\s+([,.;:!?])"), "$1")
+    .replace(Regex("([,;:])[,;:.]+"), "$1")
+    .replace(Regex("\\.([,.])+"), ".")
+    .replace(Regex("\\s{2,}"), " ")
+    .trim()
+
+/** Efectos para las voces de la app (filtros sencillos, en tiempo real). */
+private class Efecto(private val tipo: String, private val sr: Int) {
+    private class Biquad(val b0: Double, val b1: Double, val b2: Double, val a1: Double, val a2: Double) {
+        var x1 = 0.0; var x2 = 0.0; var y1 = 0.0; var y2 = 0.0
+        fun p(x: Double): Double { val y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2; x2 = x1; x1 = x; y2 = y1; y1 = y; return y }
+    }
+    private fun norm(b0: Double, b1: Double, b2: Double, a0: Double, a1: Double, a2: Double) = Biquad(b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0)
+    private fun w(f: Double) = 2 * Math.PI * f / sr
+    private fun pasaAltos(f: Double, q: Double = .707): Biquad { val w = w(f); val a = Math.sin(w) / (2 * q); val c = Math.cos(w); return norm((1 + c) / 2, -(1 + c), (1 + c) / 2, 1 + a, -2 * c, 1 - a) }
+    private fun pasaBajos(f: Double, q: Double = .707): Biquad { val w = w(f); val a = Math.sin(w) / (2 * q); val c = Math.cos(w); return norm((1 - c) / 2, 1 - c, (1 - c) / 2, 1 + a, -2 * c, 1 - a) }
+    private fun pico(f: Double, q: Double, db: Double): Biquad { val A = Math.pow(10.0, db / 40); val w = w(f); val a = Math.sin(w) / (2 * q); val c = Math.cos(w); return norm(1 + a * A, -2 * c, 1 - a * A, 1 + a / A, -2 * c, 1 - a / A) }
+    private fun gravesSuaves(f: Double, db: Double): Biquad {
+        val A = Math.pow(10.0, db / 40); val w = w(f); val c = Math.cos(w); val s = Math.sin(w); val a = s / 2 * Math.sqrt(2.0); val r = 2 * Math.sqrt(A) * a
+        return norm(A * ((A + 1) - (A - 1) * c + r), 2 * A * ((A - 1) - (A + 1) * c), A * ((A + 1) - (A - 1) * c - r), (A + 1) + (A - 1) * c + r, -2 * ((A - 1) + (A + 1) * c), (A + 1) + (A - 1) * c - r)
+    }
+    private val filtros: List<Biquad> = when (tipo) {
+        "fm" -> listOf(pasaAltos(85.0), gravesSuaves(170.0, 5.0), pico(3200.0, 1.0, 3.0), pasaBajos(12000.0))
+        "telefono" -> listOf(pasaAltos(380.0), pasaAltos(380.0), pasaBajos(3200.0), pasaBajos(3200.0), pico(1500.0, 1.2, 4.0))
+        "walkie" -> listOf(pasaAltos(550.0), pasaAltos(550.0), pasaBajos(2600.0), pasaBajos(2600.0))
+        "estadio" -> listOf(pasaAltos(70.0), pico(2500.0, 1.0, 2.0))
+        else -> emptyList()
+    }
+    private val empuje = when (tipo) { "fm" -> 1.8; "telefono" -> 2.4; "walkie" -> 3.5; else -> 0.0 }
+    // Eco de estadio: dos repeticiones con caída
+    private val eco = if (tipo == "estadio") FloatArray((sr * .5).toInt()) else null
+    private var pos = 0
+
+    fun procesar(x: FloatArray): FloatArray {
+        if (tipo.isEmpty() || (filtros.isEmpty() && eco == null)) return x
+        val y = FloatArray(x.size)
+        for (i in x.indices) {
+            var v = x[i].toDouble()
+            for (f in filtros) v = f.p(v)
+            if (empuje > 0) v = Math.tanh(empuje * v) / Math.tanh(empuje)   // compresión suave, como en la radio
+            if (eco != null) {
+                val d1 = eco[(pos - (sr * .13).toInt() + eco.size) % eco.size]; val d2 = eco[(pos - (sr * .29).toInt() + eco.size) % eco.size]
+                val o = v + .38 * d1 + .22 * d2
+                eco[pos] = o.toFloat(); pos = (pos + 1) % eco.size; v = o * .8
+            }
+            y[i] = v.coerceIn(-1.0, 1.0).toFloat()
+        }
+        return y
+    }
+
+    /** El final del eco (para que no se corte de golpe). */
+    fun cola(): FloatArray = if (eco == null) FloatArray(0) else procesar(FloatArray((sr * .6).toInt()))
 }

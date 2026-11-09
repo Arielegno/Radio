@@ -107,6 +107,7 @@ class Biblioteca(private val ctx: Context) {
         }
         var sig = (lista.maxOfOrNull { it.id } ?: 0L) + 1
         val ok = AtomicInteger(); val rep = AtomicInteger(); val mal = AtomicInteger(); val hechas = AtomicInteger()
+        val ultimaVista = java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis())
         val turnos = Semaphore(3)
         coroutineScope {
             uris.map { uri ->
@@ -141,7 +142,9 @@ class Biblioteca(private val ctx: Context) {
                         }
                         val n = hechas.incrementAndGet()
                         avisar("Agregando $n de ${uris.size}…")
-                        if (n % 15 == 0) { val copiaLista = candado.withLock { lista.toList() }; publicar(copiaLista) }
+                        // La pantalla se actualiza cada 60 canciones o cada 5 segundos (antes cada 15: la lista se trababa)
+                        val ahora = System.currentTimeMillis()
+                        if (n % 60 == 0 || ahora - ultimaVista.get() > 5000) { ultimaVista.set(ahora); val copiaLista = candado.withLock { lista.toList() }; publicar(copiaLista) }
                     }
                 }
             }.awaitAll()

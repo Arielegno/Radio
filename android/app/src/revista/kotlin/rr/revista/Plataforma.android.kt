@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontWeight
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -139,8 +140,28 @@ fun listo() {}
 private var tts: android.speech.tts.TextToSpeech? = null
 private var ttsListo = false
 private var pendienteVoz: String? = null
+private var lecturaPropia: kotlinx.coroutines.Job? = null
 fun leerEnVoz(texto: String?) {
-    if (texto.isNullOrBlank()) { tts?.stop(); runCatching { io.github.arielegno.radio.RadioApp.radio.retener(false) }; return }
+    if (texto.isNullOrBlank()) {
+        tts?.stop(); lecturaPropia?.cancel(); io.github.arielegno.radio.VozPropia.callar()
+        runCatching { io.github.arielegno.radio.RadioApp.radio.retener(false) }; return
+    }
+    // Si elegiste una voz de la app (Daniela, Ald…), la Revista también lee con ella
+    val p = io.github.arielegno.radio.RadioApp.prefs
+    val motor = p.str("motorVoz", "")
+    val propia = io.github.arielegno.radio.VozPropia.porId(motor.removePrefix(io.github.arielegno.radio.VozPropia.PREFIJO))
+    if (motor.startsWith(io.github.arielegno.radio.VozPropia.PREFIJO) && propia != null && io.github.arielegno.radio.VozPropia.instalada(propia)) {
+        lecturaPropia?.cancel(); io.github.arielegno.radio.VozPropia.callar()
+        lecturaPropia = io.github.arielegno.radio.RadioApp.scope.launch {
+            runCatching { io.github.arielegno.radio.RadioApp.radio.retener(true) }
+            // por párrafos: así se puede detener enseguida y no hay que esperar a que se genere todo
+            for (parte in texto.split(Regex("(?<=[.!?])\\s+")).chunked(4).map { it.joinToString(" ") }) {
+                if (!io.github.arielegno.radio.VozPropia.decir(propia.id, parte, 1f, p.int("volVoz", 100) / 100f)) break
+            }
+            runCatching { io.github.arielegno.radio.RadioApp.radio.retener(false) }
+        }
+        return
+    }
     val t = tts
     if (t == null) {
         pendienteVoz = texto

@@ -194,7 +194,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     if (i < CATEGORIAS.size - 1) HorizontalDivider(color = LocalExtra.current.borde, modifier = Modifier.padding(start = 58.dp))
                 }
             }
-            Text("Radio de ruta para Android · versión 1.8", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
+            Text("Radio de ruta para Android · versión 1.9", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 14.dp).align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(24.dp))
             return@Column
@@ -370,6 +370,21 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                         }
                     }
                 }
+                val instaladas = remember(VozPropia.version) { VozPropia.VOCES.filter { VozPropia.instalada(it) } }
+                if (instaladas.isNotEmpty()) Grupo("Efectos y dos locutores") {
+                    Opciones("efectoVoz", "Efecto de voz", linkedMapOf("" to "Ninguno", "fm" to "Locutor FM (grave y con cuerpo)", "telefono" to "Teléfono", "estadio" to "Eco de estadio", "walkie" to "Walkie-talkie"), "")
+                    Ayuda("Los efectos funcionan con las voces de la app.")
+                    if (instaladas.size >= 2) {
+                        Interruptor("dosLocutores", "Dos locutores: conversan entre canciones", false) { versionVoz++ }
+                        key(versionVoz) {
+                            if (p.bool("dosLocutores", false)) {
+                                CampoTexto("host2", "Nombre del compañero", "Leo")
+                                Opciones("vozPareja", "Voz del compañero", linkedMapOf("" to "Elige una voz") + instaladas.associate { it.id to it.nombre }, "")
+                                Ayuda("La voz de ${p.str("host", "Luna")} es la que elegiste arriba como motor de voz; el compañero usa esta otra. Con IA, escriben un diálogo corto entre los dos.")
+                            }
+                        }
+                    } else Ayuda("Descarga las dos voces para activar «Dos locutores».")
+                }
                 Grupo("Otras voces gratis (apps aparte)") {
                     Ayuda("Instala «SherpaTTS» (voces Piper y Kokoro, código abierto) o «RHVoice», descarga una voz en español y elígela arriba como motor de voz.")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -482,7 +497,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                 Ayuda("No manipules la app mientras conduces.")
             }
             else -> Grupo("Radio de ruta para Android") {
-                Text("Versión 1.8 · por Arielegno", fontWeight = FontWeight.SemiBold)
+                Text("Versión 1.9 · por Arielegno", fontWeight = FontWeight.SemiBold)
                 Ayuda("No manipules la app mientras conduces: configúrala antes de arrancar.")
                 TextButton(onClick = { abrir(ctx, "https://arielegno.github.io/Radio/legal.html") }) { Text("Aviso legal y privacidad") }
                 Ayuda("Usa Media3 (Apache 2.0), Jetpack Compose (Apache 2.0), sherpa-onnx (Apache 2.0) con voces Piper, Apache Commons Compress (Apache 2.0), Leaflet (BSD-2) y datos de OpenStreetMap (ODbL), Open-Meteo, Wikipedia (CC BY-SA), MusicBrainz (CC0), iTunes Search, Spotify, Google Gemini y Anthropic Claude.")

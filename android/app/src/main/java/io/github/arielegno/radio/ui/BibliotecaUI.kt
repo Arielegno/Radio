@@ -188,11 +188,12 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
         completar = { t -> scope.launchSafe { aviso = Guia.completar(t.id) } }
     )
 
+    val listaBib = androidx.compose.foundation.lazy.rememberLazyListState()   // al volver de un artista o álbum, sigue donde estabas
     val c = carpeta
     if (c != null) {
         DetalleCarpeta(c, filtradas, acciones, cerrar = { carpeta = null }, abrir = { carpeta = it }, abrirRevista = abrirRevista,
             renombrar = { renombrar = it }, borrarLista = { borrarLista = it })
-    } else LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    } else LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), state = listaBib) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
                 Text("Biblioteca", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
@@ -290,7 +291,7 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
             "artistas" -> {
                 val grupos = Coleccion.agrupar(filtradas, "artistas")
                 if (grupos.isEmpty()) item { Text("No hay resultados.", color = LocalExtra.current.tenue, modifier = Modifier.padding(16.dp)) }
-                items(grupos.chunked(3), key = { "art:" + it.first().clave }) { fila ->
+                items(grupos.chunked(3)) { fila ->   // sin clave: al agregar artistas la lista no salta
                     Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         fila.forEach { g -> TarjetaArtista(g, Modifier.weight(1f)) { carpeta = Carpeta("artistas", g.clave) } }
                         repeat(3 - fila.size) { Spacer(Modifier.weight(1f)) }

@@ -7,6 +7,7 @@ import kotlin.random.Random
 /** Ajustes de Luna que vienen de la pantalla de Ajustes. */
 data class LunaAjustes(
     val host: String = "Luna",
+    val pareja: String = "",          // nombre del compañero de cabina (dos locutores); vacío = una sola voz
     val genero: String = "locutora",
     val acento: String = "neutro",
     val largo: String = "media",
@@ -62,6 +63,10 @@ object Luna {
         o += "Ánimo según la hora: ${animoHora(hora)}."
         o += "Si te doy efemeride_de_hoy, menciónala en una frase: es un dato real. Si te doy dedicatoria, léela con tus palabras y cariño, una sola vez. Si te doy programa, preséntalo como una sección especial de la radio, con su nombre, en pocas frases y con calidez."
         o += "Si te doy memoria_de_la_persona, úsala con naturalidad (\"la que más has escuchado\") sin recitar la lista."
+        if (a.pareja.isNotBlank()) {
+            o += "Hoy conduces junto a ${a.pareja.trim()}, tu compañero de cabina (hombre, con buen humor). Escribe un diálogo breve y natural entre los dos, de 2 a 4 líneas en total, alternando."
+            o += "Cada línea empieza exactamente con «${a.host}:» o «${a.pareja.trim()}:» y va en su propia línea. Sin acotaciones ni nada más."
+        }
         o += "Responde solo con el texto a leer."
         return o.joinToString("\n")
     }

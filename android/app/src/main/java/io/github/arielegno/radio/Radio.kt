@@ -308,7 +308,7 @@ class Radio(private val ctx: Context) {
     fun ajustes(): LunaAjustes {
         val m = modo
         return LunaAjustes(
-            host = p.str("host", "Luna"), genero = p.str("genero", "locutora"), acento = p.str("acento", "neutro"), largo = p.str("largo", "media"),
+            host = p.str("host", "Luna"), pareja = if (voz.duo() != null) p.str("host2", "Leo") else "", genero = p.str("genero", "locutora"), acento = p.str("acento", "neutro"), largo = p.str("largo", "media"),
             modo = m, modoTexto = p.str("modo_$m", ""), persona = p.str("persona", ""), evitar = p.str("evitar", ""), nombre = p.str("me", ""),
             frasesPropias = p.str("frases_$m", "").lines().map { it.trim() }.filter { it.isNotEmpty() },
             estilo = p.str("estilo", ""), contexto = p.str("contexto", "")

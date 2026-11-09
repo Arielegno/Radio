@@ -1,7 +1,18 @@
 package rr.revista
 
 /* Lo que la plataforma (navegador o Android) tiene que dar: red, fecha y abrir enlaces. */
-expect suspend fun httpTexto(url: String, cabeceras: Map<String, String>): String
+/** Respuesta de un pedido HTTP: estado, texto y el rango de contenido (para contar filas). */
+data class Respuesta(val estado: Int, val texto: String, val rango: String = "")
+expect suspend fun httpPedido(metodo: String, url: String, cabeceras: Map<String, String>, cuerpo: String?): Respuesta
+expect fun leerDato(clave: String): String?
+expect fun guardarDato(clave: String, valor: String?)
+expect fun ahoraMs(): Double
+
+suspend fun httpTexto(url: String, cabeceras: Map<String, String>): String {
+    val r = httpPedido("GET", url, cabeceras, null)
+    if (r.estado !in 200..299) throw Exception("HTTP ${r.estado} ${r.texto.take(160)}")
+    return r.texto
+}
 expect suspend fun httpBytes(url: String): ByteArray
 expect fun ahoraIso(): String
 expect fun hashInicial(): String
@@ -12,9 +23,10 @@ data class Resena(val disco: String, val artista: String, val anio: Int, val not
 data class Articulo(
     val id: String, val titulo: String, val subtitulo: String, val portada: String, val estilo: Estilo, val fecha: String, val autor: Autor,
     val likes: Int, val comentarios: Int, val texto: String = "", val diseno: Diseno = Diseno(), val resena: Resena? = null,
-    val canciones: List<Pair<String, String>> = emptyList(), val galeria: List<String> = emptyList(), val etiquetas: List<String> = emptyList()
+    val canciones: List<Pair<String, String>> = emptyList(), val galeria: List<String> = emptyList(), val etiquetas: List<String> = emptyList(),
+    val recomendados: Int = 0, val estado: String = "", val lecturas: Int = 0
 )
-data class Comentario(val nombre: String, val texto: String, val fecha: String)
+data class Comentario(val id: String, val autorId: String, val nombre: String, val avatar: String, val texto: String, val fecha: String, val padre: String = "")
 data class Poster(val id: String, val titulo: String, val artista: String, val anio: Int, val mini: String, val grande: String)
 data class Concierto(val id: String, val titulo: String, val artista: String, val anio: Int, val miniatura: String, val festival: String)
 
@@ -26,20 +38,20 @@ object Supa {
     private val UUID = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", RegexOption.IGNORE_CASE)
     private var sinEstado = false // bases viejas sin la mejora v5 (borradores / programados)
 
-    private suspend fun get(ruta: String): String = httpTexto(URL + ruta, mapOf("apikey" to CLAVE))
-    private fun enc(s: String) = s.encodeToByteArray().joinToString("") { b ->
+    private suspend fun get(ruta: String): String = Cuenta.api("GET", ruta)
+    fun enc(s: String) = s.encodeToByteArray().joinToString("") { b ->
         val c = b.toInt() and 0xFF
         if ((c in 0x30..0x39) || (c in 0x41..0x5A) || (c in 0x61..0x7A) || c == 0x2D || c == 0x2E || c == 0x5F || c == 0x7E) c.toChar().toString() else "%" + c.toString(16).uppercase().padStart(2, '0')
     }
-    private fun publicados() = if (sinEstado) "" else "&status=eq.published&publish_at=lte.${enc(ahoraIso())}"
+    internal fun publicados() = if (sinEstado) "" else "&status=eq.published&publish_at=lte.${enc(ahoraIso())}"
     private fun cuenta(v: Any?): Int = ((v as? List<*>)?.firstOrNull() as? Map<*, *>)?.get("count")?.let { (it as? Number)?.toInt() } ?: 0
 
     /** Miniatura del almacén (-t.jpg) para listas; si no existe, la vista usa la grande. */
     fun miniatura(u: String): String = if (Regex("/storage/v1/object/public/revista/.+\\.jpg$").containsMatchIn(u) && !u.endsWith("-t.jpg")) u.removeSuffix(".jpg") + "-t.jpg" else u
 
-    private fun autor(m: Map<String, Any?>): Autor { val p = m.map("profiles"); return Autor(m.str("author_id"), p.str("name").ifBlank { "Alguien" }, Diseno.imagenOk(p.str("avatar"))) }
+    internal fun autor(m: Map<String, Any?>): Autor { val p = m.map("profiles"); return Autor(m.str("author_id"), p.str("name").ifBlank { "Alguien" }, Diseno.imagenOk(p.str("avatar"))) }
 
-    private fun articulo(m: Map<String, Any?>): Articulo {
+    internal fun deFila(m: Map<String, Any?>): Articulo {
         val rv = m.map("review").let { r -> val s = r.num("score").toInt(); if (s in 1..10 && r.str("album").isNotBlank()) Resena(r.str("album").take(100), r.str("artist").take(80), r.num("year").toInt(), s) else null }
         return Articulo(
             id = m.str("id"), titulo = m.str("title"), subtitulo = m.str("subtitle"), portada = Diseno.imagenOk(m.str("cover")), estilo = Estilo.de(m.map("style")),
@@ -47,27 +59,30 @@ object Supa {
             diseno = Diseno.de(m.map("design")), resena = rv,
             canciones = m.list("tracks").take(12).mapNotNull { it.asObj()?.let { t -> t.str("name") to t.str("artist") } },
             galeria = m.list("gallery").mapNotNull { (it as? String)?.let(Diseno::imagenOk)?.takeIf { u -> u.isNotEmpty() } }.take(8),
-            etiquetas = m.list("tags").mapNotNull { it as? String }.take(5)
+            etiquetas = m.list("tags").mapNotNull { it as? String }.take(5),
+            recomendados = cuenta(m["recommends"]), estado = m.str("status"), lecturas = m.num("views").toInt()
         )
     }
 
-    suspend fun portada(limite: Int = 30): List<Articulo> {
+    suspend fun portada(limite: Int = 30, autores: Set<String>? = null): List<Articulo> {
         val sel = "id,title,subtitle,cover,style,review,tags,created_at,author_id,profiles!author_id(name,avatar),likes(count),comments(count)"
-        val t = try { get("/rest/v1/posts?select=$sel${publicados()}&order=created_at.desc&limit=$limite") }
+        val de = autores?.filter { UUID.matches(it) }?.take(200)?.joinToString(",")?.let { "&author_id=in.($it)" } ?: ""
+        val t = try { get("/rest/v1/posts?select=$sel$de${publicados()}&order=created_at.desc&limit=$limite") }
         catch (e: Exception) { sinEstado = true; get("/rest/v1/posts?select=id,title,subtitle,cover,style,created_at,author_id,profiles!author_id(name),likes(count),comments(count)&order=created_at.desc&limit=$limite") }
-        return Json.arr(t).mapNotNull { it.asObj()?.let(::articulo) }
+        return Json.arr(t).mapNotNull { it.asObj()?.let(::deFila) }
     }
 
     suspend fun articulo(id: String): Articulo? {
         if (!UUID.matches(id)) return null
-        val t = get("/rest/v1/posts?select=*,profiles!author_id(name,avatar),likes(count),comments(count)&id=eq.$id")
-        return Json.arr(t).firstOrNull()?.asObj()?.let(::articulo)
+        val t = try { get("/rest/v1/posts?select=*,profiles!author_id(name,avatar),likes(count),comments(count),recommends(count)&id=eq.$id") }
+            catch (e: Exception) { get("/rest/v1/posts?select=*,profiles!author_id(name,avatar),likes(count),comments(count)&id=eq.$id") }
+        return Json.arr(t).firstOrNull()?.asObj()?.let(::deFila)
     }
 
     suspend fun comentarios(id: String): List<Comentario> {
         if (!UUID.matches(id)) return emptyList()
-        val t = get("/rest/v1/comments?select=body,created_at,profiles!author_id(name)&post_id=eq.$id&order=created_at.asc&limit=100")
-        return Json.arr(t).mapNotNull { it.asObj()?.let { c -> Comentario(c.map("profiles").str("name").ifBlank { "Alguien" }, c.str("body"), c.str("created_at")) } }
+        val t = get("/rest/v1/comments?select=*,profiles!author_id(name,avatar)&post_id=eq.$id&order=created_at.asc&limit=200")
+        return Json.arr(t).mapNotNull { it.asObj()?.let { c -> Comentario(c.str("id"), c.str("author_id"), c.map("profiles").str("name").ifBlank { "Alguien" }, Diseno.imagenOk(c.map("profiles").str("avatar")), c.str("body"), c.str("created_at"), c.str("parent_id")) } }
     }
 
     suspend fun posters(): List<Poster> {

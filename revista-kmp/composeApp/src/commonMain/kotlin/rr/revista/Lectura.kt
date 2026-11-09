@@ -28,6 +28,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -81,7 +86,8 @@ private class Look(a: Articulo) {
 @Composable
 fun Lectura(id: String, cerrar: () -> Unit) {
     val datos by produceState<Result<Articulo?>?>(null, id) { value = runCatching { if (id.startsWith("ejemplo-")) Ejemplos.uno(id) else Supa.articulo(id) } }
-    val coms by produceState<List<Comentario>>(emptyList(), id) { value = if (id.startsWith("ejemplo-")) listOf(Comentario("Ejemplo", "Así se ven los comentarios de la comunidad.", ahoraIso())) else runCatching { Supa.comentarios(id) }.getOrDefault(emptyList()) }
+    var versionComs by remember { mutableStateOf(0) }
+    val coms by produceState<List<Comentario>>(emptyList(), id, versionComs) { value = if (id.startsWith("ejemplo-")) listOf(Comentario("", "", "Ejemplo", "", "Así se ven los comentarios de la comunidad.", ahoraIso())) else runCatching { Supa.comentarios(id) }.getOrDefault(emptyList()) }
     val r = datos
     Box(Modifier.fillMaxSize().background(Asfalto)) {
         when {
@@ -92,7 +98,7 @@ fun Lectura(id: String, cerrar: () -> Unit) {
                 BotonVolver(cerrar, TextoClaro)
                 Text(if (r.isFailure) "No se pudo abrir: ${r.exceptionOrNull()?.message ?: ""}" else "Ese artículo ya no existe.", color = Tenue, modifier = Modifier.padding(top = 16.dp))
             }
-            else -> VistaArticulo(r.getOrThrow()!!, coms, cerrar)
+            else -> VistaArticulo(r.getOrThrow()!!, coms, cerrar) { versionComs++ }
         }
     }
 }
@@ -105,9 +111,22 @@ private fun BotonVolver(cerrar: () -> Unit, color: Color) {
 }
 
 @Composable
-private fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Unit) {
+private fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Unit, recargarComs: () -> Unit) {
     val L = Look(a)
     val portada = imagen(a.portada)
+    val scope = rememberCoroutineScope()
+    val ejemplo = a.id.startsWith("ejemplo-")
+    var likes by remember(a.id) { mutableStateOf(a.likes) }
+    var recs by remember(a.id) { mutableStateOf(a.recomendados) }
+    var denuncia by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var notaRec by remember { mutableStateOf(false) }
+    var borrar by remember { mutableStateOf<String?>(null) }
+    val mio = Cuenta.dentro && Cuenta.uid == a.autor.id
+    fun accion(bloque: suspend () -> Unit) {
+        if (ejemplo) { Aviso.mostrar("Es un ejemplo: en los artículos de verdad esto funciona."); return }
+        if (!Nav.necesitaCuenta()) return
+        scope.launch { try { bloque() } catch (e: Throwable) { Aviso.mostrar(e.message ?: "Algo salió mal.", true) } }
+    }
     Box(Modifier.fillMaxSize()) {
         // Fondo fijo (no se mueve al bajar), como el fondo «pegado» de la web
         Box(Modifier.fillMaxSize().drawBehind { if (L.d.bg == "none" || (L.d.bg == "cover" && portada == null)) fondoTema(L.e, L.t) else fondoDiseno(L.d) })
@@ -136,7 +155,7 @@ private fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Uni
                     }
                 }
                 // Autor
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 14.dp).clip(RoundedCornerShape(12.dp)).clickable(enabled = a.autor.id.isNotEmpty()) { Nav.ir(Destino.Perfil(a.autor.id)) }) {
                     val av = imagen(a.autor.avatar)
                     Box(Modifier.size(42.dp).clip(CircleShape).background(Amarillo), contentAlignment = Alignment.Center) {
                         if (av != null) Image(av, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) else Text(a.autor.nombre.take(1).uppercase(), color = Color(0xFF1B1E23), fontWeight = FontWeight.Bold, fontSize = 18.sp)
@@ -146,7 +165,14 @@ private fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Uni
                         Text(a.autor.nombre, color = L.encabezado, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text("${Fechas.corta(a.fecha)} · ${Formato.minutos(a.texto)} min de lectura", color = L.tenue, fontSize = 13.sp)
                     }
+                    Spacer(Modifier.weight(1f))
+                    if (!mio && a.autor.id.isNotEmpty()) {
+                        val sigo = a.autor.id in Cuenta.sigo
+                        Text(if (sigo) "Siguiendo" else "Seguir", color = if (sigo) L.encabezado else Color(0xFF1B1E23), fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                            modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(if (sigo) Color(0x33000000) else L.acento).clickable { accion { Cuenta.alternarSeguir(a.autor.id) } }.padding(horizontal = 14.dp, vertical = 7.dp))
+                    }
                 }
+                if (mio && a.estado == "draft") Text("Borrador · solo tú lo ves", color = Color(0xFF1B1E23), fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp).clip(RoundedCornerShape(8.dp)).background(Amarillo).padding(horizontal = 10.dp, vertical = 4.dp))
                 a.resena?.let { Resena(it, L) }
                 Cuerpo(a, L)
                 if (a.galeria.isNotEmpty()) Galeria(a.galeria)
@@ -162,28 +188,95 @@ private fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Uni
                 if (a.etiquetas.isNotEmpty()) Row(Modifier.padding(top = 14.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     a.etiquetas.forEach { Text("#$it", color = L.acento, fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(RoundedCornerShape(999.dp)).border(1.dp, L.acento.copy(alpha = .6f), RoundedCornerShape(999.dp)).padding(horizontal = 12.dp, vertical = 6.dp)) }
                 }
-                // Me gusta y comentarios (por ahora se dan desde la web)
-                Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Pastilla("corazon", "Me gusta · ${a.likes}") { abrirEnlace(Supa.WEB + "#rv=" + a.id) }
-                    Pastilla("globo", "Comentar · ${a.comentarios}") { abrirEnlace(Supa.WEB + "#rv=" + a.id) }
-                }
-                Seccion("Comentarios (${coms.size})", L)
-                if (coms.isEmpty()) Text("Sé la primera persona en comentar.", color = L.tenue)
-                coms.forEach { c ->
-                    Column(Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x33000000)).padding(12.dp)) {
-                        Text("${c.nombre} · ${Fechas.corta(c.fecha)}", color = L.acento, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Text(c.texto, color = L.texto, fontSize = 15.sp, lineHeight = 21.sp, modifier = Modifier.padding(top = 4.dp))
+                // Me gusta, recomendar, compartir y denunciar
+                val gusta = a.id in Cuenta.likes; val recomendado = a.id in Cuenta.recomiendo
+                Row(Modifier.padding(top = 18.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Pastilla("corazon", (if (gusta) "Te gusta" else "Me gusta") + " · $likes", gusta, L.acento) { accion { val on = Cuenta.alternarLike(a.id); likes = maxOf(0, likes + if (on) 1 else -1) } }
+                    if (!mio) Pastilla("compartir", (if (recomendado) "Recomendado" else "Recomendar") + " · $recs", recomendado, L.acento) {
+                        if (recomendado) accion { Cuenta.dejarDeRecomendar(a.id); recs = maxOf(0, recs - 1); Aviso.mostrar("Ya no lo recomiendas.") }
+                        else accion { notaRec = true }
                     }
+                    Pastilla("compartir", "Compartir", false, L.acento) { abrirEnlace(Supa.WEB + "#rv=" + a.id) }
                 }
+                Row(Modifier.padding(top = 6.dp)) {
+                    if (!mio) Enlace("Denunciar", L.tenue) { accion { denuncia = "post" to a.id } }
+                    if (mio || Cuenta.esAdmin) Enlace("Eliminar artículo", Color(0xFFFF8A7A)) { accion { borrar = "post" } }
+                }
+                Comentarios(a, coms, L, ejemplo, recargarComs, { tipo, cid -> accion { denuncia = tipo to cid } }) { cid -> accion { borrar = cid } }
+            }
+        }
+        denuncia?.let { (t, i) -> DialogoDenuncia(t, i) { denuncia = null } }
+        if (notaRec) DialogoTexto("Recomendar en tu perfil", "Quienes te siguen lo verán en «Siguiendo».", "Una nota (opcional)", "Recomendar", cerrar = { notaRec = false }) { nota ->
+            notaRec = false
+            scope.launch { try { Cuenta.recomendar(a.id, nota); recs++; Aviso.mostrar("Recomendado en tu perfil.") } catch (e: Throwable) { Aviso.mostrar(e.message ?: "", true) } }
+        }
+        borrar?.let { b ->
+            if (b == "post") DialogoConfirmar("¿Eliminar este artículo?", "Se borrarán también sus comentarios y me gusta.", "Eliminar", { borrar = null }) {
+                borrar = null
+                scope.launch { try { Cuenta.api("DELETE", "/rest/v1/posts?id=eq.${a.id}"); Aviso.mostrar("Artículo eliminado."); Nav.atras() } catch (e: Throwable) { Aviso.mostrar(e.message ?: "", true) } }
+            } else DialogoConfirmar("¿Borrar comentario?", "No se puede deshacer.", "Borrar", { borrar = null }) {
+                borrar = null
+                scope.launch { try { Cuenta.borrarComentario(b); recargarComs() } catch (e: Throwable) { Aviso.mostrar(e.message ?: "", true) } }
             }
         }
     }
 }
 
 @Composable
-private fun Pastilla(icono: String, texto: String, onClick: () -> Unit) {
-    Row(Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0x40000000)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(999.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically) { Icono(icono, Color.White, 18.dp); Spacer(Modifier.width(6.dp)); Text(texto, color = Color.White, fontWeight = FontWeight.SemiBold) }
+private fun Pastilla(icono: String, texto: String, activo: Boolean, acento: Color, onClick: () -> Unit) {
+    Row(Modifier.clip(RoundedCornerShape(999.dp)).background(if (activo) acento else Color(0x40000000)).border(1.dp, if (activo) acento else Color(0x33FFFFFF), RoundedCornerShape(999.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        val c = if (activo) Color(0xFF1B1E23) else Color.White
+        Icono(icono, c, 18.dp); Spacer(Modifier.width(6.dp)); Text(texto, color = c, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** Comentarios con respuestas (un nivel, como la web), escribir, responder, borrar y denunciar. */
+@Composable
+private fun Comentarios(a: Articulo, coms: List<Comentario>, L: Look, ejemplo: Boolean, recargar: () -> Unit, denunciar: (String, String) -> Unit, borrar: (String) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var texto by remember(a.id) { mutableStateOf("") }
+    var responderA by remember(a.id) { mutableStateOf<Comentario?>(null) }
+    var enviando by remember { mutableStateOf(false) }
+    Seccion("Comentarios (${coms.size})", L)
+    val ids = coms.map { it.id }.toSet()
+    val principales = coms.filter { it.padre.isEmpty() || it.padre !in ids }
+    if (coms.isEmpty()) Text("Sé la primera persona en comentar.", color = L.tenue)
+    principales.forEach { c ->
+        UnComentario(c, L, false, { responderA = c }, denunciar, borrar)
+        coms.filter { it.padre == c.id }.forEach { h -> UnComentario(h, L, true, { responderA = c }, denunciar, borrar) }
+    }
+    Column(Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xE61B1E23)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        responderA?.let { r -> Row(verticalAlignment = Alignment.CenterVertically) { Text("Respondiendo a ${r.nombre}", color = Tenue, fontSize = 14.sp, modifier = Modifier.weight(1f)); Enlace("cancelar", Tenue) { responderA = null } } }
+        Campo(texto, { texto = it }, if (Cuenta.dentro) "Escribe un comentario…" else "Entra para comentar", lineas = 2, max = 1000)
+        Boton("Comentar", ocupado = enviando, habilitado = texto.isNotBlank()) {
+            if (ejemplo) { Aviso.mostrar("Es un ejemplo: en los artículos de verdad esto funciona."); return@Boton }
+            if (!Nav.necesitaCuenta()) return@Boton
+            scope.launch {
+                enviando = true
+                try { Cuenta.comentar(a.id, texto, responderA?.id); texto = ""; responderA = null; recargar() }
+                catch (e: Throwable) { Aviso.mostrar(e.message ?: "No se pudo comentar.", true) }
+                enviando = false
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnComentario(c: Comentario, L: Look, respuesta: Boolean, responder: () -> Unit, denunciar: (String, String) -> Unit, borrar: (String) -> Unit) {
+    val mio = Cuenta.dentro && c.autorId == Cuenta.uid
+    Column(Modifier.fillMaxWidth().padding(start = if (respuesta) 26.dp else 0.dp, top = 5.dp, bottom = 5.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x33000000)).padding(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(enabled = c.autorId.isNotEmpty()) { Nav.ir(Destino.Perfil(c.autorId)) }) {
+            Avatar(Autor(c.autorId, c.nombre, c.avatar), 24); Spacer(Modifier.width(8.dp))
+            Text("${c.nombre} · ${Fechas.corta(c.fecha)}", color = L.acento, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        }
+        Text(c.texto, color = L.texto, fontSize = 15.sp, lineHeight = 21.sp, modifier = Modifier.padding(top = 6.dp))
+        if (c.id.isNotEmpty()) Row {
+            Enlace("Responder", L.tenue, responder)
+            if (mio || Cuenta.esAdmin) Enlace("Borrar", L.tenue) { borrar(c.id) }
+            if (!mio) Enlace("Denunciar", L.tenue) { denunciar("comment", c.id) }
+        }
+    }
 }
 
 @Composable

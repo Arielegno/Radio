@@ -74,8 +74,13 @@ fun App() {
     LaunchedEffect(Unit) { Fuentes.cargar(); listo() }
     val h = remember { hashInicial() }
     var seccion by remember { mutableStateOf(when { h.startsWith("#posters") -> "posters"; h.startsWith("#boveda") -> "boveda"; else -> "inicio" }) }
-    var leyendo by remember { mutableStateOf(Regex("^#post=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1) ?: Regex("^#ejemplo=(\\d)$").find(h)?.groupValues?.get(1)?.let { "ejemplo-$it" }) }
+    LaunchedEffect(Unit) {
+        (Regex("^#post=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1) ?: Regex("^#ejemplo=(\\d)$").find(h)?.groupValues?.get(1)?.let { "ejemplo-$it" })?.let { Nav.ir(Destino.Leer(it)) }
+        Regex("^#perfil=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1)?.let { Nav.ir(Destino.Perfil(it)) }
+        Cuenta.social()
+    }
     val listaInicio = rememberLazyListState()
+    val arriba = Nav.pila.lastOrNull()
     if (!Fuentes.cargadas) return
     val base = Fuentes.de("barlow")
     MaterialTheme(colorScheme = darkColorScheme(primary = Amarillo, onPrimary = Color(0xFF1B1E23), background = Asfalto, surface = Panel, onBackground = TextoClaro, onSurface = TextoClaro), typography = tipografia(base)) {
@@ -87,12 +92,18 @@ fun App() {
                             "posters" -> Posters()
                             "boveda" -> Boveda()
                             "mas" -> Mas()
-                            else -> Inicio(listaInicio) { leyendo = it }
+                            else -> Inicio(listaInicio) { Nav.ir(Destino.Leer(it)) }
                         }
-                        leyendo?.let { id -> Lectura(id) { leyendo = null } }
+                        when (arriba) {
+                            is Destino.Leer -> androidx.compose.runtime.key(arriba.id) { Lectura(arriba.id) { Nav.atras() } }
+                            is Destino.Perfil -> androidx.compose.runtime.key(arriba.id) { PerfilPantalla(arriba.id) }
+                            null -> {}
+                        }
                     }
-                    if (leyendo == null) BarraAbajo(seccion) { seccion = it }
+                    if (arriba == null) BarraAbajo(seccion) { seccion = it }
                 }
+                if (Nav.dialogo == "cuenta") DialogoCuenta { Nav.dialogo = null }
+                AvisoVista()
             }
         }
     }
@@ -118,7 +129,8 @@ fun Cabecera(titulo: String, sub: String) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Amarillo), contentAlignment = Alignment.Center) { Icono("nota", Color(0xFF1B1E23), 24.dp) }
             Spacer(Modifier.width(10.dp))
-            Text(titulo, fontFamily = Fuentes.de("condensada"), fontWeight = FontWeight.ExtraBold, fontSize = 34.sp, lineHeight = 36.sp)
+            Text(titulo, fontFamily = Fuentes.de("condensada"), fontWeight = FontWeight.ExtraBold, fontSize = 34.sp, lineHeight = 36.sp, modifier = Modifier.weight(1f))
+            BotonCuenta()
         }
         Text(sub, color = Tenue, fontSize = 15.sp, modifier = Modifier.padding(top = 4.dp))
     }
@@ -135,13 +147,16 @@ private fun Cargando(texto: String = "Cargando…") {
 @Composable
 private fun Inicio(lista: androidx.compose.foundation.lazy.LazyListState, abrir: (String) -> Unit) {
     var filtro by remember { mutableStateOf("todo") }
-    val datos by produceState<Result<List<Articulo>>?>(null) { value = runCatching { Supa.portada() } }
+    val datos by produceState<Result<List<Articulo>>?>(null, filtro, Cuenta.sigo) {
+        value = null
+        value = runCatching { if (filtro == "siguiendo") (if (Cuenta.sigo.isEmpty()) emptyList() else Supa.portada(autores = Cuenta.sigo)) else Supa.portada() }
+    }
     val ejemplos by produceState<List<Articulo>>(emptyList(), datos) { val d = datos; if (d != null && d.getOrNull().isNullOrEmpty()) value = Ejemplos.lista() }
     LazyColumn(Modifier.fillMaxSize(), state = lista) {
         item { Cabecera("Revista", "Artículos, reseñas e historias de la comunidad de Radio de ruta") }
         item {
             Row(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("todo" to "Lo último", "resenas" to "Reseñas de discos").forEach { (k, n) ->
+                (listOf("todo" to "Lo último", "resenas" to "Reseñas de discos") + if (Cuenta.dentro) listOf("siguiendo" to "Siguiendo") else emptyList()).forEach { (k, n) ->
                     val on = filtro == k
                     Text(n, color = if (on) Color(0xFF1B1E23) else TextoClaro, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(if (on) Amarillo else Color.Transparent).border(1.dp, if (on) Amarillo else Color(0x33FFFFFF), RoundedCornerShape(999.dp))
@@ -155,7 +170,8 @@ private fun Inicio(lista: androidx.compose.foundation.lazy.LazyListState, abrir:
             r.isFailure -> item { Text("No se pudo cargar la Revista: ${r.exceptionOrNull()?.message ?: ""}", color = Tenue, modifier = Modifier.padding(18.dp)) }
             else -> {
                 val l = r.getOrThrow().filter { filtro == "todo" || it.resena != null }
-                if (l.isEmpty()) {
+                if (l.isEmpty() && filtro == "siguiendo") item { Text(if (Cuenta.sigo.isEmpty()) "Todavía no sigues a nadie. Abre el perfil de un autor y toca «Seguir»." else "Las personas que sigues aún no han publicado.", color = Tenue, modifier = Modifier.padding(18.dp)) }
+                else if (l.isEmpty()) {
                     item { Text("Todavía no hay artículos publicados.", color = Tenue, modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp)) }
                     if (ejemplos.isNotEmpty()) {
                         item { Text("ASÍ SE VERÁN · EJEMPLOS", color = Amarillo, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 1.5.sp, modifier = Modifier.padding(start = 18.dp, top = 18.dp)) }
@@ -172,7 +188,7 @@ private fun Inicio(lista: androidx.compose.foundation.lazy.LazyListState, abrir:
 }
 
 @Composable
-private fun Avatar(a: Autor, tam: Int) {
+fun Avatar(a: Autor, tam: Int) {
     val img = imagen(a.avatar)
     Box(Modifier.size(tam.dp).clip(CircleShape).background(Amarillo), contentAlignment = Alignment.Center) {
         if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -212,7 +228,7 @@ private fun Destacado(a: Articulo, abrir: () -> Unit) {
 }
 
 @Composable
-private fun Tarjeta(a: Articulo, abrir: () -> Unit) {
+fun Tarjeta(a: Articulo, abrir: () -> Unit) {
     val img = imagen(Supa.miniatura(a.portada), a.portada)
     val t = Temas.de(a.estilo)
     Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Panel).clickable(onClick = abrir)) {

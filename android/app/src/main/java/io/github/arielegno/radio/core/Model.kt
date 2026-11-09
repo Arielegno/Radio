@@ -23,7 +23,7 @@ data class Track(
 ) {
     val key: String get() = keyOf(name, artist)
     /** FLAC, WAV, ALAC o AIFF: sin pérdida. */
-    val sinPerdida: Boolean get() = Regex("flac|wav|x-wav|alac|aiff|x-aiff").containsMatchIn(mime.lowercase()) ||
+    val sinPerdida: Boolean get() = SIN_PERDIDA.containsMatchIn(mime.lowercase()) ||
         file.substringAfterLast('.', "").lowercase() in setOf("flac", "wav", "alac", "aiff", "aif")
 
     fun toMap(): Map<String, Any?> = linkedMapOf(
@@ -44,8 +44,22 @@ data class Track(
 }
 
 /** Igual que en la versión web: minúsculas, sin tildes ni signos. */
-fun normNombre(t: String?): String =
-    Normalizer.normalize((t ?: "").lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "").replace(Regex("[^a-z0-9]"), "")
+private val SIN_PERDIDA = Regex("flac|wav|x-wav|alac|aiff|x-aiff")
+
+// Se usa miles de veces al ordenar la biblioteca: sin expresiones regulares y con memoria de lo ya limpiado
+private val cacheNorm = java.util.concurrent.ConcurrentHashMap<String, String>()
+fun normNombre(t: String?): String {
+    val o = t ?: return ""
+    if (o.isEmpty()) return ""
+    cacheNorm[o]?.let { return it }
+    val d = Normalizer.normalize(o.lowercase(), Normalizer.Form.NFD)
+    val sb = StringBuilder(d.length)
+    for (c in d) if (c in 'a'..'z' || c in '0'..'9') sb.append(c)   // quita acentos, espacios y signos
+    val r = sb.toString()
+    if (cacheNorm.size > 40_000) cacheNorm.clear()
+    cacheNorm[o] = r
+    return r
+}
 
 /** Clave de una canción (compatible con la versión web: «nombre|artista» en minúsculas). */
 fun keyOf(name: String, artist: String): String = ("$name|$artist").lowercase()

@@ -2,6 +2,10 @@
 
 Lo más nuevo arriba. También se ve dentro de la app en Ajustes › Acerca de › Novedades.
 
+## 2.0.4
+- Arreglado: la app se trababa («no responde») al abrir la Biblioteca o al empezar la radio con muchas canciones.
+- Ordenar, buscar y agrupar la biblioteca es mucho más rápido: los nombres limpios se calculan una sola vez.
+
 ## 2.0.3
 - Arreglado: la app se cerraba al poner la radio. Las listas de reproducción (.m3u, .m3u8) se habían metido en la biblioteca como si fueran canciones.
 - Esas listas se quitan solas de tu biblioteca y ya no entran al agregar carpetas (tus canciones no se tocan).

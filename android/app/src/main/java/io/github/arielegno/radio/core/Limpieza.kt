@@ -39,7 +39,17 @@ object Limpieza {
     }
 
     /** Primer artista de «A, B & C feat. D». */
-    fun artistaPrincipal(a: String?): String = (a ?: "").split(Regex("[,;&]|\\bfeat\\.?\\b|\\bft\\.?\\b", RegexOption.IGNORE_CASE))[0].trim()
+    private val SEPARA_ARTISTAS = Regex("[,;&]|\\bfeat\\.?\\b|\\bft\\.?\\b", RegexOption.IGNORE_CASE)
+    private val cachePrincipal = java.util.concurrent.ConcurrentHashMap<String, String>()
+    /** El artista principal («Lana Del Rey feat. X» → «Lana Del Rey»). Se guarda lo ya calculado: se usa miles de veces. */
+    fun artistaPrincipal(a: String?): String {
+        val o = a ?: return ""
+        cachePrincipal[o]?.let { return it }
+        val r = o.split(SEPARA_ARTISTAS)[0].trim()
+        if (cachePrincipal.size > 20_000) cachePrincipal.clear()
+        cachePrincipal[o] = r
+        return r
+    }
 
     /** Datos encontrados en internet para una canción. */
     data class Datos(val album: String = "", val anio: Int = 0, val portada: String = "", val albumes: List<String> = emptyList())

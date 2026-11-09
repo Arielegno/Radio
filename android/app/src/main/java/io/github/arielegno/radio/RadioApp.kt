@@ -30,7 +30,8 @@ class RadioApp : Application() {
         lateinit var stats: Estadisticas; private set
         lateinit var radio: Radio; private set
         /** Tareas de fondo de la app (sobreviven a girar la pantalla). */
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate +
+            kotlinx.coroutines.CoroutineExceptionHandler { _, e -> Reportes.error("tarea de fondo", e) })   // un error en segundo plano ya no cierra la app
     }
 }
 

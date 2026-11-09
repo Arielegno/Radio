@@ -2,6 +2,10 @@
 
 Lo más nuevo arriba. También se ve dentro de la app en Ajustes › Acerca de › Novedades.
 
+## 2.0.2
+- Reportes de errores más completos: incluyen el detalle del error y las últimas líneas del registro de Android.
+- Un error en una tarea de fondo ya no cierra la app: queda anotado en los reportes.
+
 ## 2.0.1
 - Arreglado: la app se cerraba al probar las voces de la app (Daniela, Ald). Ahora la voz se genera frase por frase.
 - Los reportes de errores dicen qué estaba haciendo la app justo antes de cerrarse.

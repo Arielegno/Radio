@@ -41,8 +41,9 @@ object Reportes {
         val anterior = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { hilo, e ->
             try {
-                guardar("CIERRE INESPERADO · ${fecha(System.currentTimeMillis())}\n" + encabezado() + "Hilo: ${hilo.name}\n\n" + android.util.Log.getStackTraceString(e))
-                RadioApp.prefs.set("reporteNuevo", true)
+                guardar("CIERRE INESPERADO · ${fecha(System.currentTimeMillis())}\n" + encabezado() + "Lo último que hacía: ${ultimaAccion()}\nHilo: ${hilo.name}\n\n" + android.util.Log.getStackTraceString(e))
+                // se anota de inmediato (los ajustes se guardan tarde y se perdían al cerrarse la app)
+                File(dir, "ultimo_cierre_java").writeText(System.currentTimeMillis().toString())
             } catch (x: Throwable) {}
             anterior?.uncaughtException(hilo, e)
         }
@@ -53,21 +54,38 @@ object Reportes {
             val salidas = am.getHistoricalProcessExitReasons(ctx.packageName, 0, 5).filter { it.timestamp > visto }
             val malas = salidas.filter { it.reason in setOf(ApplicationExitInfo.REASON_CRASH, ApplicationExitInfo.REASON_CRASH_NATIVE, ApplicationExitInfo.REASON_ANR, ApplicationExitInfo.REASON_LOW_MEMORY) }
             salidas.maxOfOrNull { it.timestamp }?.let { RadioApp.prefs.set("ultimoCierreVisto", it.toString()) }
+            val java = try { File(dir, "ultimo_cierre_java").readText().toLong() } catch (e: Exception) { 0L }
             for (s in malas) {
-                if (s.reason == ApplicationExitInfo.REASON_CRASH && RadioApp.prefs.bool("reporteNuevo", false)) continue   // ya lo guardó el atrapador
+                // ya lo guardó el atrapador (con el detalle del error): no se repite
+                if (s.reason == ApplicationExitInfo.REASON_CRASH && kotlin.math.abs(s.timestamp - java) < 20_000) { RadioApp.prefs.set("reporteNuevo", true); continue }
                 val motivo = when (s.reason) {
                     ApplicationExitInfo.REASON_CRASH_NATIVE -> "Cierre del motor nativo (por ejemplo, voces de la app)"
                     ApplicationExitInfo.REASON_ANR -> "La app dejó de responder (ANR)"
                     ApplicationExitInfo.REASON_LOW_MEMORY -> "Android la cerró por falta de memoria"
                     else -> "Cierre inesperado"
                 }
-                val traza = try { s.traceInputStream?.use { it.readBytes().toString(Charsets.UTF_8).take(20_000) } } catch (e: Exception) { null }
+                val traza = try { s.traceInputStream?.use { it.readBytes().toString(Charsets.UTF_8).take(20_000) } } catch (e: Exception) { null } ?: registroDelSistema()
                 guardar("${motivo.uppercase()} · ${fecha(s.timestamp)}\n" + encabezado() + "Descripción: ${s.description ?: "-"} · Memoria usada: ${s.pss / 1024} MB\nLo último que hacía: ${ultimaAccion()}\n\n" + (traza ?: "(Android no guardó más detalles)"))
                 RadioApp.prefs.set("reporteNuevo", true)
             }
         } catch (e: Exception) {}
+        if (java > 0 && File(dir, "ultimo_cierre_java").lastModified() > (RadioApp.prefs.str("javaVisto", "0").toLongOrNull() ?: 0L)) {
+            RadioApp.prefs.set("javaVisto", System.currentTimeMillis().toString()); RadioApp.prefs.set("reporteNuevo", true)
+        }
         if (RadioApp.prefs.bool("reporteNuevo", false)) { pendiente = ultimo(); RadioApp.prefs.set("reporteNuevo", false) }
     }
+
+    /** Las últimas líneas del registro de Android de esta app (errores y avisos), para entender un cierre. */
+    private fun registroDelSistema(): String? = try {
+        val pr = Runtime.getRuntime().exec(arrayOf("logcat", "-d", "-v", "time", "-t", "1500"))
+        val lineas = pr.inputStream.bufferedReader().readLines()
+        pr.destroy()
+        val utiles = lineas.filter { Regex("AndroidRuntime|FATAL|Exception|Error|sherpa|onnx|libc|DEBUG|Caused by|\\sat |Radio|AudioTrack", RegexOption.IGNORE_CASE).containsMatchIn(it) }.takeLast(150)
+        if (utiles.isEmpty()) null else "Registro de Android (últimas líneas):\n" + utiles.joinToString("\n")
+    } catch (e: Exception) { null }
+
+    /** Un error que no cerró la app (se atrapó), igual queda anotado. */
+    fun error(donde: String, e: Throwable) { guardar("ERROR ATRAPADO · ${fecha(System.currentTimeMillis())}\n" + encabezado() + "Dónde: $donde\nLo último que hacía: ${ultimaAccion()}\n\n" + android.util.Log.getStackTraceString(e)) }
 
     /** Deja anotado qué estaba haciendo la app (si se cierra de golpe, el reporte lo dice). */
     fun marca(texto: String) { try { File(RadioApp.app.filesDir, "ultima_accion.txt").writeText(java.time.LocalTime.now().withNano(0).toString() + " · " + texto) } catch (e: Exception) {} }

@@ -70,7 +70,7 @@ class Biblioteca(private val ctx: Context) {
         val pendientes = ArrayDeque<String>().apply { add(DocumentsContract.getTreeDocumentId(carpeta)) }
         val exts = setOf("mp3", "m4a", "aac", "flac", "ogg", "oga", "opus", "wav", "wma", "alac", "aiff", "aif", "mka", "weba", "webm", "3gp", "amr")
         var vistas = 0
-        while (pendientes.isNotEmpty() && vistas < 200) {
+        while (pendientes.isNotEmpty() && vistas < 20_000) {   // carpetas con muchas subcarpetas (una por álbum)
             val doc = pendientes.removeFirst(); vistas++
             avisar("Buscando música… ${out.size} canciones encontradas")
             val hijos = DocumentsContract.buildChildDocumentsUriUsingTree(carpeta, doc)

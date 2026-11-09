@@ -103,6 +103,15 @@ object Guia {
         return a.isEmpty() || Regex("desconocid|\\b(letra|lyrics?|video|oficial|official|audio|hd|remix)\\b", RegexOption.IGNORE_CASE).containsMatchIn(a) || normNombre(a) == normNombre(t.name)
     }
 
+    /** El «álbum» es en realidad el nombre del archivo o un video («Jarabe De Palo - La Flaca», «… (Video Lyric, Letra)»). */
+    private fun albumBasura(t: Track): Boolean {
+        val a = t.album.trim(); if (a.isEmpty()) return false
+        if (Regex("\\b(video|lyrics?|letra|official|oficial|audio|visualizer|hd|mv|\\d{3,4}p)\\b", RegexOption.IGNORE_CASE).containsMatchIn(a)) return true
+        if (Regex("^[0-9a-fA-F]{16,}$").matches(a)) return true   // nombre de archivo tipo «5b9dbdf326974…»
+        val na = normNombre(a); val nt = normNombre(t.name); val nr = normNombre(Limpieza.artistaPrincipal(t.artist))
+        return nt.isNotEmpty() && nr.isNotEmpty() && na.contains(nt) && na.contains(nr) && na != nt
+    }
+
     /** iTunes por título (y artista si sirve): saca artista, título, álbum, año y portada aunque el archivo venga sin datos. */
     private suspend fun identificar(t: Track): Map<String, Any?>? {
         val dudoso = artistaDudoso(t)
@@ -149,6 +158,7 @@ object Guia {
         if (libre("artist") && Red.hayInternet(ctx)) artista = nombreOficial(artista)
         val nombre = if (libre("name")) Limpieza.titulo(t.name, artista, t0.artist) else t.name
         t = t.copy(name = nombre, artist = artista)
+        if (libre("album") && albumBasura(t)) t = t.copy(album = "")
         if (!Red.hayInternet(ctx)) return if (t != t0) t else null
         // Para buscar se usa el artista principal («Lana Del Rey, A$AP Rocky» → Lana Del Rey)
         val busca = t.copy(artist = Limpieza.artistaPrincipal(t.artist).ifBlank { t.artist })
@@ -211,19 +221,23 @@ object Guia {
             val falta = { t: Track -> (if (t.album.isEmpty()) 1 else 0) + (if (t.year == 0) 1 else 0) + (if (t.cover.isEmpty()) 1 else 0) }
             val reintentar = System.currentTimeMillis() - (RadioApp.prefs.str("guiaReintento", "0").toLongOrNull() ?: 0L) > 3 * 86_400_000L
             usosIA = 0
-            val pendientes = bib.pistas.filter { forzar || !it.revisada || (reintentar && falta(it) > 0) }.sortedByDescending(falta)
+            val hechas = if (forzar) Json.arr(RadioApp.prefs.str("guiaRonda", "[]")).mapNotNull { (it as? Number)?.toLong() }.toMutableSet() else mutableSetOf()
+            val pendientes = bib.pistas.filter { if (forzar) it.id !in hechas else (!it.revisada || (reintentar && falta(it) > 0)) }.sortedByDescending(falta)
             if (reintentar) RadioApp.prefs.set("guiaReintento", System.currentTimeMillis().toString())
             val lote = mutableListOf<Track>()
             pendientes.forEachIndexed { i, t ->
                 if (cancelar) return@forEachIndexed
-                progreso = "Completando datos (${i + 1} de ${pendientes.size})"
+                progreso = "Completando datos (${i + 1} de ${pendientes.size})" + if (forzar && hechas.isNotEmpty()) " · ${hechas.size} ya listas" else ""
                 val actual = bib.porId(t.id) ?: return@forEachIndexed
                 val n = revisar(actual, false)
                 if (n != null) { lote += n; if (n.album != actual.album || n.year != actual.year || n.cover != actual.cover) datos++ }
                 else lote += actual.copy(revisada = true)
-                if (lote.size >= 8) { bib.actualizar(lote.toList()); lote.clear() }
+                if (forzar) hechas += t.id
+                if (lote.size >= 8) { bib.actualizar(lote.toList()); lote.clear(); if (forzar) RadioApp.prefs.set("guiaRonda", Json.write(hechas.toList())) }
             }
             bib.actualizar(lote)
+            // Vuelta terminada: la próxima empieza de cero; si se canceló, sigue donde quedó
+            if (forzar) RadioApp.prefs.set("guiaRonda", if (cancelar) Json.write(hechas.toList()) else "[]")
             return when {
                 cancelar -> "Guía detenida: lo que ya se avanzó se conservó."
                 nombres + datos > 0 -> "Biblioteca actualizada: $nombres nombre(s) limpiados y $datos canción(es) completadas."

@@ -47,10 +47,6 @@ class VozLuna(private val ctx: Context) {
         val d = CompletableDeferred<Boolean>(); listo = d
         val oyente = TextToSpeech.OnInitListener { status ->
             d.complete(status == TextToSpeech.SUCCESS)
-            // Las voces neuronales (SherpaTTS) tardan en cargar la primera vez: se «calientan» en silencio
-            if (status == TextToSpeech.SUCCESS) RadioApp.scope.launchSafe {
-                if (preparar()) tts.synthesizeToFile("Hola.", Bundle(), java.io.File(ctx.cacheDir, "calentar.wav"), "calentar")
-            }
         }
         val t = if (motor.isEmpty()) TextToSpeech(ctx.applicationContext, oyente) else TextToSpeech(ctx.applicationContext, oyente, motor)
         t.setOnUtteranceProgressListener(progreso)
@@ -71,7 +67,7 @@ class VozLuna(private val ctx: Context) {
     }
 
     private suspend fun preparar(): Boolean {
-        val ok = withTimeoutOrNull(8000) { listo.await() } ?: false
+        val ok = withTimeoutOrNull(20_000) { listo.await() } ?: false   // las voces neuronales tardan más en arrancar
         if (!ok) return false
         val p = RadioApp.prefs
         val loc = when (p.str("acento", "neutro")) { "mx" -> Locale("es", "MX"); "ar" -> Locale("es", "AR"); "es" -> Locale("es", "ES"); "co" -> Locale("es", "CO"); "cl" -> Locale("es", "CL"); "hn" -> Locale("es", "HN"); else -> Locale("es", "US") }
@@ -104,6 +100,15 @@ class VozLuna(private val ctx: Context) {
     /** Habla y espera a que termine. Devuelve false si no se pudo. */
     suspend fun decir(texto: String): Boolean {
         if (texto.isBlank() || !preparar()) return false
+        // Si el motor de voz se traba, la radio no se queda esperando: se corta y sigue la música
+        val limite = 15_000L + texto.length * 110L
+        val r = withTimeoutOrNull(limite) { hablar(texto) }
+        if (r == null) { callar(); return false }
+        if (!r) { kotlinx.coroutines.delay(1200); return withTimeoutOrNull(limite) { hablar(texto) } ?: run { callar(); false } }   // un segundo intento
+        return true
+    }
+
+    private suspend fun hablar(texto: String): Boolean {
         val id = "luna" + n.incrementAndGet()
         return suspendCancellableCoroutine { cont ->
             pendientes[id] = { ok -> if (cont.isActive) cont.resume(ok) }

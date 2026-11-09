@@ -60,6 +60,8 @@ android {
     sourceSets["main"].java.srcDirs(layout.buildDirectory.dir("generated/revista"), "src/revista/kotlin")
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        // Las librerías del motor de voz van comprimidas: el APK baja de ~60 MB a ~30 MB
+        jniLibs.useLegacyPackaging = true
     }
 }
 

@@ -194,7 +194,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     if (i < CATEGORIAS.size - 1) HorizontalDivider(color = LocalExtra.current.borde, modifier = Modifier.padding(start = 58.dp))
                 }
             }
-            Text("Radio de ruta para Android · versión 1.9.1", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
+            Text("Radio de ruta para Android · versión 2.0", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 14.dp).align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(24.dp))
             return@Column
@@ -498,11 +498,40 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                 Boton("Ver el recorrido de bienvenida", verRecorrido)
                 Ayuda("No manipules la app mientras conduces.")
             }
-            else -> Grupo("Radio de ruta para Android") {
-                Text("Versión 1.9.1 · por Arielegno", fontWeight = FontWeight.SemiBold)
+            else -> {
+                Grupo("Novedades") {
+                    var todas by remember { mutableStateOf(false) }
+                    io.github.arielegno.radio.core.Novedades.LISTA.take(if (todas) 99 else 2).forEach { (v, l) ->
+                        Text("Versión $v", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
+                        l.forEach { Ayuda("• $it") }
+                    }
+                    if (!todas) TextButton(onClick = { todas = true }) { Text("Ver todas las versiones") }
+                }
+                Grupo("Reportes de errores") {
+                    var version by remember { mutableIntStateOf(0) }
+                    val lista = remember(version) { io.github.arielegno.radio.Reportes.todos() }
+                    Ayuda(if (lista.isEmpty()) "No hay reportes: la app no se ha cerrado sola." else "Si la app se cerró sola, aquí está qué pasó. Compártelo para que se pueda arreglar (no incluye tus claves ni tu música).")
+                    lista.take(5).forEach { f ->
+                        val t = remember(f) { runCatching { f.readText() }.getOrDefault("") }
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Text(t.lineSequence().firstOrNull().orEmpty(), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { io.github.arielegno.radio.Reportes.compartir(ctx, t) }) { Text("Compartir") }
+                        }
+                    }
+                    if (lista.isNotEmpty()) TextButton(onClick = { io.github.arielegno.radio.Reportes.borrarTodos(); version++ }) { Text("Borrar reportes") }
+                }
+                Grupo("Datos guardados") {
+                    var version by remember { mutableIntStateOf(0) }
+                    val mb = remember(version) { io.github.arielegno.radio.Almacen.tamano() / 1_048_576.0 }
+                    Ayuda("Biografías, fichas de artistas y comentarios de Luna ya generados: %.1f MB. Se conservan al actualizar la app.".format(mb))
+                    TextButton(onClick = { io.github.arielegno.radio.Almacen.vaciar(); version++; aviso = "Datos guardados borrados: se volverán a generar cuando hagan falta." }) { Text("Borrar datos guardados") }
+                }
+                Grupo("Radio de ruta para Android") {
+                Text("Versión 2.0 · por Arielegno", fontWeight = FontWeight.SemiBold)
                 Ayuda("No manipules la app mientras conduces: configúrala antes de arrancar.")
                 TextButton(onClick = { abrir(ctx, "https://arielegno.github.io/Radio/legal.html") }) { Text("Aviso legal y privacidad") }
                 Ayuda("Usa Media3 (Apache 2.0), Jetpack Compose (Apache 2.0), sherpa-onnx (Apache 2.0) con voces Piper, Apache Commons Compress (Apache 2.0), Leaflet (BSD-2) y datos de OpenStreetMap (ODbL), Open-Meteo, Wikipedia (CC BY-SA), MusicBrainz (CC0), iTunes Search, Spotify, Google Gemini y Anthropic Claude.")
+            }
             }
         }
         Spacer(Modifier.height(32.dp))

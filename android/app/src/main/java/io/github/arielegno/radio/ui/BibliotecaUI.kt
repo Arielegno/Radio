@@ -168,6 +168,9 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
     val guardarCopia = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         if (uri != null) scope.launchSafe { aviso = try { b.exportar(uri) } catch (e: Exception) { "No se pudo guardar la copia: ${e.message ?: "error"}" } }
     }
+    val copiaOrdenada = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+        if (uri != null) scope.launchSafe { aviso = try { b.copiaOrdenada(uri) } catch (e: Exception) { "No se pudo hacer la copia ordenada: ${e.message ?: "error"}" } }
+    }
     val copias = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
         if (uris.isNotEmpty()) scope.launchSafe { aviso = b.restaurar(uris) }
     }
@@ -188,6 +191,8 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
         completar = { t -> scope.launchSafe { aviso = Guia.completar(t.id) } }
     )
 
+    // Agrupar miles de canciones se hace una vez por cambio (antes en cada redibujo de la lista)
+    val gruposVista = remember(filtradas, vista) { if (vista == "canciones" || vista == "playlists") emptyList() else Coleccion.agrupar(filtradas, vista) }
     val listaBib = androidx.compose.foundation.lazy.rememberLazyListState()   // al volver de un artista o álbum, sigue donde estabas
     val c = carpeta
     if (c != null) {
@@ -205,6 +210,7 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
                         if (Guia.trabajando) DropdownMenuItem(text = { Text("Detener la guía") }, leadingIcon = { Icon(Icons.Filled.Stop, null) }, onClick = { menu = false; Guia.detener() })
                         else DropdownMenuItem(text = { Text("Limpiar y completar") }, leadingIcon = { Icon(Icons.Filled.AutoAwesome, null) },
                             onClick = { menu = false; scope.launchSafe { aviso = Guia.mantener(true) } })
+                        DropdownMenuItem(text = { Text("Copia ordenada por artista y álbum") }, leadingIcon = { Icon(Icons.Filled.Backup, null) }, onClick = { menu = false; aviso = "Elige (o crea) una carpeta: ahí se guardará tu música ordenada en Artista › Álbum, sin tocar tus carpetas originales."; copiaOrdenada.launch(null) })
                         DropdownMenuItem(text = { Text("Guardar copia de mi música") }, leadingIcon = { Icon(Icons.Filled.Backup, null) }, onClick = { menu = false; guardarCopia.launch(null) })
                         DropdownMenuItem(text = { Text("Restaurar copia (.rrlib)") }, leadingIcon = { Icon(Icons.Filled.Restore, null) }, onClick = { menu = false; copias.launch(arrayOf("*/*")) })
                     }
@@ -272,7 +278,7 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
                 }
             }
             "albumes" -> {
-                val grupos = Coleccion.agrupar(filtradas, "albumes")
+                val grupos = gruposVista
                 val cols = when (p.str("portadas", "medium")) { "small" -> 4; "large" -> 2; else -> 3 }
                 if (grupos.isEmpty()) item { Text("No hay resultados.", color = LocalExtra.current.tenue, modifier = Modifier.padding(16.dp)) }
                 items(grupos.chunked(cols)) { fila ->
@@ -289,7 +295,7 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
                 }
             }
             "artistas" -> {
-                val grupos = Coleccion.agrupar(filtradas, "artistas")
+                val grupos = gruposVista
                 if (grupos.isEmpty()) item { Text("No hay resultados.", color = LocalExtra.current.tenue, modifier = Modifier.padding(16.dp)) }
                 items(grupos.chunked(3)) { fila ->   // sin clave: al agregar artistas la lista no salta
                     Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -299,7 +305,7 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
                 }
             }
             else -> {
-                val grupos = Coleccion.agrupar(filtradas, vista)
+                val grupos = gruposVista
                 if (grupos.isEmpty()) item { Text("No hay resultados.", color = LocalExtra.current.tenue, modifier = Modifier.padding(16.dp)) }
                 items(grupos, key = { "$vista:${it.clave}" }) { g ->
                     val n = g.canciones.size
@@ -505,8 +511,9 @@ private fun CabeceraAlbum(album: String, canciones: List<Track>, portada: Track?
 @Composable
 fun TarjetaArtista(g: Coleccion.Grupo, modifier: Modifier, abrir: () -> Unit) {
     val foto by produceState<java.io.File?>(null, g.clave) { value = try { FichasRed.fotoArtista(g.clave) } catch (e: Exception) { null } }
-    val imgFoto = cargarImagen(foto, 500)
-    val imgPortada = cargarImagen(g.portada?.let { RadioApp.biblioteca.caratula(it) }, 400)
+    // Solo se lee una imagen por tarjeta (antes se leían dos) y del tamaño de la tarjeta
+    val imgFoto = cargarImagen(foto, 360)
+    val imgPortada = cargarImagen(if (foto == null) g.portada?.let { RadioApp.biblioteca.caratula(it) } else null, 300)
     val img = imgFoto ?: imgPortada
     val n = g.canciones.size
     Box(modifier.aspectRatio(0.68f).clip(RoundedCornerShape(18.dp)).clickable(onClick = abrir)) {

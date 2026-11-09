@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
@@ -39,22 +40,40 @@ class Biblioteca(private val ctx: Context) {
 
     var pistas by mutableStateOf(cargar())
         private set
+    /** Índice por id (buscar una canción era recorrer toda la lista cada vez). */
+    @Volatile private var indicePorId: Map<Long, Track> = pistas.associateBy { it.id }
     /** Texto de progreso mientras se agregan o restauran canciones (null si no hay nada en curso). */
     var progreso by mutableStateOf<String?>(null)
         private set
 
-    private fun cargar(): List<Track> =
-        Json.arr(Datos.leer(indice)).mapNotNull { it.asObj()?.let(Track::from) }.filter { File(dirMusica, it.file).exists() }
+    // Al abrir solo se lee la lista; revisar que cada archivo exista se hace después, en segundo plano
+    private fun cargar(): List<Track> = Json.arr(Datos.leer(indice)).mapNotNull { it.asObj()?.let(Track::from) }
+
+    init {
+        RadioApp.scope.launch(Dispatchers.IO) {
+            val faltan = pistas.filter { !File(dirMusica, it.file).exists() }.map { it.id }.toSet()
+            if (faltan.isNotEmpty()) { val l = pistas.filter { it.id !in faltan }; guardar(l); publicar(l) }
+        }
+    }
+
+    // Guardar la lista completa (miles de canciones) cuesta: se junta y se guarda como mucho cada 8 segundos
+    private var guardadoPendiente: kotlinx.coroutines.Job? = null
+    private fun guardarLuego() {
+        if (guardadoPendiente?.isActive == true) return
+        guardadoPendiente = RadioApp.scope.launch(Dispatchers.IO) { kotlinx.coroutines.delay(8000); guardar(pistas) }
+    }
+    /** Guarda ya lo pendiente (al cerrar la guía o la app). */
+    fun guardarAhora() { guardadoPendiente?.cancel(); RadioApp.scope.launch(Dispatchers.IO) { guardar(pistas) } }
 
     private fun guardar(lista: List<Track>) = Datos.escribir(indice, Json.write(lista.map { it.toMap() }))
 
     fun archivo(t: Track) = File(dirMusica, t.file)
     fun caratula(t: Track): File? = if (t.cover.isEmpty()) null else File(dirCaratulas, t.cover).takeIf { it.exists() }
-    fun porId(id: Long): Track? = pistas.firstOrNull { it.id == id }
+    fun porId(id: Long): Track? = indicePorId[id]
 
     private fun claveDup(name: String, artist: String, size: Long) = normNombre(name) + "|" + normNombre(artist) + "|" + size
 
-    private suspend fun publicar(lista: List<Track>) = withContext(Dispatchers.Main) { pistas = lista }
+    private suspend fun publicar(lista: List<Track>) { val m = lista.associateBy { it.id }; withContext(Dispatchers.Main) { pistas = lista; indicePorId = m } }
     private suspend fun avisar(t: String?) = withContext(Dispatchers.Main) { progreso = t }
 
     private fun extDe(nombre: String, mime: String): String {
@@ -214,7 +233,7 @@ class Biblioteca(private val ctx: Context) {
         val porId = cambios.associateBy { it.id }
         var migro = false
         val l = pistas.map { v -> porId[v.id]?.also { n -> if (n.name != v.name || n.artist != v.artist) { RadioApp.stats.migrar(v.name, v.artist, n.name, n.artist); migro = true } } ?: v }
-        guardar(l); publicar(l)
+        publicar(l); guardarLuego()
         if (migro) Datos.guardarStats()
     }
 
@@ -257,6 +276,53 @@ class Biblioteca(private val ctx: Context) {
     fun recargarListas() { listas = io.github.arielegno.radio.core.Playlists(RadioApp.prefs.str("playlists", "")); versionListas++ }
 
     /** Copia de seguridad con audios en la carpeta que elija la persona. */
+    /**
+     * Copia ordenada: guarda tu música en una carpeta que elijas como «Artista/Álbum/Título.mp3»,
+     * con los nombres ya limpios por la guía. No toca ni borra nada de tus carpetas originales.
+     * Lo que ya está copiado se salta (puedes repetirla cuando agregues canciones).
+     */
+    suspend fun copiaOrdenada(arbol: Uri): String = withContext(Dispatchers.IO) {
+        val cr = ctx.contentResolver
+        fun limpio(t: String) = t.replace(Regex("[\\\\/:*?\"<>|\\x00-\\x1f]"), " ").replace(Regex("\\s+"), " ").trim().trimEnd('.').take(80).ifEmpty { "Sin nombre" }
+        val hijos = HashMap<String, MutableMap<String, String>>()   // carpeta → (nombre → id)
+        fun listar(doc: String): MutableMap<String, String> = hijos.getOrPut(doc) {
+            val m = HashMap<String, String>()
+            try {
+                cr.query(DocumentsContract.buildChildDocumentsUriUsingTree(arbol, doc), arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)?.use { c ->
+                    while (c.moveToNext()) { val id = c.getString(0); val n = c.getString(1); if (id != null && n != null) m[n] = id }
+                }
+            } catch (e: Exception) {}
+            m
+        }
+        fun carpeta(padre: String, nombre: String): String {
+            listar(padre)[nombre]?.let { return it }
+            val u = DocumentsContract.createDocument(cr, DocumentsContract.buildDocumentUriUsingTree(arbol, padre), DocumentsContract.Document.MIME_TYPE_DIR, nombre) ?: throw IllegalStateException("No se pudo crear la carpeta «$nombre»")
+            val id = DocumentsContract.getDocumentId(u); listar(padre)[nombre] = id; return id
+        }
+        val raiz = DocumentsContract.getTreeDocumentId(arbol)
+        val lista = pistas
+        var hechas = 0; var saltadas = 0; var fallas = 0
+        lista.forEachIndexed { i, t ->
+            avisar("Copia ordenada: ${i + 1} de ${lista.size}…")
+            try {
+                val art = carpeta(raiz, limpio(io.github.arielegno.radio.core.Limpieza.artistaPrincipal(t.artist).ifBlank { "Artista desconocido" }))
+                val alb = carpeta(art, limpio(t.album.ifBlank { "Sin álbum" }))
+                val ext = t.file.substringAfterLast('.', "mp3")
+                val nombre = limpio(t.name) + "." + ext
+                if (listar(alb).containsKey(nombre)) { saltadas++; return@forEachIndexed }
+                val u = DocumentsContract.createDocument(cr, DocumentsContract.buildDocumentUriUsingTree(arbol, alb), t.mime.ifBlank { "audio/mpeg" }, nombre) ?: throw IllegalStateException()
+                cr.openOutputStream(u)?.use { out -> File(dirMusica, t.file).inputStream().use { it.copyTo(out, 256 * 1024) } }
+                // la carátula del álbum, una vez por carpeta
+                if (t.cover.isNotEmpty() && !listar(alb).containsKey("cover.jpg")) caratula(t)?.let { f ->
+                    DocumentsContract.createDocument(cr, DocumentsContract.buildDocumentUriUsingTree(arbol, alb), "image/jpeg", "cover.jpg")?.let { cu -> cr.openOutputStream(cu)?.use { o -> f.inputStream().use { it.copyTo(o) } }; listar(alb)["cover.jpg"] = "" }
+                }
+                listar(alb)[nombre] = ""; hechas++
+            } catch (e: Exception) { fallas++ }
+        }
+        avisar(null)
+        "Copia ordenada lista: $hechas canciones copiadas" + (if (saltadas > 0) ", $saltadas ya estaban" else "") + (if (fallas > 0) ", $fallas no se pudieron copiar" else "") + "."
+    }
+
     suspend fun exportar(carpeta: Uri): String = withContext(Dispatchers.IO) {
         val lista = pistas
         if (lista.isEmpty()) return@withContext "Tu biblioteca está vacía."

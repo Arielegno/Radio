@@ -222,7 +222,8 @@ object Guia {
             val reintentar = System.currentTimeMillis() - (RadioApp.prefs.str("guiaReintento", "0").toLongOrNull() ?: 0L) > 3 * 86_400_000L
             usosIA = 0
             val hechas = if (forzar) Json.arr(RadioApp.prefs.str("guiaRonda", "[]")).mapNotNull { (it as? Number)?.toLong() }.toMutableSet() else mutableSetOf()
-            val pendientes = bib.pistas.filter { if (forzar) it.id !in hechas else (!it.revisada || (reintentar && falta(it) > 0)) }.sortedByDescending(falta)
+            val incompleta = { t: Track -> falta(t) > 0 || t.artist.isBlank() || Regex("desconocid", RegexOption.IGNORE_CASE).containsMatchIn(t.artist) }
+            val pendientes = bib.pistas.filter { if (forzar) it.id !in hechas && (!it.revisada || incompleta(it)) else (!it.revisada || (reintentar && falta(it) > 0)) }.sortedByDescending(falta)
             if (reintentar) RadioApp.prefs.set("guiaReintento", System.currentTimeMillis().toString())
             val lote = mutableListOf<Track>()
             pendientes.forEachIndexed { i, t ->
@@ -233,7 +234,7 @@ object Guia {
                 if (n != null) { lote += n; if (n.album != actual.album || n.year != actual.year || n.cover != actual.cover) datos++ }
                 else lote += actual.copy(revisada = true)
                 if (forzar) hechas += t.id
-                if (lote.size >= 8) { bib.actualizar(lote.toList()); lote.clear(); if (forzar) RadioApp.prefs.set("guiaRonda", Json.write(hechas.toList())) }
+                if (lote.size >= 40) { bib.actualizar(lote.toList()); lote.clear(); if (forzar) RadioApp.prefs.set("guiaRonda", Json.write(hechas.toList())) }
             }
             bib.actualizar(lote)
             // Vuelta terminada: la próxima empieza de cero; si se canceló, sigue donde quedó
@@ -243,7 +244,7 @@ object Guia {
                 nombres + datos > 0 -> "Biblioteca actualizada: $nombres nombre(s) limpiados y $datos canción(es) completadas."
                 else -> "Tu biblioteca ya estaba limpia y completa."
             }
-        } finally { trabajando = false; progreso = "" }
+        } finally { trabajando = false; progreso = ""; bib.guardarAhora() }
     }
 
     /** Biografía corta del artista (Wikipedia en español), guardada para verla sin internet. */

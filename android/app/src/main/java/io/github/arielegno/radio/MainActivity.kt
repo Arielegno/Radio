@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         controlador?.let { MediaController.releaseFuture(it) }
         controlador = null
+        RadioApp.biblioteca.guardarAhora()   // lo que la guía cambió queda guardado aunque cierres la app
         super.onStop()
     }
 }

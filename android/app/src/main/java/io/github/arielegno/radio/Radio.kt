@@ -22,6 +22,8 @@ import io.github.arielegno.radio.core.SpotifyAhora
 import io.github.arielegno.radio.core.Track
 import io.github.arielegno.radio.core.num
 import io.github.arielegno.radio.core.str
+import io.github.arielegno.radio.core.normNombre
+import io.github.arielegno.radio.core.asObj
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -350,18 +352,48 @@ class Radio(private val ctx: Context) {
             clima = if (tocaClima) entorno.clima else "", lugar = if (tocaLugar) entorno.zona else "",
             efemeride = Efemerides.propias(p.str("efemerides", ""), LocalDate.now()),
             dedicatoria = ded, programa = prog?.texto ?: "", memoria = memoria, anteriores = anteriores.toList())
-        if (p.str("proveedor", "gemini") == "claude") return escribirClaude(a, c, next != null, now.hour)
+        // Comentarios guardados: si es la misma pareja de canciones y no hay hora, clima, lugar ni dedicatoria,
+        // se reutiliza un comentario que no se haya dicho en los últimos días (menos espera y menos gasto de IA)
+        val reutilizable = c.hora.isEmpty() && c.clima.isEmpty() && c.lugar.isEmpty() && ded.isEmpty() && prog == null && c.efemeride.isEmpty()
+        val ck = "guion_" + listOf(prev, next).joinToString("__") { t -> t?.let { normNombre(it.name).take(40) + "_" + normNombre(it.artist).take(30) } ?: "-" } + "_" + a.modo + "_" + a.pareja
+        val hayIA = Red.hayInternet(ctx) && (if (p.str("proveedor", "gemini") == "claude") p.str("claudeKey", "") else p.str("geminiKey", "")).isNotBlank()
+        if (reutilizable) guionGuardado(ck, sinIA = !hayIA)?.let { return it }
+        val nuevo = escribirIA(a, c, next, now.hour)
+        if (nuevo != null && reutilizable) guardarGuion(ck, nuevo)
+        return nuevo ?: Luna.sinIA(c, a)
+    }
+
+    private fun guionGuardado(ck: String, sinIA: Boolean): String? {
+        val l = Json.arr(p.str(ck, "[]")).mapNotNull { it.asObj() }
+        if (l.isEmpty()) return null
+        val hace = System.currentTimeMillis() - 3 * 86_400_000L
+        val v = l.filter { ((it["u"] as? Number)?.toLong() ?: 0L) < hace }.randomOrNull() ?: if (sinIA || l.size >= 3) l.minByOrNull { (it["u"] as? Number)?.toLong() ?: 0L } else null
+        v ?: return null
+        val t = v.str("t"); if (t.isBlank()) return null
+        p.set(ck, Json.write(l.map { if (it === v) linkedMapOf("t" to t, "u" to System.currentTimeMillis()) else it }))
+        return t
+    }
+
+    private fun guardarGuion(ck: String, t: String) {
+        val l = Json.arr(p.str(ck, "[]")).mapNotNull { it.asObj() }
+        p.set(ck, Json.write((l + linkedMapOf("t" to t, "u" to System.currentTimeMillis())).takeLast(3)))
+    }
+
+    /** Lo que escribe la IA (null si no hay IA o falló: entonces Luna usa frases sencillas). */
+    private suspend fun escribirIA(a: io.github.arielegno.radio.core.LunaAjustes, c: LunaContexto, next: Track?, hora: Int): String? {
+        if (p.str("proveedor", "gemini") == "claude") return escribirClaude(a, c, next != null, hora)
         val clave = p.str("geminiKey", "").trim()
-        if (clave.isEmpty() || !Red.hayInternet(ctx)) return Luna.sinIA(c, a)
+        if (clave.isEmpty() || !Red.hayInternet(ctx)) return null
+        val now = LocalDateTime.now()
         return try {
             val modelo = p.str("geminiModel", "").trim().ifEmpty { p.str("geminiModelSel", "gemini-3.5-flash-lite") }.filter { it.isLetterOrDigit() || it == '-' || it == '.' }
             val r = Red.post("https://generativelanguage.googleapis.com/v1beta/models/$modelo:generateContent",
                 Luna.peticionGemini(Luna.sistema(a, next != null, now.hour), Luna.usuario(c)), mapOf("x-goog-api-key" to clave), 25_000)
-            Luna.textoGemini(r) ?: Luna.sinIA(c, a)
+            Luna.textoGemini(r)
         } catch (e: Red.Error) {
             mensaje = when (e.codigo) { 400, 403 -> "Gemini rechazó la clave: revísala en Ajustes."; 404 -> "Ese modelo de Gemini no existe: cámbialo en Ajustes."; 429 -> "Gemini llegó a su límite gratis por ahora: Luna usa frases sencillas."; else -> "Gemini falló (${e.codigo}): Luna usa frases sencillas." }
-            Luna.sinIA(c, a)
-        } catch (e: Exception) { Luna.sinIA(c, a) }
+            null
+        } catch (e: Exception) { null }
     }
 
     private var intervenciones = 0
@@ -376,17 +408,17 @@ class Radio(private val ctx: Context) {
     }
 
     /** Claude (de pago, con tu propia clave de Anthropic). */
-    private suspend fun escribirClaude(a: io.github.arielegno.radio.core.LunaAjustes, c: LunaContexto, conSiguiente: Boolean, hora: Int): String {
+    private suspend fun escribirClaude(a: io.github.arielegno.radio.core.LunaAjustes, c: LunaContexto, conSiguiente: Boolean, hora: Int): String? {
         val clave = p.str("claudeKey", "").trim()
-        if (clave.isEmpty() || !Red.hayInternet(ctx)) return Luna.sinIA(c, a)
+        if (clave.isEmpty() || !Red.hayInternet(ctx)) return null
         val modelo = p.str("claudeModel", "claude-sonnet-5-5").trim().filter { it.isLetterOrDigit() || it == '-' || it == '.' }.ifEmpty { "claude-sonnet-5-5" }
         val (cod, txt) = try {
             Red.crudo("POST", "https://api.anthropic.com/v1/messages", Luna.peticionClaude(modelo, Luna.sistema(a, conSiguiente, hora), Luna.usuario(c)),
                 mapOf("x-api-key" to clave, "anthropic-version" to "2023-06-01"), timeoutMs = 25_000)
-        } catch (e: Exception) { return Luna.sinIA(c, a) }
-        if (cod in 200..299) return Luna.textoClaude(txt) ?: Luna.sinIA(c, a)
+        } catch (e: Exception) { return null }
+        if (cod in 200..299) return Luna.textoClaude(txt)
         mensaje = when (cod) { 401, 403 -> "Claude rechazó la clave: revísala en Ajustes."; 404 -> "Ese modelo de Claude no existe: cámbialo en Ajustes."; 429, 529 -> "Claude está ocupado o llegaste a tu límite: Luna usa frases sencillas."; else -> "Claude falló ($cod): Luna usa frases sencillas." }
-        return Luna.sinIA(c, a)
+        return null
     }
 
     /** Para «Probar intervención» en Ajustes. */

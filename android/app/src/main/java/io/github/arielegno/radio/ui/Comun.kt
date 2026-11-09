@@ -45,7 +45,8 @@ import java.net.URL
 
 /** Imágenes en memoria (carátulas y miniaturas) para no leerlas dos veces. */
 object Imagenes {
-    private val cache = object : LruCache<String, Bitmap>(24 * 1024 * 1024) {
+    // Una octava parte de la memoria de la app (antes 24 MB fijos: con muchas portadas se leían una y otra vez)
+    private val cache = object : LruCache<String, Bitmap>((Runtime.getRuntime().maxMemory() / 8).toInt().coerceIn(16 * 1024 * 1024, 96 * 1024 * 1024)) {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
@@ -71,7 +72,13 @@ object Imagenes {
             val c = URL(url).openConnection() as HttpURLConnection
             c.connectTimeout = 8000; c.readTimeout = 8000; c.setRequestProperty("User-Agent", "RadioDeRuta-Android/1.0")
             val b = try { if (c.responseCode in 200..299) c.inputStream.use { it.readBytes() } else null } finally { c.disconnect() }
-            b?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }?.also { cache.put(url, it) }
+            // Las fotos de internet pueden ser enormes: se leen achicadas (antes podían agotar la memoria y cerrar la app)
+            b?.let { bytes ->
+                val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
+                var s = 1; while (o.outWidth / (s * 2) >= 1200 || o.outHeight / (s * 2) >= 1200) s *= 2
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = s })
+            }?.also { cache.put(url, it) }
         } catch (e: Exception) { null }
     }
 

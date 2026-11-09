@@ -12,3 +12,9 @@
 -dontwarn org.tukaani.**
 -dontwarn com.github.luben.**
 -dontwarn org.objectweb.asm.**
+
+# El motor de voz llama desde C++ a «invoke» de las funciones de Kotlin y crea GeneratedAudio por su nombre:
+# si R8 les cambia el nombre, la app se cierra al hablar (pasaba al tocar «Probar»).
+-keep class kotlin.jvm.functions.** { *; }
+-keep class kotlin.Unit { *; }
+-keepclassmembers class * implements kotlin.jvm.functions.Function1 { public java.lang.Object invoke(java.lang.Object); }

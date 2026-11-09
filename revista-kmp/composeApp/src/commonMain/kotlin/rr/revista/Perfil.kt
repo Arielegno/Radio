@@ -113,8 +113,11 @@ fun PerfilPantalla(id: String) {
                                 }
                                 Spacer(Modifier.weight(1f))
                                 if (mio) Boton("Cerrar sesión", principal = false, modifier = Modifier.offset(y = (-24).dp)) { salir = true }
-                                else Boton(if (id in Cuenta.sigo) "Siguiendo" else "Seguir", principal = id !in Cuenta.sigo, modifier = Modifier.offset(y = (-24).dp)) {
-                                    if (Nav.necesitaCuenta()) scope.launch { try { Cuenta.alternarSeguir(id); version++ } catch (e: Throwable) { Aviso.mostrar(e.message ?: "", true) } }
+                                else Row(Modifier.offset(y = (-24).dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Boton("Mensaje", principal = false) { if (Nav.necesitaCuenta()) Nav.ir(Destino.Chat(id)) }
+                                    Boton(if (id in Cuenta.sigo) "Siguiendo" else "Seguir", principal = id !in Cuenta.sigo) {
+                                        if (Nav.necesitaCuenta()) scope.launch { try { Cuenta.alternarSeguir(id); version++ } catch (e: Throwable) { Aviso.mostrar(e.message ?: "", true) } }
+                                    }
                                 }
                             }
                             Column(Modifier.offset(y = (-28).dp)) {

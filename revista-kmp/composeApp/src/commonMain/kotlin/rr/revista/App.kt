@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -117,12 +118,16 @@ fun App() {
                             Destino.Club -> ClubPantalla()
                             is Destino.Concierto -> androidx.compose.runtime.key(arriba.id) { ConciertoPantalla(arriba.id) }
                             Destino.Admin -> AdminPantalla()
+                            Destino.Buscar -> BuscarPantalla()
+                            Destino.Chats -> ChatsPantalla()
+                            is Destino.Chat -> androidx.compose.runtime.key(arriba.id) { ChatPantalla(arriba.id) }
                             null -> {}
                         }
                     }
                     if (arriba == null) BarraAbajo(seccion) { seccion = it }
                 }
                 if (Nav.dialogo == "cuenta") DialogoCuenta { Nav.dialogo = null }
+                VisorVista()
                 AvisoVista()
             }
         }
@@ -150,7 +155,8 @@ fun Cabecera(titulo: String, sub: String) {
             Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Amarillo), contentAlignment = Alignment.Center) { Icono("nota", Color(0xFF1B1E23), 24.dp) }
             Spacer(Modifier.width(10.dp))
             Text(titulo, fontFamily = Fuentes.de("condensada"), fontWeight = FontWeight.ExtraBold, fontSize = 34.sp, lineHeight = 36.sp, modifier = Modifier.weight(1f))
-            Campana(); Spacer(Modifier.width(6.dp))
+            Box(Modifier.size(40.dp).clip(CircleShape).clickable { Nav.ir(Destino.Buscar) }, contentAlignment = Alignment.Center) { Icono("lupa", TextoClaro, 23.dp) }
+            BotonChats(); Campana(); Spacer(Modifier.width(6.dp))
             BotonCuenta()
         }
         Text(sub, color = Tenue, fontSize = 15.sp, modifier = Modifier.padding(top = 4.dp))
@@ -185,6 +191,7 @@ private fun Inicio(lista: androidx.compose.foundation.lazy.LazyListState, abrir:
                 }
             }
         }
+        if (Cuenta.dentro && filtro == "todo") item(key = "sugerencias") { Sugerencias("Personas que quizá conozcas", Modifier.padding(top = 14.dp, bottom = 6.dp)) }
         val r = datos
         when {
             r == null -> item { Cargando("Cargando artículos…") }
@@ -204,7 +211,7 @@ private fun Inicio(lista: androidx.compose.foundation.lazy.LazyListState, abrir:
                 items(l.drop(1), key = { it.id }) { a -> Tarjeta(a) { abrir(a.id) } }
             }
         }
-        item { Spacer(Modifier.height(24.dp)) }
+        item { Spacer(Modifier.height(100.dp)) }   // para que el botón «+» no tape la última tarjeta
     }
 }
 
@@ -335,17 +342,18 @@ private fun Boveda() {
 /* ---------------- Más ---------------- */
 @Composable
 private fun Mas() {
-    Column(Modifier.fillMaxSize().padding(bottom = 20.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 20.dp)) {
         Cabecera("Más", "Todo lo de la Revista")
-        (listOf(Triple("Debates", "Encuestas de la comunidad", Destino.Debates), Triple("Agenda", "Conciertos y festivales", Destino.Agenda), Triple("Club de escucha", "Un disco por semana, canción por canción", Destino.Club),
+        (listOf(Triple("Chats", "Mensajes privados y contactos", Destino.Chats), Triple("Buscar", "Personas, artículos y artistas", Destino.Buscar), Triple("Debates", "Encuestas de la comunidad", Destino.Debates), Triple("Agenda", "Conciertos y festivales", Destino.Agenda), Triple("Club de escucha", "Un disco por semana, canción por canción", Destino.Club),
             Triple("Notificaciones", "Me gusta, comentarios y seguidores", Destino.Notificaciones)) + (if (Cuenta.esAdmin) listOf(Triple("Admin", "Denuncias, usuarios, estadísticas y ajustes", Destino.Admin)) else emptyList())).forEach { (t, s, d) ->
-            Column(Modifier.padding(horizontal = 18.dp, vertical = 5.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel).clickable { if (d == Destino.Notificaciones && !Nav.necesitaCuenta()) return@clickable; Nav.ir(d) }.padding(16.dp)) {
+            Column(Modifier.padding(horizontal = 18.dp, vertical = 5.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel).clickable { if ((d == Destino.Notificaciones || d == Destino.Chats) && !Nav.necesitaCuenta()) return@clickable; Nav.ir(d) }.padding(16.dp)) {
                 Text(t, fontWeight = FontWeight.Bold, fontSize = 18.sp); Text(s, color = Tenue, fontSize = 14.sp)
             }
         }
         Column(Modifier.padding(18.dp).clip(RoundedCornerShape(20.dp)).background(Panel).padding(18.dp)) {
             Text("Esta es la Revista hecha en Kotlin: el mismo código sirve para la app de Android y para el navegador.", fontSize = 15.sp, lineHeight = 21.sp)
-            Text("Abrir la Revista web", color = Color(0xFF1B1E23), fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp).clip(RoundedCornerShape(12.dp)).background(Amarillo).clickable { abrirEnlace(Supa.WEB + "#revista") }.padding(horizontal = 18.dp, vertical = 12.dp))
+            Spacer(Modifier.height(12.dp))
+            Boton("Abrir la Revista web") { abrirEnlace(Supa.WEB + "#revista") }
         }
     }
 }

@@ -44,7 +44,7 @@ fun Muro(perfil: Map<String, Any?>) {
     val id = perfil.str("id"); val mio = Cuenta.uid == id
     var version by remember { mutableStateOf(0) }
     var texto by remember { mutableStateOf("") }
-    var foto by remember { mutableStateOf<Foto?>(null) }
+    var foto by remember { mutableStateOf<FotoElegida?>(null) }
     var encuesta by remember { mutableStateOf(false) }
     var opciones by remember { mutableStateOf(List(4) { "" }) }
     var dedicatoria by remember { mutableStateOf(false) }
@@ -66,10 +66,10 @@ fun Muro(perfil: Map<String, Any?>) {
         if (puede) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Campo(texto, { texto = it }, if (mio) "¿Qué estás escuchando hoy?" else "Escribe algo en el muro de ${perfil.str("name")}…", lineas = 2, max = 1000)
             if (encuesta) opciones.forEachIndexed { i, o -> Campo(o, { v -> opciones = opciones.toMutableList().also { it[i] = v } }, "Opción ${i + 1}" + if (i > 1) " (opcional)" else "", max = 60) }
-            foto?.let { f -> val im = imagen(f.mini); Box(Modifier.size(90.dp).clip(RoundedCornerShape(10.dp))) { if (im != null) Image(im, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth()) } }
+            foto?.let { f -> EditorFoto(f) { foto = null } }
             if (dedicatoria) Text("Dedicatoria: Luna la leerá al aire en la radio de ${perfil.str("name")}.", color = Amarillo, fontSize = 13.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Enlace(if (foto == null) "Foto" else "Quitar foto") { if (foto == null) { val e = elegirImagenes(1280, 480, false); scope.launch { foto = e.esperar().firstOrNull() } } else foto = null }
+                Enlace(if (foto == null) "Foto" else "Quitar foto") { if (foto == null) { val e = elegirImagenes(1600, 600, false); scope.launch { foto = e.esperar().firstOrNull()?.let { FotoElegida(it) } } } else foto = null }
                 Enlace(if (encuesta) "Sin encuesta" else "Encuesta") { encuesta = !encuesta }
                 if (!mio) Enlace(if (dedicatoria) "Sin dedicatoria" else "Dedicatoria") { dedicatoria = !dedicatoria }
                 Spacer(Modifier.weight(1f))
@@ -81,7 +81,7 @@ fun Muro(perfil: Map<String, Any?>) {
                         try {
                             val b = linkedMapOf<String, Any?>("owner_id" to id, "author_id" to Cuenta.uid, "body" to texto.trim().take(1000))
                             if (encuesta) b["poll"] = ops; if (dedicatoria && !mio) b["dedication"] = true
-                            foto?.let { b["image"] = subirFoto(it, "muro") }
+                            foto?.let { b["image"] = subirFoto(it.lista(), "muro") }
                             Cuenta.api("POST", "/rest/v1/wall_posts", b, "return=minimal")
                             Aviso.mostrar(if (b["dedication"] == true) "Dedicatoria enviada: Luna la leerá en su radio." else "Publicado en el muro.")
                             texto = ""; foto = null; encuesta = false; opciones = List(4) { "" }; dedicatoria = false; version++
@@ -107,7 +107,7 @@ fun Muro(perfil: Map<String, Any?>) {
                         if (w.bool("dedication")) Text("Dedicatoria para la radio de ${perfil.str("name")}", color = Amarillo, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         Nota(w, d, id, scope, { version++ }, { denuncia = it })
                         val im = Diseno.imagenOk(w.str("image"))
-                        if (im.isNotEmpty()) { val img = imagen(Supa.miniatura(im), im); if (img != null) Image(img, null, contentScale = ContentScale.FillWidth, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))) }
+                        if (im.isNotEmpty()) FotoPublicada(im)
                         (w["poll"] as? List<*>)?.let { ops ->
                             val vs = d.votos.filter { it.str("post_id") == w.str("id") }; val tot = vs.size; val mioV = vs.firstOrNull { it.str("user_id") == Cuenta.uid }?.num("option")?.toInt()
                             ops.forEachIndexed { i, o ->
@@ -143,7 +143,7 @@ private fun Nota(w: Map<String, Any?>, d: DatosMuro, dueno: String, scope: kotli
     Row(verticalAlignment = Alignment.CenterVertically) {
         Row(Modifier.weight(1f).clickable { Nav.ir(Destino.Perfil(w.str("author_id"))) }, verticalAlignment = Alignment.CenterVertically) {
             Avatar(Autor(w.str("author_id"), p.str("name"), Diseno.imagenOk(p.str("avatar"))), 30); Spacer(Modifier.width(8.dp))
-            Column { Text(p.str("name").ifBlank { "Alguien" }, fontWeight = FontWeight.Bold, fontSize = 15.sp); Text(haceTiempo(w.str("created_at")), color = Tenue, fontSize = 12.sp) }
+            Column { Text(p.str("name").ifBlank { "Alguien" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis); Text(haceTiempo(w.str("created_at")), color = Tenue, fontSize = 12.sp) }
         }
         if (Cuenta.uid == w.str("author_id") || Cuenta.uid == dueno || Cuenta.esAdmin) Enlace("borrar", Tenue) { scope.launch { runCatching { Cuenta.api("DELETE", "/rest/v1/wall_posts?id=eq.${w.str("id")}") }; recargar() } }
         if (Cuenta.dentro && Cuenta.uid != w.str("author_id")) Enlace("denunciar", Tenue) { denunciar(w.str("id")) }

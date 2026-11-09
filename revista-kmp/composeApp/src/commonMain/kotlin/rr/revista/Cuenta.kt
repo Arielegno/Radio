@@ -51,8 +51,11 @@ object Cuenta {
         Regex("Email not confirmed", RegexOption.IGNORE_CASE).containsMatchIn(m) -> "Confirma tu correo (te llegó un mensaje) y vuelve a entrar."
         Regex("Password should be", RegexOption.IGNORE_CASE).containsMatchIn(m) -> "La contraseña debe tener al menos 6 caracteres."
         Regex("Failed to fetch|NetworkError|Load failed", RegexOption.IGNORE_CASE).containsMatchIn(m) -> "Sin conexión con el servidor de la revista."
-        Regex("row-level security|violates", RegexOption.IGNORE_CASE).containsMatchIn(m) -> "No tienes permiso para hacer eso."
         Regex("duplicate key|already exists", RegexOption.IGNORE_CASE).containsMatchIn(m) -> "Eso ya existe."
+        Regex("row-level security", RegexOption.IGNORE_CASE).containsMatchIn(m) -> "No tienes permiso para hacer eso."
+        Regex("violates foreign key", RegexOption.IGNORE_CASE).containsMatchIn(m) -> "Eso ya no existe."
+        Regex("violates check", RegexOption.IGNORE_CASE).containsMatchIn(m) -> "Eso no se puede hacer (revisa el texto o la imagen)."
+        Regex("relation .* does not exist|Could not find the table", RegexOption.IGNORE_CASE).containsMatchIn(m) -> "Falta actualizar la base de datos de la Revista (SQL más reciente)."
         Regex("Límite alcanzado|suspendida|invitación incorrecto|solo acepta", RegexOption.IGNORE_CASE).containsMatchIn(m) -> m
         else -> m.ifBlank { "Algo salió mal." }
     }
@@ -67,7 +70,10 @@ object Cuenta {
 
     /** Pedido a la base de datos con tu sesión (si entraste). Lanza ErrorRevista con el mensaje en español. */
     suspend fun api(metodo: String, ruta: String, cuerpo: Any? = null, prefer: String? = null): String {
-        if (sesion != null) renovar()
+        val habiaSesion = sesion != null
+        if (habiaSesion) renovar()
+        // Si la sesión venció al renovarla, no se manda el pedido sin cuenta (fallaría con «sin permiso»)
+        if (habiaSesion && sesion == null && metodo != "GET") throw ErrorRevista("Tu sesión venció. Vuelve a entrar a tu cuenta.")
         val cab = linkedMapOf("apikey" to Supa.CLAVE, "Content-Type" to "application/json")
         sesion?.let { cab["Authorization"] = "Bearer " + it.access }
         prefer?.let { cab["Prefer"] = it }
@@ -139,10 +145,14 @@ object Cuenta {
     }
 
     suspend fun alternarSeguir(autor: String): Boolean {
-        val on = autor in sigo
-        if (on) api("DELETE", "/rest/v1/follows?follower_id=eq.$uid&author_id=eq.$autor") else api("POST", "/rest/v1/follows", mapOf("follower_id" to uid, "author_id" to autor), "return=minimal")
-        sigo = if (on) sigo - autor else sigo + autor
-        return !on
+        if (!dentro) throw ErrorRevista("Entra a tu cuenta para seguir perfiles.")
+        if (autor == uid) throw ErrorRevista("No puedes seguirte a ti mismo.")
+        // Pregunta a la base si ya lo sigues (por si se siguió desde la web u otro teléfono)
+        val ya = runCatching { Json.arr(api("GET", "/rest/v1/follows?select=author_id&follower_id=eq.$uid&author_id=eq.$autor")).isNotEmpty() }.getOrDefault(autor in sigo)
+        if (ya) api("DELETE", "/rest/v1/follows?follower_id=eq.$uid&author_id=eq.$autor")
+        else api("POST", "/rest/v1/follows", mapOf("follower_id" to uid, "author_id" to autor), "return=minimal,resolution=ignore-duplicates")
+        sigo = if (ya) sigo - autor else sigo + autor
+        return !ya
     }
 
     suspend fun recomendar(post: String, nota: String) {

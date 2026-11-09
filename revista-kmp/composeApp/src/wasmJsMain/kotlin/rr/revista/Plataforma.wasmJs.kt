@@ -41,6 +41,17 @@ private external fun jsElegir(gr: Int, mi: Int, varias: Boolean): Promise<JsStri
   return fetch(url, { method: 'POST', headers: Object.assign(JSON.parse(cab), { 'Content-Type': tipo }), body: new Blob([u], { type: tipo }) }).then(r => r.text().then(t => JSON.stringify({ s: r.status, t: t }))); }""")
 private external fun jsSubir(url: String, cab: String, b64: String, tipo: String): Promise<JsString>
 
+@JsFun("""(u, r, d, mx) => new Promise(ok => { const img = new Image();
+  img.onload = () => { const W = img.naturalWidth, H = img.naturalHeight; let sw = W, sh = H, sx = 0, sy = 0;
+    if (W / H > r) { sw = H * r; sx = (W - sw) * d; } else { sh = W / r; sy = (H - sh) * d; }
+    const k = Math.min(1, mx / Math.max(sw, sh)), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(sw * k)); c.height = Math.max(1, Math.round(sh * k));
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height); ok(c.toDataURL('image/jpeg', 0.85)); };
+  img.onerror = () => ok(u); img.src = u; })""")
+private external fun jsRecortar(u: String, r: Double, d: Double, mx: Int): Promise<JsString>
+
+actual suspend fun recortarFoto(dataUrl: String, proporcion: Float, encuadre: Float, max: Int): String =
+    jsRecortar(dataUrl, proporcion.toDouble(), encuadre.toDouble(), max).await<JsString>().toString()
+
 @JsFun("() => Date.now()")
 private external fun jsAhoraMs(): Double
 

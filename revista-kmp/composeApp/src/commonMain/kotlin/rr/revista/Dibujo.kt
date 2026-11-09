@@ -139,6 +139,10 @@ fun Icono(tipo: String, color: Color, tam: Dp = 22.dp) {
             "compartir" -> { drawCircle(color, w * .1f, Offset(w * .72f, w * .22f)); drawCircle(color, w * .1f, Offset(w * .28f, w * .5f)); drawCircle(color, w * .1f, Offset(w * .72f, w * .78f)); drawLine(color, Offset(w * .28f, w * .5f), Offset(w * .72f, w * .22f), s.width * .8f); drawLine(color, Offset(w * .28f, w * .5f), Offset(w * .72f, w * .78f), s.width * .8f) }
             "play" -> { val p = Path().apply { moveTo(w * .3f, w * .18f); lineTo(w * .82f, w * .5f); lineTo(w * .3f, w * .82f); close() }; drawPath(p, color) }
             "nota" -> { drawCircle(color, w * .13f, Offset(w * .32f, w * .74f)); drawLine(color, Offset(w * .44f, w * .74f), Offset(w * .44f, w * .16f), s.width); drawLine(color, Offset(w * .44f, w * .16f), Offset(w * .74f, w * .26f), s.width) }
+            "lupa" -> { drawCircle(color, w * .26f, Offset(w * .44f, w * .44f), style = s); drawLine(color, Offset(w * .63f, w * .63f), Offset(w * .84f, w * .84f), s.width, StrokeCap.Round) }
+            "chat" -> { val p = Path().apply { moveTo(w * .5f, w * .16f); cubicTo(w * .1f, w * .16f, w * .1f, w * .7f, w * .5f, w * .7f); lineTo(w * .52f, w * .7f); lineTo(w * .3f, w * .88f); moveTo(w * .5f, w * .16f); cubicTo(w * .9f, w * .16f, w * .9f, w * .7f, w * .52f, w * .7f) }; drawPath(p, color, style = s) }
+            "enviar" -> { val p = Path().apply { moveTo(w * .14f, w * .5f); lineTo(w * .86f, w * .16f); lineTo(w * .6f, w * .86f); lineTo(w * .46f, w * .56f); close() }; drawPath(p, color) }
+            "persona" -> { drawCircle(color, w * .17f, Offset(w * .5f, w * .34f), style = s); drawArc(color, 180f, 180f, false, Offset(w * .18f, w * .6f), Size(w * .64f, w * .5f), style = s) }
             "cerrar" -> { drawLine(color, Offset(w * .25f, w * .25f), Offset(w * .75f, w * .75f), s.width, StrokeCap.Round); drawLine(color, Offset(w * .75f, w * .25f), Offset(w * .25f, w * .75f), s.width, StrokeCap.Round) }
         }
     }

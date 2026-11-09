@@ -100,7 +100,7 @@ private fun TarjetaArtista(a: Map<String, Any?>, abrir: () -> Unit) {
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Color(0xE6000000))))
         Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
             Text(a.str("name") + if (a.bool("verified")) " · verificada" else "", color = Color.White, fontFamily = Fuentes.titulo(e.ft), fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 22.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            val sub = listOf(a.str("genre"), a.str("years")).filter { it.isNotBlank() }.joinToString(" · ")
+            val sub = sinPuntos(a.str("genre"), a.str("years"))
             if (sub.isNotEmpty()) Text(sub, color = Color.White.copy(alpha = .8f), fontSize = 12.sp, maxLines = 1)
         }
     }
@@ -136,7 +136,7 @@ fun ArtistaPantalla(id: String) {
             else -> {
                 val d = r.getOrThrow()!!; val a = d.a
                 val e = Estilo.de(a.map("style")).let { if (a.map("style")["cv"] == null) it.copy(cv = "m") else it }
-                val info = listOf(a.str("genre"), a.str("years"), a.str("origin")).filter { it.isNotBlank() }.joinToString(" · ")
+                val info = sinPuntos(a.str("genre"), a.str("years"), a.str("origin"))
                 val art = Articulo("ejemplo-artista", a.str("name"), info, Diseno.imagenOk(a.str("cover")), e, a.str("updated_at").ifEmpty { a.str("created_at") }, Autor("", "", ""), 0, 0, texto = a.str("bio"))
                 val L = enlaces(a.map("links"))
                 val puedeEditar = Cuenta.esEditor || d.gestores.any { it.first == Cuenta.uid }
@@ -153,7 +153,7 @@ fun ArtistaPantalla(id: String) {
                             ENLACES.filter { it.first in L }.forEach { (k, n) -> Boton(n, principal = false) { abrirEnlace(L.getValue(k)) } }
                         }
                         if (a.str("bio").isBlank()) Text("Sin biografía todavía.", color = Tenue) else TextoArticulo(art)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Boton("Compartir", principal = false) { abrirEnlace(Supa.WEB + "#rva=" + id) }; Enlace("Denunciar", Tenue) { if (Nav.necesitaCuenta()) denunciar = true } }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { Boton("Compartir", principal = false) { abrirEnlace(Supa.WEB + "#rva=" + id) }; Enlace("Denunciar", Tenue) { if (Nav.necesitaCuenta()) denunciar = true } }
                         if (d.gestores.isNotEmpty()) Text("Perfil gestionado por: " + d.gestores.joinToString(", ") { it.second }, color = Tenue, fontSize = 14.sp)
                         if (Cuenta.esAdmin) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x1AF2C230)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Solo tú ves esto", fontWeight = FontWeight.Bold)
@@ -278,3 +278,6 @@ fun EditarArtistaPantalla(id: String?) {
         }
     }
 }
+
+/** Une datos con « · » sin puntos sueltos ni repetidos (algunos géneros vienen ya con puntos). */
+fun sinPuntos(vararg partes: String): String = partes.flatMap { it.split('·', '•') }.map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" · ")

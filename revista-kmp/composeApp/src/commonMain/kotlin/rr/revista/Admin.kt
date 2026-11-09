@@ -37,11 +37,11 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
 private val TIPOS = mapOf("post" to "Artículo", "comment" to "Comentario", "poster" to "Póster", "profile" to "Perfil", "artist" to "Artista", "poll" to "Debate", "event" to "Evento",
-    "vault" to "Concierto de la Bóveda", "vcomment" to "Comentario de la Bóveda", "wall" to "Nota de un muro", "ccomment" to "Comentario del club", "list" to "Lista")
+    "vault" to "Concierto de la Bóveda", "vcomment" to "Comentario de la Bóveda", "wall" to "Nota de un muro", "ccomment" to "Comentario del club", "list" to "Lista", "message" to "Mensaje privado")
 private val TABLAS = mapOf("post" to "posts", "comment" to "comments", "poster" to "posters", "artist" to "artists", "poll" to "polls", "event" to "events", "vault" to "vault",
-    "vcomment" to "vault_comments", "wall" to "wall_posts", "ccomment" to "club_comments", "list" to "song_lists")
+    "vcomment" to "vault_comments", "wall" to "wall_posts", "ccomment" to "club_comments", "list" to "song_lists", "message" to "messages")
 private val VER = mapOf("post" to "title", "comment" to "body", "poster" to "title", "profile" to "name", "artist" to "name", "poll" to "question", "event" to "title",
-    "vault" to "title", "vcomment" to "body", "wall" to "body", "ccomment" to "body", "list" to "title")
+    "vault" to "title", "vcomment" to "body", "wall" to "body", "ccomment" to "body", "list" to "title", "message" to "body")
 
 /** Panel del administrador: denuncias, usuarios, estadísticas y ajustes (como en la web). */
 @Composable
@@ -93,7 +93,7 @@ private fun Denuncias() {
                     Text((g.que ?: "(eliminado)").take(160), fontWeight = FontWeight.Bold)
                     g.lista.forEach { d -> Text("• ${Cuenta.CATEGORIAS[d.str("category")] ?: d.str("category")}" + (d.str("reason").takeIf { it.isNotBlank() }?.let { ": $it" } ?: "") + " — ${d.map("profiles").str("name")}, ${Fechas.corta(d.str("created_at"))}", fontSize = 14.sp) }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (existe) Boton("Ver", principal = false) {
+                        if (existe && g.tipo != "message") Boton("Ver", principal = false) {
                             when (g.tipo) {
                                 "post" -> Nav.ir(Destino.Leer(g.id)); "poster" -> Nav.ir(Destino.Poster(g.id)); "profile" -> Nav.ir(Destino.Perfil(g.id)); "artist" -> Nav.ir(Destino.Artista(g.id))
                                 "vault" -> Nav.ir(Destino.Concierto(g.id)); "poll" -> Nav.ir(Destino.Debates); "event" -> Nav.ir(Destino.Agenda)

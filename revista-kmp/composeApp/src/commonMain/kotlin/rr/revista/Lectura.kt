@@ -431,7 +431,7 @@ private fun Galeria(fotos: List<String>) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 fila.forEach { u ->
                     val img = imagen(Supa.miniatura(u), u)
-                    Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(12.dp)).background(Panel)) { if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+                    Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(12.dp)).background(Panel).clickable { Visor.url = u }) { if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
                 }
                 if (fila.size == 1) Spacer(Modifier.weight(1f))
             }

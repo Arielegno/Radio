@@ -166,6 +166,15 @@ private fun foto(u: Uri, grande: Int, mini: Int): Foto? {
     return Foto(jpeg(bm, grande), jpeg(bm, mini))
 }
 
+suspend fun recortarFoto(dataUrl: String, proporcion: Float, encuadre: Float, max: Int): String = withContext(Dispatchers.Default) {
+    val b = Base64.decode(dataUrl.substringAfter(','), Base64.DEFAULT)
+    val bm = BitmapFactory.decodeByteArray(b, 0, b.size) ?: return@withContext dataUrl
+    var sw = bm.width; var sh = bm.height; var sx = 0; var sy = 0
+    if (bm.width.toFloat() / bm.height > proporcion) { sw = (bm.height * proporcion).toInt().coerceIn(1, bm.width); sx = ((bm.width - sw) * encuadre).toInt() }
+    else { sh = (bm.width / proporcion).toInt().coerceIn(1, bm.height); sy = ((bm.height - sh) * encuadre).toInt() }
+    jpeg(Bitmap.createBitmap(bm, sx, sy, sw, sh), max)
+}
+
 /** Achica, pone fondo blanco (por si es PNG transparente) y la pasa a JPEG como en la web. */
 private fun jpeg(b: Bitmap, max: Int): String {
     val k = minOf(1f, max.toFloat() / maxOf(b.width, b.height))

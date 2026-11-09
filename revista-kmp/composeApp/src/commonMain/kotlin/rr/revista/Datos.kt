@@ -15,6 +15,8 @@ data class Foto(val grande: String, val mini: String)
 /** Abre el selector de imágenes del teléfono. Hay que llamarlo directo al tocar un botón. */
 expect fun elegirImagenes(maxGrande: Int, maxMini: Int, varias: Boolean): Espera<List<Foto>>
 /** Sube un archivo (en base64) al almacén. */
+/** Recorta una foto (data:image/jpeg) a una proporción ancho/alto; encuadre 0 = izquierda/arriba, 1 = derecha/abajo. */
+expect suspend fun recortarFoto(dataUrl: String, proporcion: Float, encuadre: Float, max: Int): String
 expect suspend fun subirArchivo(url: String, cabeceras: Map<String, String>, base64: String, tipo: String): Respuesta
 
 suspend fun httpTexto(url: String, cabeceras: Map<String, String>): String {

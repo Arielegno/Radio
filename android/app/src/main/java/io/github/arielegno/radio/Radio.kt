@@ -119,14 +119,15 @@ class Radio(private val ctx: Context) {
         if (fuenteSpotify && filtro == null && desdeId == null) { iniciarSpotify(); return }
         if (fuenteSpotify) { ponerFuente(false); mensaje = "Cambié a tu biblioteca para poner esas canciones." }
         val todas = RadioApp.biblioteca.pistas
-        var lista = if (filtro == null) todas else todas.filter(filtro)
+        var lista = (if (filtro == null) todas else todas.filter(filtro)).filter { esCancion(it.file) }
         if (lista.isEmpty()) { mensaje = if (todas.isEmpty()) "Agrega canciones en Biblioteca para empezar." else "No hay canciones para eso en tu biblioteca."; return }
         val mez = mezclarEsta ?: mezclar
         if (mez) lista = lista.shuffled()
         if (desdeId != null) lista.firstOrNull { it.id == desdeId }?.let { t -> lista = listOf(t) + lista.filter { it.id != desdeId } }
         cola = lista; cancionNo = 0; guion = null; guionPara = -1; enPausaLuna = false; anteriores.clear()
         voz.callar()
-        player.setMediaItems(lista.map { item(it) }, 0, 0L)
+        try { player.setMediaItems(lista.map { item(it) }, 0, 0L) }
+        catch (e: Exception) { Reportes.error("Radio.iniciar", e); mensaje = "No pude poner esas canciones."; activa = false; return }
         player.repeatMode = repModo()
         player.prepare()
         activa = true; mensaje = ""

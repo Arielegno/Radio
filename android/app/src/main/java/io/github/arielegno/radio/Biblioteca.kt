@@ -51,7 +51,9 @@ class Biblioteca(private val ctx: Context) {
 
     init {
         RadioApp.scope.launch(Dispatchers.IO) {
-            val faltan = pistas.filter { !File(dirMusica, it.file).exists() }.map { it.id }.toSet()
+            // también se quitan las listas de reproducción (.m3u8…) que entraron como canciones: cerraban la app
+            pistas.filter { !esCancion(it.file) }.forEach { runCatching { File(dirMusica, it.file).delete() } }
+            val faltan = pistas.filter { !esCancion(it.file) || !File(dirMusica, it.file).exists() }.map { it.id }.toSet()
             if (faltan.isNotEmpty()) { val l = pistas.filter { it.id !in faltan }; guardar(l); publicar(l) }
         }
     }
@@ -99,7 +101,7 @@ class Biblioteca(private val ctx: Context) {
                         val id = c.getString(0) ?: continue
                         val mime = c.getString(1).orEmpty(); val nombre = c.getString(2).orEmpty()
                         if (mime == DocumentsContract.Document.MIME_TYPE_DIR) { if (!nombre.startsWith(".")) pendientes.add(id) }
-                        else if (mime.startsWith("audio/") || nombre.substringAfterLast('.', "").lowercase() in exts) out += DocumentsContract.buildDocumentUriUsingTree(carpeta, id)
+                        else if (esCancion(nombre) && !mime.contains("mpegurl") && (mime.startsWith("audio/") || nombre.substringAfterLast('.', "").lowercase() in exts)) out += DocumentsContract.buildDocumentUriUsingTree(carpeta, id)
                     }
                 }
             } catch (e: Exception) { /* carpeta sin permiso: se salta */ }
@@ -141,6 +143,7 @@ class Biblioteca(private val ctx: Context) {
                                     val si = c.getColumnIndex(OpenableColumns.SIZE); if (si >= 0 && !c.isNull(si)) tam = c.getLong(si)
                                 }
                             }
+                            if (!esCancion(nombre)) throw Saltar()
                             val origen = normNombre(nombre) + "|" + tam
                             // Ya está en la app: ni siquiera se copia (mucho más rápido al volver a elegir la carpeta)
                             if (candado.withLock { yaEsta(nombre, tam) }) { rep.incrementAndGet(); candado.withLock { origenes += origen }; throw Saltar() }
@@ -406,3 +409,7 @@ class Biblioteca(private val ctx: Context) {
 
 /** Señal interna para saltar un archivo que ya está en la biblioteca. */
 private class Saltar : Exception()
+
+/** Listas de reproducción, letras, textos… Android a veces las marca como «audio», pero no son canciones. */
+private val NO_SON_CANCIONES = setOf("m3u", "m3u8", "pls", "cue", "xspf", "wpl", "asx", "lrc", "txt", "nfo", "log", "jpg", "jpeg", "png", "pdf")
+fun esCancion(nombre: String): Boolean = nombre.substringAfterLast('.', "").lowercase() !in NO_SON_CANCIONES

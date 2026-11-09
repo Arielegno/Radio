@@ -3,6 +3,11 @@ package io.github.arielegno.radio.core
 /** Historial de cambios (se muestra en Ajustes › Acerca de › Novedades). Lo más nuevo arriba. */
 object Novedades {
     val LISTA: List<Pair<String, List<String>>> = listOf(
+        "2.0.3" to listOf(
+            "Arreglado: la app se cerraba al poner la radio. Las listas de reproducción (.m3u, .m3u8) se habían metido en la biblioteca como si fueran canciones.",
+            "Esas listas se quitan solas de tu biblioteca y ya no entran al agregar carpetas (tus canciones no se tocan).",
+            "Si una canción no se puede poner, la radio avisa en lugar de cerrarse.",
+        ),
         "2.0.2" to listOf(
             "Reportes de errores más completos: incluyen el detalle del error y las últimas líneas del registro de Android.",
             "Un error en una tarea de fondo ya no cierra la app: queda anotado en los reportes.",

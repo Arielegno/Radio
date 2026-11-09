@@ -101,6 +101,12 @@ fun Editor(id: String?) {
     var pestana by remember { mutableStateOf("estetica") }
 
     LaunchedEffect(id) {
+        if (id == null && hashInicial().startsWith("#escribir-")) { // demostración para las capturas
+            Ejemplos.uno("ejemplo-2")?.let { e -> b = Borrador(e.titulo, e.subtitulo, null, "", e.texto, e.estilo, e.diseno); cuerpo = TextFieldValue(e.texto) }
+            if (hashInicial() == "#escribir-collage") collage = true
+            if (hashInicial() == "#escribir-fondo") pestana = "fondo"
+            return@LaunchedEffect
+        }
         if (id == null) { borradorDeJson(leerDato(CLAVE_BORRADOR))?.let { b = it; cuerpo = TextFieldValue(it.texto) }; return@LaunchedEffect }
         try {
             val o = Json.arr(Cuenta.api("GET", "/rest/v1/posts?select=*&id=eq.$id")).firstOrNull()?.asObj() ?: throw ErrorRevista("Ese artículo ya no existe.")

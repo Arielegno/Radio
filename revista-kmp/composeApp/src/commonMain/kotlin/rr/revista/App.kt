@@ -77,6 +77,8 @@ fun App() {
     LaunchedEffect(Unit) {
         (Regex("^#post=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1) ?: Regex("^#ejemplo=(\\d)$").find(h)?.groupValues?.get(1)?.let { "ejemplo-$it" })?.let { Nav.ir(Destino.Leer(it)) }
         Regex("^#perfil=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1)?.let { Nav.ir(Destino.Perfil(it)) }
+        if (h.startsWith("#escribir")) Nav.ir(Destino.Editar(null))
+        if (h == "#entrar") Nav.dialogo = "cuenta"
         Cuenta.social()
     }
     val listaInicio = rememberLazyListState()

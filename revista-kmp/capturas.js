@@ -32,6 +32,12 @@ const q = async p => { try { const r = await fetch(SB + p, { headers: { apikey: 
   let n = 2;
   for (const p of elegidos) await shot('#post=' + p.id, `${n++}-articulo`, [0, 800, 900]);
   if (!elegidos.length) for (const k of [1, 2, 3]) await shot('#ejemplo=' + k, `${n++}-ejemplo${k}`, [0, 800, 900]);
+  const perfiles = await q('/rest/v1/profiles?select=id&order=created_at.asc&limit=1');
+  if (perfiles[0]) await shot('#perfil=' + perfiles[0].id, `${n++}-perfil`);
+  await shot('#entrar', `${n++}-entrar`);
+  await shot('#escribir-demo', `${n++}-editor`, [0, 900, 900]);
+  await shot('#escribir-fondo', `${n++}-editor-fondo`, [0, 700]);
+  await shot('#escribir-collage', `${n++}-collage`);
   await shot('#posters', `${n++}-posters`);
   await shot('#boveda', `${n++}-boveda`);
   fs.writeFileSync('capturas/consola.txt', log.join('\n'));

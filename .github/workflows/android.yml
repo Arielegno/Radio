@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'android/**'
+      - 'revista-kmp/composeApp/src/commonMain/**'
       - 'radio-android.zip'
       - '.github/workflows/android.yml'
   workflow_dispatch:

@@ -12,8 +12,8 @@ android {
         applicationId = "io.github.arielegno.radio"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.5.1"
+        versionCode = 9
+        versionName = "1.6"
     }
 
     signingConfigs {
@@ -54,10 +54,20 @@ android {
         abortOnError = false
         checkReleaseBuilds = false
     }
+    // La Revista nativa: el mismo código de revista-kmp/ (se copia antes de compilar)
+    sourceSets["main"].java.srcDirs(layout.buildDirectory.dir("generated/revista"), "src/revista/kotlin")
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
 }
+
+// Copia la Revista nativa (revista-kmp/) quitando las líneas «expect»: aquí las da Plataforma.android.kt
+val revistaNativa = tasks.register<Sync>("revistaNativa") {
+    from("../../revista-kmp/composeApp/src/commonMain/kotlin")
+    into(layout.buildDirectory.dir("generated/revista"))
+    filter { linea: String -> if (Regex("^(internal )?expect ").containsMatchIn(linea)) "" else linea }
+}
+tasks.named("preBuild") { dependsOn(revistaNativa) }
 
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")

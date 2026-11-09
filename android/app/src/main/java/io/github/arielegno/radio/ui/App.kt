@@ -129,7 +129,8 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
                 "radio" -> Portada(acc)
                 "biblioteca" -> BibliotecaPantalla(pedirAgregar, { pedirAgregar = false }, { d -> destinoRevista = d; pestana = "revista" }, artistaPedido, { artistaPedido = "" })
                 "stats" -> EstadisticasPantalla({ resumen = true }, { mapa = true })
-                "revista" -> RevistaPantalla(vistaRevista, destinoRevista) { pestana = "radio" }
+                "revista" -> if (RadioApp.prefs.bool("revistaNativa", false)) rr.revista.RevistaNativa(destinoRevista) { pestana = "radio" }
+                    else RevistaPantalla(vistaRevista, destinoRevista) { pestana = "radio" }
                 else -> AjustesPantalla(tema, cambiarTema, { recorrido = true }, { pedirUbicacion() }) { pedirAgregar = true; pestana = "biblioteca" }
             }
         }

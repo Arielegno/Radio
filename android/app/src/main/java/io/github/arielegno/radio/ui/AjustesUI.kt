@@ -193,7 +193,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     if (i < CATEGORIAS.size - 1) HorizontalDivider(color = LocalExtra.current.borde, modifier = Modifier.padding(start = 58.dp))
                 }
             }
-            Text("Radio de ruta para Android · versión 1.5.1", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
+            Text("Radio de ruta para Android · versión 1.6", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 14.dp).align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(24.dp))
             return@Column
@@ -424,6 +424,8 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                 }
             }
             "revista" -> Grupo("Revista (Supabase)") {
+                Interruptor("revistaNativa", "Revista nativa (beta): más rápida, hecha en Kotlin", false)
+                Ayuda("Es la misma Revista, con tu misma cuenta y los mismos artículos, pero dibujada por la app en vez de una página web. Si algo no funciona, apágalo y vuelves a la de siempre.")
                 Ayuda("La Revista ya viene conectada. Llena esto solo si quieres usar otro proyecto de Supabase en la portada de la app.")
                 CampoTexto("sbUrl", "URL del proyecto (opcional)", "", ayuda = "https://xxxx.supabase.co")
                 CampoTexto("sbKey", "Clave pública (opcional)", "", secreto = true)
@@ -453,7 +455,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                 Ayuda("No manipules la app mientras conduces.")
             }
             else -> Grupo("Radio de ruta para Android") {
-                Text("Versión 1.5.1 · por Arielegno", fontWeight = FontWeight.SemiBold)
+                Text("Versión 1.6 · por Arielegno", fontWeight = FontWeight.SemiBold)
                 Ayuda("No manipules la app mientras conduces: configúrala antes de arrancar.")
                 TextButton(onClick = { abrir(ctx, "https://arielegno.github.io/Radio/legal.html") }) { Text("Aviso legal y privacidad") }
                 Ayuda("Usa Media3 (Apache 2.0), Jetpack Compose (Apache 2.0), Leaflet (BSD-2) y datos de OpenStreetMap (ODbL), Open-Meteo, Wikipedia (CC BY-SA), MusicBrainz (CC0), iTunes Search, Spotify, Google Gemini y Anthropic Claude.")

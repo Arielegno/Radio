@@ -7,6 +7,7 @@ object Novedades {
             "Reportes de errores más completos: incluyen el detalle del error y las últimas líneas del registro de Android.",
             "Un error en una tarea de fondo ya no cierra la app: queda anotado en los reportes.",
             "Botón «Compartir todos»: manda todos los reportes juntos de una vez (se guardan los últimos 30).",
+            "Cuando Android pide memoria, la app suelta portadas y la voz que no está hablando (antes la cerraba por falta de memoria).",
         ),
         "2.0.1" to listOf(
             "Arreglado: la app se cerraba al probar las voces de la app (Daniela, Ald). Ahora la voz se genera frase por frase.",

@@ -50,6 +50,9 @@ object Imagenes {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
+    /** Vacía las imágenes en memoria (cuando Android pide memoria). */
+    fun vaciar() = cache.evictAll()
+
     fun deArchivo(f: File, max: Int = 600): Bitmap? {
         val k = f.path + ":" + max + ":" + f.lastModified()
         cache.get(k)?.let { return it }

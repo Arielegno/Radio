@@ -100,6 +100,8 @@ object VozPropia {
     private var pista: AudioTrack? = null
 
     private fun liberar() { try { tts?.release() } catch (e: Throwable) {}; tts = null; cargada = null }
+    /** Suelta la voz de la memoria si no está hablando (Android pidió memoria). Se vuelve a cargar al hablar. */
+    fun soltarMemoria() { if (!hablando && turno.tryLock()) try { liberar() } finally { turno.unlock() } }
 
     private fun motor(v: Voz): OfflineTts? {
         if (cargada == v.id && tts != null) return tts

@@ -23,6 +23,16 @@ class RadioApp : Application() {
         radio = Radio(this)
     }
 
+    // Cuando Android avisa que queda poca memoria, se sueltan las portadas en memoria y la voz si no está hablando
+    // (antes Android cerraba la app por falta de memoria)
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) io.github.arielegno.radio.ui.Imagenes.vaciar()
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW || level == android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
+            if (level != android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN || !radio.activa) VozPropia.soltarMemoria()
+        }
+    }
+
     companion object {
         lateinit var app: RadioApp; private set
         lateinit var prefs: Prefs; private set

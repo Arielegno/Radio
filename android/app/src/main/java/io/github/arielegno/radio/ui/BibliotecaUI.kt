@@ -434,6 +434,49 @@ private fun DetalleCarpeta(c: Carpeta, filtradas: List<Track>, acc: AccionesCanc
         quitarDeLista = { t -> b.listas.quitar(c.clave, t.id); b.guardarListas() },
         mover = { t, d -> b.listas.mover(c.clave, t.id, d); b.guardarListas() }) else acc
     val portada = canciones.firstOrNull { it.cover.isNotEmpty() }
+    val scopeC = rememberCoroutineScope()
+    var eliminarGrupo by remember { mutableStateOf(false) }
+    var renombrarAlbum by remember { mutableStateOf(false) }
+    if (eliminarGrupo) {
+        val que = if (c.vista == "albumes") "el álbum" else "a"
+        AlertDialog(onDismissRequest = { eliminarGrupo = false },
+            title = { Text("¿Eliminar $que «${c.clave}»?") },
+            text = { Text("Se quitan sus ${canciones.size} ${if (canciones.size == 1) "canción" else "canciones"} de la app. Tus archivos originales del teléfono no se tocan: si los vuelves a agregar, regresan.") },
+            confirmButton = { TextButton(onClick = {
+                val ids = canciones.map { it.id }.toSet(); eliminarGrupo = false
+                scopeC.launchSafe { b.borrar(ids) }; cerrar()
+            }) { Text("Eliminar") } },
+            dismissButton = { TextButton(onClick = { eliminarGrupo = false }) { Text("Cancelar") } })
+    }
+    if (renombrarAlbum) {
+        var nombre by remember { mutableStateOf(c.clave) }
+        // otros álbumes del mismo artista, para juntarlos con un toque
+        val otros = remember(c, b.pistas) {
+            val arts = canciones.map { normNombre(io.github.arielegno.radio.core.Limpieza.artistaPrincipal(it.artist)) }.toSet()
+            b.pistas.filter { normNombre(io.github.arielegno.radio.core.Limpieza.artistaPrincipal(it.artist)) in arts }
+                .map { Coleccion.albumBase(it.album) }.filter { it.isNotBlank() && it != c.clave }.groupingBy { it }.eachCount()
+                .entries.sortedByDescending { it.value }.take(12).map { it.key }
+        }
+        AlertDialog(onDismissRequest = { renombrarAlbum = false },
+            title = { Text("Nombre del álbum") },
+            text = {
+                Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                    OutlinedTextField(nombre, { nombre = it.take(200) }, singleLine = true, label = { Text("Álbum") }, modifier = Modifier.fillMaxWidth())
+                    if (otros.isNotEmpty()) {
+                        Text("O júntalo con otro álbum:", color = LocalExtra.current.tenue, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+                        otros.forEach { o -> TextButton(onClick = { nombre = o }) { Text(o, maxLines = 2, overflow = TextOverflow.Ellipsis) } }
+                    }
+                    Text("Se cambia en sus ${canciones.size} canciones y la guía ya no lo vuelve a cambiar.", color = LocalExtra.current.tenue,
+                        style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+                }
+            },
+            confirmButton = { TextButton(enabled = nombre.isNotBlank(), onClick = {
+                val n = nombre.trim(); renombrarAlbum = false
+                val cambios = canciones.map { it.copy(album = n, manual = it.manual + "album") }
+                scopeC.launchSafe { b.actualizar(cambios) }; abrir(Carpeta("albumes", Coleccion.albumBase(n)))
+            }) { Text("Guardar") } },
+            dismissButton = { TextButton(onClick = { renombrarAlbum = false }) { Text("Cancelar") } })
+    }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
@@ -443,6 +486,9 @@ private fun DetalleCarpeta(c: Carpeta, filtradas: List<Track>, acc: AccionesCanc
                 if (esLista) {
                     IconButton(onClick = { renombrar(c.clave) }) { Icon(Icons.Filled.Edit, "Cambiar nombre") }
                     IconButton(onClick = { borrarLista(c.clave) }) { Icon(Icons.Filled.Delete, "Borrar playlist") }
+                } else if (c.vista == "albumes" || c.vista == "artistas") {
+                    if (c.vista == "albumes") IconButton(onClick = { renombrarAlbum = true }) { Icon(Icons.Filled.Edit, "Cambiar nombre o juntar con otro álbum") }
+                    IconButton(onClick = { eliminarGrupo = true }, enabled = canciones.isNotEmpty()) { Icon(Icons.Filled.Delete, if (c.vista == "albumes") "Eliminar álbum" else "Eliminar artista") }
                 }
             }
             when (c.vista) {

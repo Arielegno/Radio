@@ -3,6 +3,10 @@ package io.github.arielegno.radio.core
 /** Historial de cambios (se muestra en Ajustes › Acerca de › Novedades). Lo más nuevo arriba. */
 object Novedades {
     val LISTA: List<Pair<String, List<String>>> = listOf(
+        "2.0.6" to listOf(
+            "Eliminar un artista o un álbum completo (botón de basurero al abrirlo). Tus archivos originales no se tocan.",
+            "Cambiar el nombre de un álbum en todas sus canciones, o juntarlo con otro álbum del mismo artista con un toque (lápiz al abrir el álbum).",
+        ),
         "2.0.5" to listOf(
             "Luna habla al instante y sin pausas: con las voces de la app, su voz se prepara mientras suena la canción.",
             "Dos locutores: Luna ya no lee la parte de Leo; cada uno habla con su voz aunque la IA escriba todo seguido, y en pantalla se ve cada uno en su renglón.",

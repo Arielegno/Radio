@@ -3,6 +3,11 @@ package io.github.arielegno.radio.core
 /** Historial de cambios (se muestra en Ajustes › Acerca de › Novedades). Lo más nuevo arriba. */
 object Novedades {
     val LISTA: List<Pair<String, List<String>>> = listOf(
+        "2.0.7" to listOf(
+            "Pausa de verdad mientras Luna habla: calla a Luna y también detiene la canción (antes la música seguía).",
+            "Spotify: si falta conectar tu cuenta, al darle play se abre directo la página para entrar (ya no solo dice «conecta Spotify»).",
+            "Spotify: avisa si lo pegado no es un Client ID (por ejemplo, el «Client secret») y muestra en la radio si la conexión salió bien o qué falló.",
+        ),
         "2.0.6" to listOf(
             "Al editar una canción o el nombre de un álbum, salen de sugerencia los álbumes de ese artista que ya tienes y sus álbumes oficiales según internet (con el año): un toque y listo.",
             "Eliminar un artista o un álbum completo (botón de basurero al abrirlo). Tus archivos originales no se tocan.",

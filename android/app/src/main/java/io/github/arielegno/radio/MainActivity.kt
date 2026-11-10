@@ -42,7 +42,8 @@ class MainActivity : ComponentActivity() {
         val d = i?.data ?: return
         if (d.scheme == "radioderuta" && d.host == "spotify") {
             i.setData(null)
-            RadioApp.scope.launchSafe { Spotify.alVolver(d) }
+            // el resultado (conectado o qué falló) se muestra también en la radio, no solo en Ajustes
+            RadioApp.scope.launchSafe { Spotify.alVolver(d); if (Spotify.aviso.isNotEmpty()) RadioApp.radio.avisar(Spotify.aviso) }
         }
     }
 

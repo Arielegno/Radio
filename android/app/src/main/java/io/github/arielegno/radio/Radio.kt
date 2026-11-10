@@ -68,6 +68,8 @@ class Radio(private val ctx: Context) {
     /** La voz de Luna ya generada mientras suena la canción (para hablar al instante y sin pausas). */
     private var preparado: kotlinx.coroutines.Deferred<VozLuna.Preparado?>? = null
     private var enPausaLuna = false
+    /** La persona tocó pausa mientras Luna hablaba: al terminar no se sigue sola. */
+    @Volatile private var pausaPedida = false
     /** Luna habla encima de la música (bajita), como en la radio de verdad. */
     @Volatile private var encima = false
     private val hablaEncima: Boolean get() = p.bool("hablarEncima", true) && !fuenteSpotify
@@ -79,7 +81,7 @@ class Radio(private val ctx: Context) {
         val nivel = p.int("nivelEncima", 18).coerceIn(5, 60) / 100f
         try {
             for (i in 10 downTo 0) { player.volume = nivel + (1f - nivel) * i / 10f; delay(40) }   // baja en medio segundo
-            if (activa && !retenida) player.play()
+            if (activa && !retenida && !pausaPedida) player.play()
             bloque()
         } finally {
             encima = false
@@ -148,8 +150,9 @@ class Radio(private val ctx: Context) {
     fun alternarPausa() {
         if (fuenteSpotify) { if (!activa) iniciarSpotify() else if (lunaHablando) voz.callar() else sp(if (sonando) "/me/player/pause" else "/me/player/play", "PUT") { sonando = !sonando }; return }
         if (!activa || player.mediaItemCount == 0) { iniciar(); return }
-        if (lunaHablando) { voz.callar(); return }
-        if (player.isPlaying) player.pause() else { player.play() }
+        // Pausa de verdad: calla a Luna y también detiene la música (antes solo callaba a Luna y la canción seguía)
+        if (lunaHablando || enPausaLuna) { pausaPedida = true; voz.callar(); if (player.isPlaying) player.pause(); return }
+        if (player.isPlaying) player.pause() else { pausaPedida = false; player.play() }
     }
     /** Mientras suena un video en la Revista la radio se queda en pausa (y Luna no sigue sola); al cerrarlo vuelve. */
     var retenida = false; private set
@@ -183,11 +186,21 @@ class Radio(private val ctx: Context) {
     /** «Pon Soda Stereo» con Spotify: busca y pone a sonar. */
     fun ponerEnSpotify(q: String) {
         RadioApp.scope.launchSafe {
-            if (!Spotify.conectado) { mensaje = "Conecta Spotify en Ajustes."; return@launchSafe }
+            if (!Spotify.conectado) { pedirConexion(); return@launchSafe }
             if (Spotify.buscarYPoner(q)) { mensaje = "Poniendo $q en Spotify…"; if (!activa) iniciarSpotify() }
             else mensaje = "No encontré «$q» en Spotify (o no hay un dispositivo activo: abre Spotify)."
         }
     }
+
+    /** Sin conexión con Spotify: si ya pegaste el Client ID, se abre directo la página para entrar (antes solo avisaba). */
+    private fun pedirConexion() {
+        mensaje = when {
+            Spotify.clientId.isEmpty() -> "Para usar Spotify, pega tu Client ID en Ajustes › Tu música."
+            Spotify.entrar(ctx) -> "Entra a tu cuenta de Spotify en la página que se abrió y acepta: luego vuelves solo a la app."
+            else -> Spotify.aviso.ifEmpty { "No pude abrir la página de Spotify." }
+        }
+    }
+    fun avisar(texto: String) { mensaje = texto }
 
     private fun sp(ruta: String, metodo: String, alAcertar: () -> Unit = {}) {
         RadioApp.scope.launchSafe {
@@ -196,7 +209,7 @@ class Radio(private val ctx: Context) {
                 c in 200..299 -> alAcertar()
                 c == 404 -> { mensaje = "No hay un dispositivo de Spotify activo: abre Spotify y pon algo de música."; Spotify.abrirApp(ctx) }
                 c == 403 -> mensaje = "Spotify necesita Premium para controlar la música."
-                c == 0 -> mensaje = if (Spotify.conectado) "Sin conexión con Spotify." else "Conecta Spotify en Ajustes."
+                c == 0 -> if (Spotify.conectado) mensaje = "Sin conexión con Spotify." else pedirConexion()
             }
         }
     }
@@ -204,7 +217,7 @@ class Radio(private val ctx: Context) {
     // ---------- Spotify ----------
 
     private fun iniciarSpotify() {
-        if (!Spotify.conectado) { mensaje = "Conecta tu cuenta de Spotify en Ajustes."; return }
+        if (!Spotify.conectado) { pedirConexion(); return }
         activa = true; mensaje = ""; anteriores.clear(); cancionNo = 0; spUri = ""; guion = null; spSaltoPropio = false
         player.pause()
         entorno.iniciar()
@@ -322,12 +335,14 @@ class Radio(private val ctx: Context) {
                     val texto = withTimeoutOrNull(12_000) { g.await() }
                     val listo = if (texto != null) withTimeoutOrNull(25_000) { pr?.await() } else null
                     guion = null; preparado = null
+                    if (pausaPedida) return
                     hablar(texto ?: Luna.sinIA(LunaContexto(actual, siguiente), ajustes()), listo)
                 }
                 if (aire && activa) { if (hablaEncima && !retenida) conMusicaBajita { hablarYa() } else hablarYa() }
             } finally {
                 enPausaLuna = false
-                if (activa && !retenida && (apagarEn == 0L || apagarEn > System.currentTimeMillis())) player.play()
+                if (pausaPedida) { if (player.isPlaying) player.pause() }
+                else if (activa && !retenida && (apagarEn == 0L || apagarEn > System.currentTimeMillis())) player.play()
             }
         }
     }
@@ -335,8 +350,8 @@ class Radio(private val ctx: Context) {
     private suspend fun hablar(texto: String, listo: VozLuna.Preparado? = null) {
         textoLuna = try { voz.paraMostrar(texto) } catch (e: Exception) { texto }
         anteriores += texto; while (anteriores.size > 6) anteriores.removeAt(0)
-        lunaHablando = true
-        try { if (!(if (listo != null) voz.decirPreparado(listo) else voz.decir(texto))) mensaje = "Luna no pudo hablar: revisa la voz del teléfono en Ajustes." }
+        lunaHablando = true; pausaPedida = false
+        try { if (!(if (listo != null) voz.decirPreparado(listo) else voz.decir(texto)) && !pausaPedida) mensaje = "Luna no pudo hablar: revisa la voz del teléfono en Ajustes." }
         finally { lunaHablando = false }
     }
 

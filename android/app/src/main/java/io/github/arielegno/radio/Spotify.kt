@@ -31,6 +31,8 @@ object Spotify {
     /** Abre el navegador para entrar a Spotify. */
     fun entrar(ctx: Context): Boolean {
         if (clientId.isEmpty()) { aviso = "Pega primero tu Client ID de Spotify."; return false }
+        // El Client ID son 32 letras y números; a veces se pega el «Client secret» o el enlace por error
+        if (!Regex("^[0-9a-fA-F]{32}$").matches(clientId)) { aviso = "Eso no parece un Client ID de Spotify (son 32 letras y números, en developer.spotify.com › tu app › Settings). No pegues el «Client secret» ni tu contraseña."; return false }
         val v = SpotifyDatos.verificador(); val estado = "rrapp" + SpotifyDatos.verificador().take(16)
         val red = redireccion()
         p.set("spVerif", v); p.set("spEstado", estado); p.set("spRedirUsada", red)
@@ -43,13 +45,14 @@ object Spotify {
     suspend fun alVolver(uri: Uri) {
         val error = uri.getQueryParameter("error")
         if (error != null) { aviso = if (error == "access_denied") "Cancelaste la conexión con Spotify." else "Spotify respondió: $error"; return }
-        if (p.str("spVerif", "").isEmpty()) return
-        val code = uri.getQueryParameter("code") ?: return
+        if (p.str("spVerif", "").isEmpty()) { aviso = "Esa conexión con Spotify ya venció. Toca otra vez «Conectar con Spotify»."; return }
+        val code = uri.getQueryParameter("code") ?: run { aviso = "Spotify no devolvió el permiso. Inténtalo otra vez."; return }
         if (uri.getQueryParameter("state") != p.str("spEstado", "")) { aviso = "La conexión con Spotify no coincide. Inténtalo otra vez."; return }
-        val (c, t) = Red.crudo("POST", "https://accounts.spotify.com/api/token", SpotifyDatos.cuerpoCanje(clientId, code, p.str("spVerif", ""), p.str("spRedirUsada", SpotifyDatos.REDIRECT).takeIf { it in SpotifyDatos.REDIRECCIONES } ?: SpotifyDatos.REDIRECT), tipo = "application/x-www-form-urlencoded")
+        val (c, t) = try { Red.crudo("POST", "https://accounts.spotify.com/api/token", SpotifyDatos.cuerpoCanje(clientId, code, p.str("spVerif", ""), p.str("spRedirUsada", SpotifyDatos.REDIRECT).takeIf { it in SpotifyDatos.REDIRECCIONES } ?: SpotifyDatos.REDIRECT), tipo = "application/x-www-form-urlencoded") } catch (e: Exception) { 0 to "" }
+        if (c == 0) { aviso = "Sin internet: no pude terminar de conectar Spotify."; return }
         if (c !in 200..299) { aviso = "Spotify no aceptó la conexión ($c). Revisa que en Redirect URIs esté exactamente: ${p.str("spRedirUsada", SpotifyDatos.REDIRECT)}"; return }
         guardar(t); p.remove("spVerif"); p.remove("spEstado")
-        aviso = "Spotify conectado."
+        aviso = "Spotify conectado. Ya puedes darle play."
     }
 
     private fun guardar(json: String) {

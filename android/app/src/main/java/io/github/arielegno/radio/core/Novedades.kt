@@ -3,6 +3,9 @@ package io.github.arielegno.radio.core
 /** Historial de cambios (se muestra en Ajustes › Acerca de › Novedades). Lo más nuevo arriba. */
 object Novedades {
     val LISTA: List<Pair<String, List<String>>> = listOf(
+        "2.0.8" to listOf(
+            "Arreglado: las canciones, artistas o álbumes que eliminaste ya se pueden volver a agregar (antes decía que «ya estaban»).",
+        ),
         "2.0.7" to listOf(
             "Pausa de verdad mientras Luna habla: calla a Luna y también detiene la canción (antes la música seguía).",
             "Spotify: si falta conectar tu cuenta, al darle play se abre directo la página para entrar (ya no solo dice «conecta Spotify»).",

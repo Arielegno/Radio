@@ -2,6 +2,9 @@
 
 Lo más nuevo arriba. También se ve dentro de la app en Ajustes › Acerca de › Novedades.
 
+## 2.0.8
+- Arreglado: las canciones, artistas o álbumes que eliminaste ya se pueden volver a agregar (antes decía que «ya estaban»).
+
 ## 2.0.7
 - Pausa de verdad mientras Luna habla: calla a Luna y también detiene la canción (antes la música seguía).
 - Spotify: si falta conectar tu cuenta, al darle play se abre directo la página para entrar (ya no solo dice «conecta Spotify»).

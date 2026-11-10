@@ -124,6 +124,9 @@ class Biblioteca(private val ctx: Context) {
         val dups = lista.map { claveDup(it.name, it.artist, it.size) }.toMutableSet()
         // Archivos ya importados antes (nombre original + tamaño): si eliges otra vez la misma carpeta, solo entran las nuevas
         val origenes = Json.arr(RadioApp.prefs.str("origenes", "[]")).mapNotNull { it as? String }.toMutableSet()
+        // Solo cuentan los archivos que siguen en la biblioteca: lo que eliminaste se puede volver a agregar
+        val tamanos = lista.map { it.size }.toHashSet()
+        origenes.retainAll { e -> e.substringAfterLast('|').toLongOrNull()?.let { it in tamanos } == true }
         val porTamano = lista.groupBy { it.size }
         fun yaEsta(nombre: String, tam: Long): Boolean {
             if (tam <= 0) return false

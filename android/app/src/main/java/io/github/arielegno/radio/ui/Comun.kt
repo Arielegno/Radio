@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -53,6 +54,8 @@ object Imagenes {
     /** Vacía las imágenes en memoria (cuando Android pide memoria). */
     fun vaciar() = cache.evictAll()
 
+    /** Solo mira la memoria (rápido, sin leer el archivo). */
+    fun enMemoria(f: File, max: Int = 600): Bitmap? = cache.get(f.path + ":" + max + ":" + f.lastModified())
     fun deArchivo(f: File, max: Int = 600): Bitmap? {
         val k = f.path + ":" + max + ":" + f.lastModified()
         cache.get(k)?.let { return it }
@@ -94,7 +97,9 @@ object Imagenes {
 
 @Composable
 fun cargarImagen(f: File?, max: Int = 600): ImageBitmap? {
-    val r by produceState<ImageBitmap?>(null, f?.path, f?.lastModified()) {
+    // si ya está en memoria se muestra de inmediato (sin parpadeo al desplazarse)
+    val enMemoria = remember(f?.path, max) { f?.let { Imagenes.enMemoria(it, max) }?.asImageBitmap() }
+    val r by produceState(enMemoria, f?.path, f?.lastModified()) {
         value = if (f == null) null else withContext(Dispatchers.IO) { Imagenes.deArchivo(f, max)?.asImageBitmap() }
     }
     return r

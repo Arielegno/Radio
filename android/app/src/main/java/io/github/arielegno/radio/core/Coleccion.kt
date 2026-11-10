@@ -75,10 +75,11 @@ object Coleccion {
     }
 
     data class Grupo(val clave: String, val canciones: List<Track>, val subtitulo: String = "") {
-        val portada: Track? get() = canciones.firstOrNull { it.cover.isNotEmpty() }
+        // se calculan una sola vez por grupo (antes, en cada dibujo de cada tarjeta)
+        val portada: Track? by lazy { canciones.firstOrNull { it.cover.isNotEmpty() } }
         /** El artista que más aparece (para álbumes). */
-        val artistaPrincipal: String get() = canciones.groupingBy { it.artist }.eachCount().maxByOrNull { it.value }?.key ?: ""
-        val anio: Int get() = canciones.map { it.year }.filter { it > 0 }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key ?: 0
+        val artistaPrincipal: String by lazy { canciones.groupingBy { it.artist }.eachCount().maxByOrNull { it.value }?.key ?: "" }
+        val anio: Int by lazy { canciones.map { it.year }.filter { it > 0 }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key ?: 0 }
     }
 
     /** Arma los grupos de una vista; lo «desconocido» va al final. */

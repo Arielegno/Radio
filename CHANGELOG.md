@@ -2,6 +2,12 @@
 
 Lo más nuevo arriba. También se ve dentro de la app en Ajustes › Acerca de › Novedades.
 
+## 2.0.9
+- Cambiar portada de un álbum: eliges si va «solo para el álbum» o para «el álbum y todas sus canciones» (también se ve en la radio).
+- Biblioteca más fluida: la lista ya no se reordena entera cada vez que escuchas una canción nueva, y los cuadros de álbum calculan su portada, artista y año una sola vez.
+- Las portadas que ya estaban en memoria aparecen al instante al desplazarte (sin parpadeo).
+- El buscador de la biblioteca ya no corta el texto a la mitad en pantallas angostas.
+
 ## 2.0.8
 - Arreglado: las canciones, artistas o álbumes que eliminaste ya se pueden volver a agregar (antes decía que «ya estaban»).
 

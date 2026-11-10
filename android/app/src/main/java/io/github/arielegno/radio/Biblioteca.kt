@@ -226,7 +226,7 @@ class Biblioteca(private val ctx: Context) {
     }
 
     /** Guarda la carátula reducida a 600 px como JPG. */
-    private fun guardarCaratula(bytes: ByteArray, id: Long): String = try {
+    private fun guardarCaratula(bytes: ByteArray, id: Long, nombreArchivo: String = "$id.jpg"): String = try {
         val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
         var s = 1; while (o.outWidth / (s * 2) >= 600 && o.outHeight / (s * 2) >= 600) s *= 2
@@ -234,7 +234,7 @@ class Biblioteca(private val ctx: Context) {
         if (bmp == null) "" else {
             val k = minOf(1f, 600f / maxOf(bmp.width, bmp.height))
             val final = if (k < 1f) Bitmap.createScaledBitmap(bmp, (bmp.width * k).toInt().coerceAtLeast(1), (bmp.height * k).toInt().coerceAtLeast(1), true) else bmp
-            val nombre = "$id.jpg"
+            val nombre = nombreArchivo
             FileOutputStream(File(dirCaratulas, nombre)).use { final.compress(Bitmap.CompressFormat.JPEG, 85, it) }
             nombre
         }
@@ -279,6 +279,39 @@ class Biblioteca(private val ctx: Context) {
     }
 
     /** Carátula elegida desde la galería. */
+    // ---------- Portada propia de un álbum (sin tocar las canciones) ----------
+    private fun claveAlbum(album: String) = normNombre(io.github.arielegno.radio.core.Coleccion.albumBase(album))
+    var portadasAlbum by androidx.compose.runtime.mutableStateOf(
+        try { Json.obj(RadioApp.prefs.str("portadasAlbum", "{}")).mapValues { it.value as? String ?: "" }.filterValues { it.isNotEmpty() } } catch (e: Exception) { emptyMap() }
+    ); private set
+    /** La portada elegida solo para el álbum (si hay). */
+    fun portadaAlbum(album: String): File? = portadasAlbum[claveAlbum(album)]?.let { File(dirCaratulas, it).takeIf { f -> f.exists() } }
+
+    /**
+     * Cambia la portada de un álbum. soloAlbum = true: solo la imagen del álbum (cada canción conserva la suya).
+     * false: también en todas las canciones del álbum. Devuelve cuántas canciones cambiaron (o 1 si fue solo el álbum); 0 si falló.
+     */
+    suspend fun cambiarPortadaAlbum(album: String, canciones: List<Track>, uri: Uri, soloAlbum: Boolean): Int = withContext(Dispatchers.IO) {
+        val bytes = try { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } } catch (e: Throwable) { null } ?: return@withContext 0
+        val k = claveAlbum(album)
+        val anterior = portadasAlbum[k]
+        val mapa = portadasAlbum.toMutableMap()
+        if (soloAlbum) {
+            val nombre = guardarCaratula(bytes, 0, "album_${k.hashCode().toUInt()}_${System.currentTimeMillis()}.jpg").ifEmpty { return@withContext 0 }
+            mapa[k] = nombre
+        } else {
+            // la imagen se lee una sola vez y se guarda para cada canción
+            val cambios = canciones.mapNotNull { t -> porId(t.id)?.let { v -> guardarCaratula(bytes, v.id).ifEmpty { null }?.let { v.copy(cover = it, manual = v.manual + "cover") } } }
+            if (cambios.isEmpty()) return@withContext 0
+            actualizar(cambios)
+            mapa.remove(k)   // ya no hace falta la del álbum: todas sus canciones tienen la nueva
+        }
+        if (anterior != null && anterior != mapa[k]) File(dirCaratulas, anterior).delete()
+        RadioApp.prefs.set("portadasAlbum", Json.write(mapa))
+        withContext(Dispatchers.Main) { portadasAlbum = mapa }
+        if (soloAlbum) 1 else canciones.size
+    }
+
     suspend fun cambiarCaratula(t: Track, uri: Uri): Boolean = withContext(Dispatchers.IO) {
         val bytes = try { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } } catch (e: Exception) { null } ?: return@withContext false
         val nombre = guardarCaratula(bytes, t.id).ifEmpty { return@withContext false }

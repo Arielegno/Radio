@@ -80,6 +80,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -184,7 +185,8 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
         if (uri != null && t != null) scope.launchSafe { aviso = if (b.cambiarCaratula(t, uri)) "Carátula cambiada." else "No se pudo usar esa imagen." }
     }
 
-    val versionStats = RadioApp.stats.stats.size
+    // las escuchas solo importan para ordenar por «más escuchadas»; si no, no se reordena todo en cada canción nueva
+    val versionStats = if (orden == "escuchadas") RadioApp.stats.stats.size else 0
     val escuchas = remember(versionStats, b.pistas) { { t: Track -> RadioApp.stats.stats[t.key]?.c ?: 0 } }
     val filtradas = remember(b.pistas, buscar, filtros, orden, versionStats, RadioApp.stats.favs.size) {
         Coleccion.ordenar(b.pistas.filter { Coleccion.buscar(it, buscar) && Coleccion.pasa(it, filtros) { t -> RadioApp.stats.isFav(t.name, t.artist) } }, orden, escuchas)
@@ -232,7 +234,7 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
                 IconButton(onClick = { aviso = "" }) { Icon(Icons.Filled.Close, "Cerrar aviso", Modifier.size(18.dp)) }
             }
             OutlinedTextField(value = buscar, onValueChange = { buscar = it }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                leadingIcon = { Icon(Icons.Filled.Search, null) }, placeholder = { Text("Buscar canción, artista o álbum", maxLines = 1) }, shape = RoundedCornerShape(16.dp),
+                leadingIcon = { Icon(Icons.Filled.Search, null) }, placeholder = { Text("Buscar canción, artista o álbum", maxLines = 1, overflow = TextOverflow.Ellipsis) }, shape = RoundedCornerShape(16.dp),
                 trailingIcon = { if (buscar.isNotEmpty()) IconButton(onClick = { buscar = "" }) { Icon(Icons.Filled.Close, "Borrar búsqueda") } })
             Row(Modifier.padding(top = 10.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Coleccion.VISTAS.forEach { (k, n) ->
@@ -290,7 +292,7 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
                     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         fila.forEach { g ->
                             Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).clickable { carpeta = Carpeta("albumes", g.clave, g.subtitulo) }) {
-                                Box(Modifier.fillMaxWidth().aspectRatio(1f)) { CaratulaLlena(g.portada, g.clave, Icons.Filled.MusicNote, RoundedCornerShape(14.dp)) }
+                                Box(Modifier.fillMaxWidth().aspectRatio(1f)) { CaratulaLlena(g.portada, g.clave, Icons.Filled.MusicNote, RoundedCornerShape(14.dp), album = g.clave) }
                                 Text(g.clave, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = if (cols >= 4) 12.sp else 14.sp, modifier = Modifier.padding(top = 6.dp))
                                 Text(g.subtitulo, color = LocalExtra.current.tenue, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = if (cols >= 4) 11.sp else 12.sp)
                             }
@@ -318,7 +320,7 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
                         append("$n ${if (n == 1) "canción" else "canciones"}")
                         if (vista == "artistas") { val a = g.canciones.map { it.album }.filter { it.isNotBlank() }.distinct().size; if (a > 0) append(" · $a ${if (a == 1) "álbum" else "álbumes"}") }
                     }
-                    FilaGrupo(g.clave, sub, g.portada, if (vista == "artistas") Icons.Filled.Person else Icons.Filled.MusicNote, redonda = vista == "artistas",
+                    FilaGrupo(g.clave, sub, g.portada, if (vista == "artistas") Icons.Filled.Person else Icons.Filled.MusicNote, redonda = vista == "artistas", esAlbum = vista == "albumes",
                         play = { val ids = g.canciones.map { it.id }.toSet(); r.iniciar({ it.id in ids }, mezclarEsta = vista != "anios") }) { carpeta = Carpeta(vista, g.clave) }
                 }
             }
@@ -372,16 +374,18 @@ private class AccionesCancion(
 )
 
 @Composable
-private fun CaratulaLlena(t: Track?, semilla: String, icono: ImageVector, forma: androidx.compose.ui.graphics.Shape) {
-    val img = cargarImagen(t?.let { RadioApp.biblioteca.caratula(it) }, 400)
+private fun CaratulaLlena(t: Track?, semilla: String, icono: ImageVector, forma: androidx.compose.ui.graphics.Shape, album: String? = null) {
+    // un álbum puede tener su propia portada (elegida «solo para el álbum»)
+    val propia = album?.let { RadioApp.biblioteca.portadasAlbum.let { _ -> RadioApp.biblioteca.portadaAlbum(it) } }
+    val img = cargarImagen(propia ?: t?.let { RadioApp.biblioteca.caratula(it) }, 400)
     if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(forma))
     else Relleno(semilla, icono, Modifier.fillMaxSize(), forma)
 }
 
 @Composable
-private fun FilaGrupo(titulo: String, sub: String, portada: Track?, icono: ImageVector, redonda: Boolean, play: () -> Unit, abrir: () -> Unit) {
+private fun FilaGrupo(titulo: String, sub: String, portada: Track?, icono: ImageVector, redonda: Boolean, esAlbum: Boolean = false, play: () -> Unit, abrir: () -> Unit) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = abrir).padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(56.dp)) { CaratulaLlena(portada, titulo, icono, if (redonda) CircleShape else RoundedCornerShape(10.dp)) }
+        Box(Modifier.size(56.dp)) { CaratulaLlena(portada, titulo, icono, if (redonda) CircleShape else RoundedCornerShape(10.dp), album = if (esAlbum) titulo else null) }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(titulo, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -516,17 +520,40 @@ private fun CabeceraAlbum(album: String, canciones: List<Track>, portada: Track?
     val g = Coleccion.Grupo(album, canciones)
     val scope = rememberCoroutineScope()
     var aviso by remember { mutableStateOf("") }
+    var soloAlbum by remember { mutableStateOf(false) }
+    var preguntar by remember { mutableStateOf(false) }
     val galeria = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri != null) scope.launchSafe {
             aviso = "Cambiando la portada…"
-            var ok = 0; canciones.forEach { if (RadioApp.biblioteca.cambiarCaratula(it, uri)) ok++ }
-            aviso = if (ok > 0) "Portada cambiada en $ok ${if (ok == 1) "canción" else "canciones"}." else "No se pudo leer esa imagen."
+            val n = RadioApp.biblioteca.cambiarPortadaAlbum(album, canciones, uri, soloAlbum)
+            aviso = when {
+                n == 0 -> "No se pudo leer esa imagen."
+                soloAlbum -> "Portada del álbum cambiada (las canciones conservan la suya)."
+                else -> "Portada cambiada en el álbum y en sus $n ${if (n == 1) "canción" else "canciones"}."
+            }
         }
     }
-    val elegir = { galeria.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    val abrirGaleria = { galeria.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    val elegir = { preguntar = true }
+    if (preguntar) AlertDialog(onDismissRequest = { preguntar = false },
+        title = { Text("Cambiar portada") },
+        text = {
+            Column {
+                Text("¿Dónde quieres la nueva portada?", modifier = Modifier.padding(bottom = 8.dp))
+                listOf(false to "Álbum y todas sus ${canciones.size} canciones", true to "Solo la portada del álbum").forEach { (solo, t) ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { soloAlbum = solo }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = soloAlbum == solo, onClick = { soloAlbum = solo }); Text(t)
+                    }
+                }
+                Text(if (soloAlbum) "Cada canción conserva su carátula (se ve en la radio y el reproductor)." else "Se cambia en cada canción: también se ve en la radio y el reproductor.",
+                    style = MaterialTheme.typography.bodySmall, color = LocalExtra.current.tenue, modifier = Modifier.padding(top = 6.dp))
+            }
+        },
+        confirmButton = { TextButton(onClick = { preguntar = false; abrirGaleria() }) { Text("Elegir imagen") } },
+        dismissButton = { TextButton(onClick = { preguntar = false }) { Text("Cancelar") } })
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
         Box(Modifier.size(130.dp).clip(RoundedCornerShape(16.dp)).clickable { elegir() }) {
-            CaratulaLlena(portada, album, Icons.Filled.MusicNote, RoundedCornerShape(16.dp))
+            CaratulaLlena(portada, album, Icons.Filled.MusicNote, RoundedCornerShape(16.dp), album = album)
             Box(Modifier.align(Alignment.BottomEnd).padding(6.dp).size(34.dp).clip(CircleShape).background(Color(0x99000000)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Filled.Edit, "Cambiar portada del álbum", tint = Color.White, modifier = Modifier.size(18.dp))
             }
@@ -845,12 +872,12 @@ private fun SeccionAlbumes(canciones: List<Track>, abrir: (Carpeta) -> Unit) {
     }
     if (lista) albumes.forEach { g ->
         FilaGrupo(g.clave, listOf(if (g.anio > 0) g.anio.toString() else "", "${g.canciones.size} ${if (g.canciones.size == 1) "canción" else "canciones"}").filter { it.isNotEmpty() }.joinToString(" · "),
-            g.portada, Icons.Filled.MusicNote, redonda = false, play = { val ids = g.canciones.map { it.id }.toSet(); RadioApp.radio.iniciar({ it.id in ids }, mezclarEsta = false) }) { abrir(Carpeta("albumes", g.clave, g.subtitulo)) }
+            g.portada, Icons.Filled.MusicNote, redonda = false, esAlbum = true, play = { val ids = g.canciones.map { it.id }.toSet(); RadioApp.radio.iniciar({ it.id in ids }, mezclarEsta = false) }) { abrir(Carpeta("albumes", g.clave, g.subtitulo)) }
     } else albumes.chunked(2).forEach { fila ->
         Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             fila.forEach { g ->
                 Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(18.dp)).clickable { abrir(Carpeta("albumes", g.clave, g.subtitulo)) }) {
-                    CaratulaLlena(g.portada, g.clave, Icons.Filled.MusicNote, RoundedCornerShape(18.dp))
+                    CaratulaLlena(g.portada, g.clave, Icons.Filled.MusicNote, RoundedCornerShape(18.dp), album = g.clave)
                     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
                     Column(Modifier.align(Alignment.BottomStart).padding(10.dp)) {
                         Text(g.clave, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)

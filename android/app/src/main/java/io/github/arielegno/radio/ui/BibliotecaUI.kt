@@ -25,6 +25,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.widthIn
+import io.github.arielegno.radio.Red
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -450,22 +452,13 @@ private fun DetalleCarpeta(c: Carpeta, filtradas: List<Track>, acc: AccionesCanc
     }
     if (renombrarAlbum) {
         var nombre by remember { mutableStateOf(c.clave) }
-        // otros álbumes del mismo artista, para juntarlos con un toque
-        val otros = remember(c, b.pistas) {
-            val arts = canciones.map { normNombre(io.github.arielegno.radio.core.Limpieza.artistaPrincipal(it.artist)) }.toSet()
-            b.pistas.filter { normNombre(io.github.arielegno.radio.core.Limpieza.artistaPrincipal(it.artist)) in arts }
-                .map { Coleccion.albumBase(it.album) }.filter { it.isNotBlank() && it != c.clave }.groupingBy { it }.eachCount()
-                .entries.sortedByDescending { it.value }.take(12).map { it.key }
-        }
         AlertDialog(onDismissRequest = { renombrarAlbum = false },
             title = { Text("Nombre del álbum") },
             text = {
                 Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
                     OutlinedTextField(nombre, { nombre = it.take(200) }, singleLine = true, label = { Text("Álbum") }, modifier = Modifier.fillMaxWidth())
-                    if (otros.isNotEmpty()) {
-                        Text("O júntalo con otro álbum:", color = LocalExtra.current.tenue, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
-                        otros.forEach { o -> TextButton(onClick = { nombre = o }) { Text(o, maxLines = 2, overflow = TextOverflow.Ellipsis) } }
-                    }
+                    Spacer(Modifier.height(8.dp))
+                    SugerenciasAlbum(canciones.firstOrNull()?.artist.orEmpty(), nombre) { a, _ -> nombre = a }
                     Text("Se cambia en sus ${canciones.size} canciones y la guía ya no lo vuelve a cambiar.", color = LocalExtra.current.tenue,
                         style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
                 }
@@ -978,6 +971,60 @@ private fun OpcionGrande(icono: ImageVector, t: String, sub: String, activa: Boo
     }
 }
 
+/** Álbumes oficiales de un artista según internet (iTunes), sin recopilatorios. Se recuerdan mientras la app está abierta. */
+private val albumesEnLinea = java.util.concurrent.ConcurrentHashMap<String, List<Pair<String, Int>>>()
+private suspend fun albumesOficiales(artista: String): List<Pair<String, Int>> {
+    val na = normNombre(artista); if (na.isEmpty()) return emptyList()
+    albumesEnLinea[na]?.let { return it }
+    val (c, j) = try { Red.crudo("GET", "https://itunes.apple.com/search?media=music&entity=album&attribute=artistTerm&limit=60&term=" + java.net.URLEncoder.encode(artista, "UTF-8"), timeoutMs = 8000) } catch (e: Exception) { return emptyList() }
+    if (c != 200) return emptyList()
+    val l = try {
+        Json.obj(j).list("results").mapNotNull { it.asObj() }
+            .filter { normNombre(it.str("artistName")) == na && !io.github.arielegno.radio.core.Limpieza.esRecopilatorio(it.str("collectionName")) }
+            .map { Coleccion.albumBase(it.str("collectionName")) to (Regex("^(\\d{4})").find(it.str("releaseDate"))?.groupValues?.get(1)?.toInt() ?: 0) }
+            .filter { it.first.isNotBlank() }.distinctBy { normNombre(it.first) }.sortedBy { it.second }
+    } catch (e: Exception) { emptyList() }
+    if (l.isNotEmpty()) albumesEnLinea[na] = l
+    return l
+}
+
+/** Debajo del campo «Álbum»: los álbumes de ese artista que ya tienes y los oficiales de internet, para elegir con un toque. */
+@Composable
+private fun SugerenciasAlbum(artista: String, actual: String, elegir: (String, Int) -> Unit) {
+    val principal = io.github.arielegno.radio.core.Limpieza.artistaPrincipal(artista).trim()
+    val b = RadioApp.biblioteca
+    val tuyos = remember(principal, b.pistas) {
+        val na = normNombre(principal)
+        if (na.isEmpty()) emptyList() else b.pistas.filter { normNombre(io.github.arielegno.radio.core.Limpieza.artistaPrincipal(it.artist)) == na && it.album.isNotBlank() }
+            .groupBy { Coleccion.albumBase(it.album) }.map { (a, l) -> Triple(a, l.size, l.maxOf { it.year }) }.sortedByDescending { it.second }.take(15)
+    }
+    val oficiales by produceState<List<Pair<String, Int>>?>(null, principal) { kotlinx.coroutines.delay(500); value = try { albumesOficiales(principal) } catch (e: Exception) { emptyList() } }
+    val chip = @Composable { texto: String, sub: String, marcado: Boolean, al: () -> Unit ->
+        Column(Modifier.padding(end = 8.dp).clip(RoundedCornerShape(12.dp))
+            .background(if (marcado) Amarillo.copy(alpha = 0.25f) else LocalExtra.current.tarjeta).clickable(onClick = al).padding(horizontal = 12.dp, vertical = 6.dp)) {
+            Text(texto, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.widthIn(max = 220.dp))
+            if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodySmall, color = LocalExtra.current.tenue)
+        }
+    }
+    val marcado = { a: String -> normNombre(a) == normNombre(Coleccion.albumBase(actual)) }
+    if (tuyos.isNotEmpty()) {
+        Text("Tus álbumes de $principal", style = MaterialTheme.typography.labelMedium, color = LocalExtra.current.tenue)
+        Row(Modifier.horizontalScroll(rememberScrollState())) {
+            tuyos.forEach { (a, n, y) -> chip(a, "$n ${if (n == 1) "canción" else "canciones"}", marcado(a)) { elegir(a, y) } }
+        }
+    }
+    val enLinea = oficiales?.filter { o -> tuyos.none { normNombre(it.first) == normNombre(o.first) } }
+    if (principal.isNotEmpty()) when {
+        oficiales == null -> Text("Buscando los álbumes oficiales…", style = MaterialTheme.typography.bodySmall, color = LocalExtra.current.tenue)
+        !enLinea.isNullOrEmpty() -> {
+            Text("Álbumes oficiales (internet)", style = MaterialTheme.typography.labelMedium, color = LocalExtra.current.tenue)
+            Row(Modifier.horizontalScroll(rememberScrollState())) {
+                enLinea.forEach { (a, y) -> chip(a, if (y > 0) "Álbum · $y" else "Álbum", marcado(a)) { elegir(a, y) } }
+            }
+        }
+    }
+}
+
 @Composable
 private fun EditarCancion(t: Track, cerrar: () -> Unit, cambiarCaratula: () -> Unit, guardar: (Track) -> Unit) {
     var nombre by remember { mutableStateOf(t.name) }
@@ -996,6 +1043,7 @@ private fun EditarCancion(t: Track, cerrar: () -> Unit, cambiarCaratula: () -> U
                 OutlinedTextField(nombre, { nombre = it.take(200) }, label = { Text("Título") }, singleLine = true)
                 OutlinedTextField(artista, { artista = it.take(200) }, label = { Text("Artista") }, singleLine = true)
                 OutlinedTextField(album, { album = it.take(200) }, label = { Text("Álbum") }, singleLine = true)
+                SugerenciasAlbum(artista, album) { a, y -> album = a; if (y > 0 && anio.isBlank()) anio = y.toString() }
                 OutlinedTextField(anio, { anio = it.filter(Char::isDigit).take(4) }, label = { Text("Año") }, singleLine = true)
                 OutlinedTextField(genero, { genero = it.take(80) }, label = { Text("Género") }, singleLine = true)
                 Text("Lo que corrijas a mano no lo vuelve a cambiar la guía. Luna usa estos datos.", style = MaterialTheme.typography.bodySmall, color = LocalExtra.current.tenue)

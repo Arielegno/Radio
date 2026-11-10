@@ -3,6 +3,7 @@
 Lo más nuevo arriba. También se ve dentro de la app en Ajustes › Acerca de › Novedades.
 
 ## 2.0.6
+- Al editar una canción o el nombre de un álbum, salen de sugerencia los álbumes de ese artista que ya tienes y sus álbumes oficiales según internet (con el año): un toque y listo.
 - Eliminar un artista o un álbum completo (botón de basurero al abrirlo). Tus archivos originales no se tocan.
 - Cambiar el nombre de un álbum en todas sus canciones, o juntarlo con otro álbum del mismo artista con un toque (lápiz al abrir el álbum).
 

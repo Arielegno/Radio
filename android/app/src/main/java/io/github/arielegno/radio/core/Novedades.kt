@@ -4,6 +4,7 @@ package io.github.arielegno.radio.core
 object Novedades {
     val LISTA: List<Pair<String, List<String>>> = listOf(
         "2.0.6" to listOf(
+            "Al editar una canción o el nombre de un álbum, salen de sugerencia los álbumes de ese artista que ya tienes y sus álbumes oficiales según internet (con el año): un toque y listo.",
             "Eliminar un artista o un álbum completo (botón de basurero al abrirlo). Tus archivos originales no se tocan.",
             "Cambiar el nombre de un álbum en todas sus canciones, o juntarlo con otro álbum del mismo artista con un toque (lápiz al abrir el álbum).",
         ),

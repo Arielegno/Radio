@@ -60,7 +60,7 @@ jobs:
           arch: x86_64
           ram-size: 3072M
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          emulator-options: -no-window -gpu guest -noaudio -no-boot-anim -no-snapshot
           script: bash android/estres/prueba.sh android/app/build/outputs/apk/estres/app-estres.apk "$RUNNER_TEMP/semilla" "$GITHUB_WORKSPACE/estres-resultado"
 
       - name: Guardar el resultado

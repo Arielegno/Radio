@@ -43,6 +43,9 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
           python3 android/estres/semilla.py "$RUNNER_TEMP/semilla"
+          # voz de la app (Ald) para que Luna hable en la prueba
+          mkdir -p "$RUNNER_TEMP/semilla/voces" && curl -fsSL --retry 4 https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-es_MX-ald-medium.tar.bz2 | tar -xj -C "$RUNNER_TEMP/semilla/voces"
+          ls "$RUNNER_TEMP/semilla/voces"
 
       - name: Activar la aceleración del teléfono virtual
         run: |

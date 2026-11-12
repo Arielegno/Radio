@@ -4,6 +4,7 @@ set -u
 PKG=io.github.arielegno.radio
 APK=$1; SEM=$2; OUT=$3; mkdir -p "$OUT"
 timeout 300 adb wait-for-device
+vivo() { [ "$(timeout 10 adb get-state 2>/dev/null)" = "device" ]; }
 adb shell settings put global window_animation_scale 0; adb shell settings put global transition_animation_scale 0; adb shell settings put global animator_duration_scale 0
 adb install -r -g "$APK" || { echo "No se pudo instalar"; exit 1; }
 # primera apertura (crea sus carpetas) y se cierra
@@ -53,7 +54,6 @@ PY
 fi
 
 total=0
-vivo() { [ "$(timeout 10 adb get-state 2>/dev/null)" = "device" ]; }
 for semilla in 11 22 33 44 55 66; do
   vivo || { echo "El teléfono virtual se cayó: se termina la prueba con lo que hay"; break; }
   echo "=== Ronda con semilla $semilla ==="

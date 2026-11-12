@@ -44,6 +44,8 @@ class Biblioteca(private val ctx: Context) {
     @Volatile private var indicePorId: Map<Long, Track> = pistas.associateBy { it.id }
     /** Texto de progreso mientras se agregan o restauran canciones (null si no hay nada en curso). */
     var progreso by mutableStateOf<String?>(null)
+    /** El último resultado (agregadas, completadas…) para mostrar en la Biblioteca. */
+    var aviso by mutableStateOf("")
         private set
 
     // Al abrir solo se lee la lista; revisar que cada archivo exista se hace después, en segundo plano
@@ -117,7 +119,16 @@ class Biblioteca(private val ctx: Context) {
     }
 
     /** Agrega archivos de audio elegidos por la persona (varios a la vez). Devuelve (agregadas, repetidas, fallidas). */
-    suspend fun importar(uris: List<Uri>): Triple<Int, Int, Int> = withContext(Dispatchers.IO) {
+    /** Hay una importación en marcha (solo una a la vez: dos juntas se pisaban y perdían canciones). */
+    @Volatile var importando = false; private set
+
+    suspend fun importar(uris: List<Uri>): Triple<Int, Int, Int> {
+        if (importando) return Triple(0, 0, 0)
+        importando = true
+        try { return importarYa(uris) } finally { importando = false }
+    }
+
+    private suspend fun importarYa(uris: List<Uri>): Triple<Int, Int, Int> = withContext(Dispatchers.IO) {
         val cr = ctx.contentResolver
         val candado = Mutex()
         val lista = pistas.toMutableList()

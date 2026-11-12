@@ -3,6 +3,14 @@ package io.github.arielegno.radio.core
 /** Historial de cambios (se muestra en Ajustes › Acerca de › Novedades). Lo más nuevo arriba. */
 object Novedades {
     val LISTA: List<Pair<String, List<String>>> = listOf(
+        "2.1" to listOf(
+            "Arreglado: Luna a veces se quedaba callada o se saltaba un comentario de por medio cuando hablaba encima de la música.",
+            "Arreglado: agregar música, «Limpiar y completar» y descargar voces se cortaban si te ibas a otra pestaña (la barra se quedaba congelada en un número). Ahora siguen trabajando.",
+            "Arreglado: al eliminar un artista o álbum, a veces seguían apareciendo sus canciones.",
+            "Solo se agrega música de una vez: tocar «Agregar» dos veces ya no hace que se pisen y se pierdan canciones.",
+            "Saltar canciones seguido ya no deja a la voz preparando comentarios que no se van a decir.",
+            "Tras pausar a Luna, cambiar de canción o volver a empezar la radio ya no deja la música detenida.",
+        ),
         "2.0.9" to listOf(
             "Cambiar portada de un álbum: eliges si va «solo para el álbum» o para «el álbum y todas sus canciones» (también se ve en la radio).",
             "Biblioteca más fluida: la lista ya no se reordena entera cada vez que escuchas una canción nueva, y los cuadros de álbum calculan su portada, artista y año una sola vez.",

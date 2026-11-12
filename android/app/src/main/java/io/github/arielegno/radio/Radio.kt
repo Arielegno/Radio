@@ -132,7 +132,8 @@ class Radio(private val ctx: Context) {
         val mez = mezclarEsta ?: mezclar
         if (mez) lista = lista.shuffled()
         if (desdeId != null) lista.firstOrNull { it.id == desdeId }?.let { t -> lista = listOf(t) + lista.filter { it.id != desdeId } }
-        cola = lista; cancionNo = 0; guion = null; guionPara = -1; enPausaLuna = false; anteriores.clear()
+        cola = lista; cancionNo = 0; guion = null; guionPara = -1; enPausaLuna = false; anteriores.clear(); pausaPedida = false
+        preparado?.cancel(); preparado = null
         voz.callar()
         try { player.setMediaItems(lista.map { item(it) }, 0, 0L) }
         catch (e: Exception) { Reportes.error("Radio.iniciar", e); mensaje = "No pude poner esas canciones."; activa = false; return }
@@ -165,8 +166,8 @@ class Radio(private val ctx: Context) {
     }
     fun pausar() { if (lunaHablando) voz.callar(); if (fuenteSpotify) { sp("/me/player/pause", "PUT") { sonando = false }; return }; if (player.isPlaying) player.pause() }
     fun seguir() { if (fuenteSpotify) { if (!activa) iniciarSpotify() else sp("/me/player/play", "PUT") { sonando = true }; return }; if (!activa) iniciar() else if (!player.isPlaying) player.play() }
-    fun siguienteCancion() { voz.callar(); if (fuenteSpotify) { sp("/me/player/next", "POST"); return }; if (player.hasNextMediaItem()) { player.seekToNextMediaItem(); player.play() } else mensaje = "No hay más canciones en la lista." }
-    fun anteriorCancion() { voz.callar(); if (fuenteSpotify) { sp("/me/player/previous", "POST"); return }; if (player.currentPosition > 4000 || !player.hasPreviousMediaItem()) player.seekTo(0) else player.seekToPreviousMediaItem(); player.play() }
+    fun siguienteCancion() { pausaPedida = false; voz.callar(); if (fuenteSpotify) { sp("/me/player/next", "POST"); return }; if (player.hasNextMediaItem()) { player.seekToNextMediaItem(); player.play() } else mensaje = "No hay más canciones en la lista." }
+    fun anteriorCancion() { pausaPedida = false; voz.callar(); if (fuenteSpotify) { sp("/me/player/previous", "POST"); return }; if (player.currentPosition > 4000 || !player.hasPreviousMediaItem()) player.seekTo(0) else player.seekToPreviousMediaItem(); player.play() }
     fun irA(ms: Long) { if (fuenteSpotify) { sp("/me/player/seek?position_ms=${ms.coerceAtLeast(0)}", "PUT") { posMs = ms }; return }; player.seekTo(ms.coerceAtLeast(0)) }
     fun detener() {
         voz.callar()
@@ -327,14 +328,16 @@ class Radio(private val ctx: Context) {
         if (enPausaLuna) return
         val g = guion ?: run { player.play(); return }
         enPausaLuna = true
+        // se toman ya y se sueltan: la canción siguiente empieza mientras Luna habla y prepara SU propio comentario
+        // (antes se borraba ese comentario nuevo y Luna se saltaba uno; y se cancelaba la voz que estaba por sonar)
         val pr = preparado
+        guion = null; preparado = null
         RadioApp.scope.launchSafe {
             try {
                 // lo que dirá Luna y su voz ya preparada (si todavía no está, se espera un poco con la música bajita)
                 suspend fun hablarYa() {
                     val texto = withTimeoutOrNull(12_000) { g.await() }
-                    val listo = if (texto != null) withTimeoutOrNull(25_000) { pr?.await() } else null
-                    guion = null; preparado = null
+                    val listo = if (texto != null) try { withTimeoutOrNull(25_000) { pr?.await() } } catch (e: kotlinx.coroutines.CancellationException) { null } else null
                     if (pausaPedida) return
                     hablar(texto ?: Luna.sinIA(LunaContexto(actual, siguiente), ajustes()), listo)
                 }

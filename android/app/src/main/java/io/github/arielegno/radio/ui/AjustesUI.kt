@@ -194,7 +194,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     if (i < CATEGORIAS.size - 1) HorizontalDivider(color = LocalExtra.current.borde, modifier = Modifier.padding(start = 58.dp))
                 }
             }
-            Text("Radio de ruta para Android · versión 2.0.9", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
+            Text("Radio de ruta para Android · versión 2.1", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 14.dp).align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(24.dp))
             return@Column
@@ -251,7 +251,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     if (Guia.trabajando) {
                         Text(Guia.progreso.ifEmpty { "Trabajando…" }, color = Amarillo)
                         TextButton(onClick = { Guia.detener() }) { Text("Detener") }
-                    } else Boton("Limpiar y completar ahora") { scope.launchSafe { aviso = Guia.mantener(true) } }
+                    } else Boton("Limpiar y completar ahora") { RadioApp.scope.launchSafe { aviso = Guia.mantener(true) } }
                     Interruptor("soloWifi", "Descargar carátulas solo por Wi-Fi", false)
                 }
             }
@@ -362,7 +362,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                                 androidx.compose.material3.LinearProgressIndicator(progress = { VozPropia.progreso }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
                                 Text(if (VozPropia.progreso < .85f) "Descargando… ${(VozPropia.progreso / .85f * 100).toInt()} %" else "Preparando la voz…", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall)
                             } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
-                                if (!lista) Boton("Descargar") { scope.launchSafe { aviso = VozPropia.descargar(v); versionVoz++ } }
+                                if (!lista) Boton("Descargar") { RadioApp.scope.launchSafe { aviso = VozPropia.descargar(v); versionVoz++ } }
                                 else {
                                     if (!enUso) Boton("Usar") { p.set("motorVoz", VozPropia.PREFIJO + v.id); r.voz.cambiarMotor(VozPropia.PREFIJO + v.id); versionVoz++ }
                                     Boton("Probar") { scope.launchSafe { if (!VozPropia.decir(v.id, "Hola, soy ${p.str("host", "Luna")}. Así sueno con la voz de ${v.nombre}.", 1f, p.int("volVoz", 100) / 100f)) aviso = "No se pudo usar la voz." } }
@@ -530,7 +530,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     TextButton(onClick = { io.github.arielegno.radio.Almacen.vaciar(); version++; aviso = "Datos guardados borrados: se volverán a generar cuando hagan falta." }) { Text("Borrar datos guardados") }
                 }
                 Grupo("Radio de ruta para Android") {
-                Text("Versión 2.0.9 · por Arielegno", fontWeight = FontWeight.SemiBold)
+                Text("Versión 2.1 · por Arielegno", fontWeight = FontWeight.SemiBold)
                 Ayuda("No manipules la app mientras conduces: configúrala antes de arrancar.")
                 TextButton(onClick = { abrir(ctx, "https://arielegno.github.io/Radio/legal.html") }) { Text("Aviso legal y privacidad") }
                 Ayuda("Usa Media3 (Apache 2.0), Jetpack Compose (Apache 2.0), sherpa-onnx (Apache 2.0) con voces Piper, Apache Commons Compress (Apache 2.0), Leaflet (BSD-2) y datos de OpenStreetMap (ODbL), Open-Meteo, Wikipedia (CC BY-SA), MusicBrainz (CC0), iTunes Search, Spotify, Google Gemini y Anthropic Claude.")

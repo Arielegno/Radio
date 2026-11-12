@@ -13,6 +13,7 @@ import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
@@ -138,6 +139,7 @@ object VozPropia {
                 val t = motor(v) ?: return@withLock null
                 val partes = mutableListOf<FloatArray>()
                 for (f in frases(limpio)) {
+                    if (!isActive) return@withLock null   // ya no hace falta (se saltó la canción)
                     Reportes.marca("Voz de la app: preparando con ${v.nombre} («${f.take(40)}»)")
                     val a = t.generate(f, 0, velocidad.coerceIn(.5f, 2f)).samples
                     if (a.isNotEmpty()) partes += a
@@ -147,6 +149,7 @@ object VozPropia {
                 val todo = FloatArray(total); var k = 0
                 for (a in partes) { a.copyInto(todo, k); k += a.size }
                 Pieza(todo, t.sampleRate())
+            } catch (e: kotlinx.coroutines.CancellationException) { null
             } catch (e: Throwable) { Reportes.error("VozPropia.generar", e); null }
         }
     }

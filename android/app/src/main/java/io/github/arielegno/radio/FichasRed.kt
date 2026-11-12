@@ -153,7 +153,7 @@ object FichasRed {
                 if (c.responseCode != 200 || c.contentType?.startsWith("image/") != true) return@withContext false
                 val b = c.inputStream.use { it.readBytes() }
                 if (b.size < 1000) return@withContext false
-                val tmp = File(destino.parentFile, destino.name + ".tmp"); tmp.writeBytes(b); tmp.renameTo(destino); io.github.arielegno.radio.ui.Imagenes.olvidar(destino)
+                val tmp = File(destino.parentFile, destino.name + ".tmp"); tmp.writeBytes(b); val ok = tmp.renameTo(destino); io.github.arielegno.radio.ui.Imagenes.olvidar(destino); ok
             } finally { c.disconnect() }
         } catch (e: Exception) { false }
     }

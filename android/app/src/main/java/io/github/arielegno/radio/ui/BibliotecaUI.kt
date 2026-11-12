@@ -136,7 +136,6 @@ private fun favArtistas(): MutableMap<String, Any?> = Json.obj(RadioApp.prefs.st
 fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}, abrirRevista: (String) -> Unit = {}, artistaPedido: String = "", alAbrirArtista: () -> Unit = {}) {
     val b = RadioApp.biblioteca; val r = RadioApp.radio; val p = RadioApp.prefs
     val scope = rememberCoroutineScope()
-    var aviso by b::aviso   // vive en la app: el resultado de agregar/completar no se pierde al cambiar de pestaña
     var buscar by rememberSaveable { mutableStateOf("") }
     var vista by rememberSaveable { mutableStateOf(p.str("libVista", "artistas")) }
     var orden by rememberSaveable { mutableStateOf(p.str("libOrden", "original")) }
@@ -162,28 +161,28 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
         append(". La guía limpiará y completará los datos.")
     }
     val elegir = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
-        if (uris.isNotEmpty()) { if (b.importando) aviso = "Ya estoy agregando música: espera a que termine." else RadioApp.scope.launchSafe { val (ok, rep, mal) = b.importar(uris); aviso = resumen(ok, rep, mal, "Agregadas: ") } }
+        if (uris.isNotEmpty()) { if (b.importando) b.aviso = "Ya estoy agregando música: espera a que termine." else RadioApp.scope.launchSafe { val (ok, rep, mal) = b.importar(uris); b.aviso = resumen(ok, rep, mal, "Agregadas: ") } }
     }
     val carpetaMusica = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
-        if (uri != null && b.importando) aviso = "Ya estoy agregando música: espera a que termine."
+        if (uri != null && b.importando) b.aviso = "Ya estoy agregando música: espera a que termine."
         else if (uri != null) RadioApp.scope.launchSafe {
             val audios = b.audiosDeCarpeta(uri)
-            if (audios.isEmpty()) { aviso = "No encontré música en esa carpeta."; return@launchSafe }
-            val (ok, rep, mal) = b.importar(audios); aviso = resumen(ok, rep, mal, "De la carpeta: ")
+            if (audios.isEmpty()) { b.aviso = "No encontré música en esa carpeta."; return@launchSafe }
+            val (ok, rep, mal) = b.importar(audios); b.aviso = resumen(ok, rep, mal, "De la carpeta: ")
         }
     }
     val guardarCopia = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
-        if (uri != null) RadioApp.scope.launchSafe { aviso = try { b.exportar(uri) } catch (e: Exception) { "No se pudo guardar la copia: ${e.message ?: "error"}" } }
+        if (uri != null) RadioApp.scope.launchSafe { b.aviso = try { b.exportar(uri) } catch (e: Exception) { "No se pudo guardar la copia: ${e.message ?: "error"}" } }
     }
     val copiaOrdenada = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
-        if (uri != null) RadioApp.scope.launchSafe { aviso = try { b.copiaOrdenada(uri) } catch (e: Exception) { "No se pudo hacer la copia ordenada: ${e.message ?: "error"}" } }
+        if (uri != null) RadioApp.scope.launchSafe { b.aviso = try { b.copiaOrdenada(uri) } catch (e: Exception) { "No se pudo hacer la copia ordenada: ${e.message ?: "error"}" } }
     }
     val copias = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
-        if (uris.isNotEmpty()) RadioApp.scope.launchSafe { aviso = b.restaurar(uris) }
+        if (uris.isNotEmpty()) RadioApp.scope.launchSafe { b.aviso = b.restaurar(uris) }
     }
     val galeria = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         val t = caratulaDe; caratulaDe = null
-        if (uri != null && t != null) scope.launchSafe { aviso = if (b.cambiarCaratula(t, uri)) "Carátula cambiada." else "No se pudo usar esa imagen." }
+        if (uri != null && t != null) scope.launchSafe { b.aviso = if (b.cambiarCaratula(t, uri)) "Carátula cambiada." else "No se pudo usar esa imagen." }
     }
 
     // las escuchas solo importan para ordenar por «más escuchadas»; si no, no se reordena todo en cada canción nueva
@@ -196,7 +195,7 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
         play = { lista, t -> r.iniciar({ x -> lista.any { it.id == x.id } }, desdeId = t.id, mezclarEsta = false) },
         editar = { editando = it }, borrar = { borrando = it }, playlist = { aPlaylist = it },
         caratula = { caratulaDe = it; galeria.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-        completar = { t -> RadioApp.scope.launchSafe { aviso = Guia.completar(t.id) } }
+        completar = { t -> RadioApp.scope.launchSafe { b.aviso = Guia.completar(t.id) } }
     )
 
     // Agrupar miles de canciones se hace una vez por cambio (antes en cada redibujo de la lista)
@@ -217,8 +216,8 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         if (Guia.trabajando) DropdownMenuItem(text = { Text("Detener la guía") }, leadingIcon = { Icon(Icons.Filled.Stop, null) }, onClick = { menu = false; Guia.detener() })
                         else DropdownMenuItem(text = { Text("Limpiar y completar") }, leadingIcon = { Icon(Icons.Filled.AutoAwesome, null) },
-                            onClick = { menu = false; RadioApp.scope.launchSafe { aviso = Guia.mantener(true) } })
-                        DropdownMenuItem(text = { Text("Copia ordenada por artista y álbum") }, leadingIcon = { Icon(Icons.Filled.Backup, null) }, onClick = { menu = false; aviso = "Elige (o crea) una carpeta: ahí se guardará tu música ordenada en Artista › Álbum, sin tocar tus carpetas originales."; copiaOrdenada.launch(null) })
+                            onClick = { menu = false; RadioApp.scope.launchSafe { b.aviso = Guia.mantener(true) } })
+                        DropdownMenuItem(text = { Text("Copia ordenada por artista y álbum") }, leadingIcon = { Icon(Icons.Filled.Backup, null) }, onClick = { menu = false; b.aviso = "Elige (o crea) una carpeta: ahí se guardará tu música ordenada en Artista › Álbum, sin tocar tus carpetas originales."; copiaOrdenada.launch(null) })
                         DropdownMenuItem(text = { Text("Guardar copia de mi música") }, leadingIcon = { Icon(Icons.Filled.Backup, null) }, onClick = { menu = false; guardarCopia.launch(null) })
                         DropdownMenuItem(text = { Text("Restaurar copia (.rrlib)") }, leadingIcon = { Icon(Icons.Filled.Restore, null) }, onClick = { menu = false; copias.launch(arrayOf("*/*")) })
                     }
@@ -230,9 +229,9 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
             (b.progreso ?: Guia.progreso.ifEmpty { null })?.let {
                 Text(it, color = Amarillo, modifier = Modifier.padding(top = 8.dp)); LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 6.dp), color = Amarillo)
             }
-            if (aviso.isNotEmpty()) Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(aviso, color = LocalExtra.current.tenue, modifier = Modifier.weight(1f))
-                IconButton(onClick = { aviso = "" }) { Icon(Icons.Filled.Close, "Cerrar aviso", Modifier.size(18.dp)) }
+            if (b.aviso.isNotEmpty()) Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(b.aviso, color = LocalExtra.current.tenue, modifier = Modifier.weight(1f))
+                IconButton(onClick = { b.aviso = "" }) { Icon(Icons.Filled.Close, "Cerrar b.aviso", Modifier.size(18.dp)) }
             }
             OutlinedTextField(value = buscar, onValueChange = { buscar = it }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                 leadingIcon = { Icon(Icons.Filled.Search, null) }, placeholder = { Text("Buscar canción, artista o álbum", maxLines = 1, overflow = TextOverflow.Ellipsis) }, shape = RoundedCornerShape(16.dp),
@@ -342,20 +341,20 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
     }
     aPlaylist?.let { t ->
         ElegirPlaylist(t, cerrar = { aPlaylist = null }, nueva = { nuevaLista = true }) { n ->
-            aviso = if (b.listas.agregar(n, t.id)) { b.guardarListas(); "Añadida a «$n»." } else "Ya estaba en «$n»."
+            b.aviso = if (b.listas.agregar(n, t.id)) { b.guardarListas(); "Añadida a «$n»." } else "Ya estaba en «$n»."
             aPlaylist = null
         }
     }
     if (nuevaLista) PedirNombre("Nueva playlist", "", "Crear", { nuevaLista = false }) { n ->
         val err = b.listas.crear(n)
-        if (err == null) { b.guardarListas(); aPlaylist?.let { t -> b.listas.agregar(n.trim().take(60), t.id); b.guardarListas(); aviso = "Añadida a «${n.trim()}»."; aPlaylist = null } }
-        else aviso = err
+        if (err == null) { b.guardarListas(); aPlaylist?.let { t -> b.listas.agregar(n.trim().take(60), t.id); b.guardarListas(); b.aviso = "Añadida a «${n.trim()}»."; aPlaylist = null } }
+        else b.aviso = err
         nuevaLista = false
     }
     renombrar?.let { viejo ->
         PedirNombre("Cambiar nombre", viejo, "Guardar", { renombrar = null }) { n ->
             val err = b.listas.renombrar(viejo, n)
-            if (err == null) { b.guardarListas(); val c2 = carpeta; if (c2 != null && c2.vista == "playlists" && c2.clave == viejo) carpeta = c2.copy(clave = n.trim().take(60)) } else aviso = err
+            if (err == null) { b.guardarListas(); val c2 = carpeta; if (c2 != null && c2.vista == "playlists" && c2.clave == viejo) carpeta = c2.copy(clave = n.trim().take(60)) } else b.aviso = err
             renombrar = null
         }
     }

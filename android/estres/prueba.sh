@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prueba de estrés (v3): instala la app en el teléfono virtual, le carga canciones y la usa a lo loco con «monkey».
+# Prueba de estrés (v4): instala la app en el teléfono virtual, le carga canciones y la usa a lo loco con «monkey».
 set -u
 PKG=io.github.arielegno.radio
 APK=$1; SEM=$2; OUT=$3; mkdir -p "$OUT"

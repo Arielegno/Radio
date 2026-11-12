@@ -15,7 +15,11 @@ android {
         versionCode = 24
         versionName = "2.1"
         // Voces propias (sherpa-onnx): solo para los procesadores de teléfonos (así el APK pesa menos)
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            // Para la prueba de estrés en un teléfono virtual (procesador de computadora): -PabiExtra=x86_64
+            (project.findProperty("abiExtra") as String?)?.split(",")?.filter { it.isNotBlank() }?.let { abiFilters += it }
+        }
     }
 
     signingConfigs {
@@ -38,6 +42,12 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("debug")
+        }
+        // Igual a la que instalas (con R8), pero se deja revisar por dentro: solo para la prueba de estrés automática
+        create("estres") {
+            initWith(getByName("release"))
+            isDebuggable = true
+            matchingFallbacks += listOf("release")
         }
     }
 

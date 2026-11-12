@@ -79,6 +79,8 @@ class Biblioteca(private val ctx: Context) {
 
     fun archivo(t: Track) = File(dirMusica, t.file)
     fun caratula(t: Track): File? = if (t.cover.isEmpty()) null else File(dirCaratulas, t.cover).takeIf { it.exists() }
+    /** Para dibujar: sin tocar el disco (si el archivo no está, la imagen sale vacía y se ve el relleno de color). */
+    fun caratulaUi(t: Track): File? = if (t.cover.isEmpty()) null else File(dirCaratulas, t.cover)
     fun porId(id: Long): Track? = indicePorId[id]
 
     private fun claveDup(name: String, artist: String, size: Long) = normNombre(name) + "|" + normNombre(artist) + "|" + size
@@ -247,6 +249,7 @@ class Biblioteca(private val ctx: Context) {
             val final = if (k < 1f) Bitmap.createScaledBitmap(bmp, (bmp.width * k).toInt().coerceAtLeast(1), (bmp.height * k).toInt().coerceAtLeast(1), true) else bmp
             val nombre = nombreArchivo
             FileOutputStream(File(dirCaratulas, nombre)).use { final.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+            io.github.arielegno.radio.ui.Imagenes.olvidar(File(dirCaratulas, nombre))
             nombre
         }
     } catch (e: Throwable) { "" }

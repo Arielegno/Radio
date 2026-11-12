@@ -54,10 +54,18 @@ object Imagenes {
     /** Vacía las imágenes en memoria (cuando Android pide memoria). */
     fun vaciar() = cache.evictAll()
 
-    /** Solo mira la memoria (rápido, sin leer el archivo). */
-    fun enMemoria(f: File, max: Int = 600): Bitmap? = cache.get(f.path + ":" + max + ":" + f.lastModified())
+    /** Sube cuando cambia alguna imagen guardada (carátula o foto nueva): las pantallas la vuelven a leer. */
+    var version by androidx.compose.runtime.mutableIntStateOf(0); private set
+    /** Una imagen cambió en el disco: se olvida la copia en memoria. Se puede llamar desde cualquier hilo. */
+    fun olvidar(f: File) {
+        cache.snapshot().keys.filter { it.startsWith(f.path + ":") }.forEach { cache.remove(it) }
+        android.os.Handler(android.os.Looper.getMainLooper()).post { version++ }
+    }
+    /** Solo mira la memoria (rápido, sin tocar el disco). */
+    fun enMemoria(f: File, max: Int = 600): Bitmap? = cache.get(f.path + ":" + max)
     fun deArchivo(f: File, max: Int = 600): Bitmap? {
-        val k = f.path + ":" + max + ":" + f.lastModified()
+        // sin mirar la fecha del archivo (eso leía el disco al dibujar): cuando una imagen cambia se avisa con olvidar()
+        val k = f.path + ":" + max
         cache.get(k)?.let { return it }
         return try {
             val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -98,8 +106,9 @@ object Imagenes {
 @Composable
 fun cargarImagen(f: File?, max: Int = 600): ImageBitmap? {
     // si ya está en memoria se muestra de inmediato (sin parpadeo al desplazarse)
-    val enMemoria = remember(f?.path, max) { f?.let { Imagenes.enMemoria(it, max) }?.asImageBitmap() }
-    val r by produceState(enMemoria, f?.path, f?.lastModified()) {
+    val v = Imagenes.version
+    val enMemoria = remember(f?.path, max, v) { f?.let { Imagenes.enMemoria(it, max) }?.asImageBitmap() }
+    val r by produceState(enMemoria, f?.path, max, v) {
         value = if (f == null) null else withContext(Dispatchers.IO) { Imagenes.deArchivo(f, max)?.asImageBitmap() }
     }
     return r
@@ -163,7 +172,7 @@ fun FondoCristal() {
     val oscuro = LocalExtra.current.oscuro
     val idUltima = androidx.compose.runtime.remember(r.actual?.id, r.activa) { r.ultima()?.first ?: -1L }
     val pista = r.actual ?: bib.porId(idUltima)
-    val img = if (r.fuenteSpotify && r.portadaUrl.isNotEmpty()) cargarImagenUrl(r.portadaUrl) else cargarImagen(pista?.let { bib.caratula(it) }, 300)
+    val img = if (r.fuenteSpotify && r.portadaUrl.isNotEmpty()) cargarImagenUrl(r.portadaUrl) else cargarImagen(pista?.let { bib.caratulaUi(it) }, 300)
     Box(Modifier.fillMaxSize().background(bg)) {
         if (img != null) {
             Image(img, contentDescription = null, contentScale = ContentScale.Crop,

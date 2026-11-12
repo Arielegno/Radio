@@ -166,7 +166,7 @@ private fun MiniReproductor(irRadio: () -> Unit) {
     val r = RadioApp.radio; val t = r.actual ?: return
     if (!r.activa) return
     Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)).padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Caratula(RadioApp.biblioteca.caratula(t), t.album + t.artist, 40.dp, 6.dp)
+        Caratula(RadioApp.biblioteca.caratulaUi(t), t.album + t.artist, 40.dp, 6.dp)
         Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
             Text(t.name, maxLines = 1, style = MaterialTheme.typography.bodyMedium)
             Text(t.artist, maxLines = 1, style = MaterialTheme.typography.bodySmall, color = LocalExtra.current.tenue)

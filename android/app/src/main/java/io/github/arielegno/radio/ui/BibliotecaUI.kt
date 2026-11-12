@@ -377,7 +377,7 @@ private class AccionesCancion(
 private fun CaratulaLlena(t: Track?, semilla: String, icono: ImageVector, forma: androidx.compose.ui.graphics.Shape, album: String? = null) {
     // un álbum puede tener su propia portada (elegida «solo para el álbum»)
     val propia = album?.let { RadioApp.biblioteca.portadasAlbum.let { _ -> RadioApp.biblioteca.portadaAlbum(it) } }
-    val img = cargarImagen(propia ?: t?.let { RadioApp.biblioteca.caratula(it) }, 400)
+    val img = cargarImagen(propia ?: t?.let { RadioApp.biblioteca.caratulaUi(it) }, 400)
     if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(forma))
     else Relleno(semilla, icono, Modifier.fillMaxSize(), forma)
 }
@@ -400,7 +400,7 @@ private fun FilaCancion(t: Track, lista: List<Track>, a: AccionesCancion) {
     var menu by remember { mutableStateOf(false) }
     val actual = RadioApp.radio.actual?.id == t.id
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { a.play(lista, t) }.padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-        Caratula(RadioApp.biblioteca.caratula(t), t.album + t.artist, 50.dp, 8.dp)
+        Caratula(RadioApp.biblioteca.caratulaUi(t), t.album + t.artist, 50.dp, 8.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(t.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, color = if (actual) Amarillo else androidx.compose.ui.graphics.Color.Unspecified)
@@ -581,7 +581,7 @@ fun TarjetaArtista(g: Coleccion.Grupo, modifier: Modifier, abrir: () -> Unit) {
     val foto by produceState<java.io.File?>(null, g.clave) { value = try { FichasRed.fotoArtista(g.clave) } catch (e: Exception) { null } }
     // Solo se lee una imagen por tarjeta (antes se leían dos) y del tamaño de la tarjeta
     val imgFoto = cargarImagen(foto, 360)
-    val imgPortada = cargarImagen(if (foto == null) g.portada?.let { RadioApp.biblioteca.caratula(it) } else null, 300)
+    val imgPortada = cargarImagen(if (foto == null) g.portada?.let { RadioApp.biblioteca.caratulaUi(it) } else null, 300)
     val img = imgFoto ?: imgPortada
     val n = g.canciones.size
     Box(modifier.aspectRatio(0.68f).clip(RoundedCornerShape(18.dp)).clickable(onClick = abrir)) {
@@ -734,7 +734,7 @@ private fun CabeceraArtista(nombre: String, canciones: List<Track>, abrir: (Carp
     LaunchedEffect(nombre) { contarVisita(nombre) }
     val foto by produceState<java.io.File?>(null, nombre, version) { value = try { FichasRed.fotoArtista(nombre) } catch (e: Exception) { null } }
     val portada = canciones.firstOrNull { it.cover.isNotEmpty() }
-    val img = cargarImagen(foto, 900) ?: cargarImagen(portada?.let { RadioApp.biblioteca.caratula(it) }, 600)
+    val img = cargarImagen(foto, 900) ?: cargarImagen(portada?.let { RadioApp.biblioteca.caratulaUi(it) }, 600)
     val galeria = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri != null) scope.launchSafe { if (FichasRed.guardarFotoPropia("artista", nombre, uri)) version++ }
     }
@@ -841,7 +841,7 @@ private fun CabeceraArtista(nombre: String, canciones: List<Track>, abrir: (Carp
     SeccionAlbumes(canciones, abrir)
 
     if (editar) EditarArtista(nombre, cerrar = { editar = false }, foto = { editar = false; galeria.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-        quitarFoto = { FichasRed.fotoPropia("artista", nombre).delete(); p.remove("artimg_" + Fichas.slug(nombre)); version++; editar = false }) { bio ->
+        quitarFoto = { FichasRed.fotoPropia("artista", nombre).let { it.delete(); Imagenes.olvidar(it) }; p.remove("artimg_" + Fichas.slug(nombre)); version++; editar = false }) { bio ->
         FichasRed.guardarBioPropia(nombre, bio); version++; editar = false
     }
     ficha?.let { f -> FichaPantalla(f, abrirRevista) { ficha = null } }
@@ -1065,7 +1065,7 @@ private fun EditarCancion(t: Track, cerrar: () -> Unit, cambiarCaratula: () -> U
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Caratula(RadioApp.biblioteca.caratula(t), t.album + t.artist, 64.dp, 10.dp)
+                    Caratula(RadioApp.biblioteca.caratulaUi(t), t.album + t.artist, 64.dp, 10.dp)
                     Spacer(Modifier.width(12.dp))
                     OutlinedButton(onClick = cambiarCaratula) { Icon(Icons.Filled.Image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Cambiar carátula") }
                 }

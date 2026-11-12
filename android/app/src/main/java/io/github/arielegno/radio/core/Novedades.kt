@@ -3,6 +3,11 @@ package io.github.arielegno.radio.core
 /** Historial de cambios (se muestra en Ajustes › Acerca de › Novedades). Lo más nuevo arriba. */
 object Novedades {
     val LISTA: List<Pair<String, List<String>>> = listOf(
+        "2.1.2" to listOf(
+            "Pantalla más fluida: las portadas y fotos de artistas ya no leen el disco mientras se dibuja la pantalla (eso podía trabarla en teléfonos ocupados).",
+            "Las fotos de artistas se buscan siempre en segundo plano.",
+            "Al cambiar una carátula o foto, se ve la nueva al instante.",
+        ),
         "2.1.1" to listOf(
             "La app abre más rápido después de un cierre: la revisión de qué pasó se hace en segundo plano (antes podía causar «no responde» al abrir).",
             "Revista: en la computadora, «Compartir» ahora sí copia el enlace (antes fallaba en silencio en algunos navegadores).",

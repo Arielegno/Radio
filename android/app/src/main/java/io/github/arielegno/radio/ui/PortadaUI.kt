@@ -140,7 +140,7 @@ fun Portada(acc: AccionesPortada) {
     val t = r.actual
     val ultima = remember(r.activa, t?.id) { r.ultima() }
     val pistaDisco: Track? = t ?: ultima?.let { u -> RadioApp.biblioteca.porId(u.first) }
-    val imgLocal = cargarImagen(if (r.fuenteSpotify) null else pistaDisco?.let { RadioApp.biblioteca.caratula(it) }, 600)
+    val imgLocal = cargarImagen(if (r.fuenteSpotify) null else pistaDisco?.let { RadioApp.biblioteca.caratulaUi(it) }, 600)
     val imgSpotify = cargarImagenUrl(if (r.fuenteSpotify) r.portadaUrl else "")
     val portadaImg = if (r.fuenteSpotify) imgSpotify else imgLocal
     val tinte = if (cfg.tinte && portadaImg != null) remember(portadaImg) { Imagenes.colorPromedio(portadaImg.asAndroidBitmap()) } else Color.Transparent
@@ -238,7 +238,7 @@ private fun AhoraSuena(t: Track?, conCaratula: Boolean) {
     var fav by remember(t?.id) { mutableStateOf(t?.let { RadioApp.stats.isFav(it.name, it.artist) } ?: false) }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
         Box(Modifier.width(5.dp).height(56.dp).background(Amarillo)); Spacer(Modifier.width(12.dp))
-        if (conCaratula && t != null && !r.fuenteSpotify) { Caratula(RadioApp.biblioteca.caratula(t), t.album + t.artist, 64.dp, 8.dp); Spacer(Modifier.width(12.dp)) }
+        if (conCaratula && t != null && !r.fuenteSpotify) { Caratula(RadioApp.biblioteca.caratulaUi(t), t.album + t.artist, 64.dp, 8.dp); Spacer(Modifier.width(12.dp)) }
         Column(Modifier.weight(1f)) {
             Text(t?.name ?: "Nada sonando", style = MaterialTheme.typography.headlineMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(t?.let { listOf(it.artist, it.album).filter { s -> s.isNotBlank() }.joinToString(" · ") } ?: if (r.fuenteSpotify) "Toca «Iniciar radio» para escuchar Spotify" else "Toca «Iniciar radio» para escuchar tu biblioteca",
@@ -424,7 +424,7 @@ private fun ParaTi(acc: AccionesPortada) {
                         else -> r.iniciar(null, mezclarEsta = true)
                     }
                 }) {
-                    val f = m.pista?.let { RadioApp.biblioteca.caratula(it) }
+                    val f = m.pista?.let { RadioApp.biblioteca.caratulaUi(it) }
                     if (f != null) Caratula(f, m.titulo, 132.dp, 16.dp) else Relleno(m.titulo, m.icono, Modifier.size(132.dp), RoundedCornerShape(16.dp))
                     Text(m.titulo, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
                     Text(m.sub, style = MaterialTheme.typography.bodySmall, color = LocalExtra.current.tenue)

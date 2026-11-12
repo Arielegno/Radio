@@ -114,7 +114,8 @@ object FichasRed {
     fun fotoPropia(tipo: String, clave: String): File = File(dirFotos, "$tipo-${Fichas.slug(clave)}.jpg")
 
     /** Foto del artista guardada en el teléfono: la tuya, o la de Spotify, o la de Wikipedia. null = usar la carátula. */
-    suspend fun fotoArtista(nombre: String): File? {
+    suspend fun fotoArtista(nombre: String): File? = withContext(Dispatchers.IO) { fotoArtistaYa(nombre) }   // nunca en el hilo de la pantalla
+    private suspend fun fotoArtistaYa(nombre: String): File? {
         if (nombre.isBlank() || Regex("desconocid", RegexOption.IGNORE_CASE).containsMatchIn(nombre)) return null
         val f = fotoPropia("artista", nombre)
         if (f.exists() && f.length() > 0) return f
@@ -152,7 +153,7 @@ object FichasRed {
                 if (c.responseCode != 200 || c.contentType?.startsWith("image/") != true) return@withContext false
                 val b = c.inputStream.use { it.readBytes() }
                 if (b.size < 1000) return@withContext false
-                val tmp = File(destino.parentFile, destino.name + ".tmp"); tmp.writeBytes(b); tmp.renameTo(destino)
+                val tmp = File(destino.parentFile, destino.name + ".tmp"); tmp.writeBytes(b); tmp.renameTo(destino); io.github.arielegno.radio.ui.Imagenes.olvidar(destino)
             } finally { c.disconnect() }
         } catch (e: Exception) { false }
     }
@@ -174,6 +175,7 @@ object FichasRed {
             val k = minOf(1f, 1200f / maxOf(bmp.width, bmp.height))
             val fin = if (k < 1f) android.graphics.Bitmap.createScaledBitmap(bmp, (bmp.width * k).toInt().coerceAtLeast(1), (bmp.height * k).toInt().coerceAtLeast(1), true) else bmp
             fotoPropia(tipo, clave).outputStream().use { fin.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+            io.github.arielegno.radio.ui.Imagenes.olvidar(fotoPropia(tipo, clave))   // la foto nueva se ve enseguida
             true
         } catch (e: Exception) { false }
     }

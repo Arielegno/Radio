@@ -1,9 +1,15 @@
 # Prueba de estrés: la app en un teléfono virtual de Android, usada a lo loco por un probador automático («monkey»).
-# Solo se corre a mano (Actions › Prueba de estrés › Run workflow). El resultado queda en Releases › «estres».
+# Corre cuando cambia android/estres/ (o a mano). El resultado queda en Releases › «estres».
 name: Prueba de estrés
 
 on:
   workflow_dispatch:
+  push:
+    branches: [kotlin]
+    paths:
+      - 'android/estres/**'
+      - '.github/workflows/estres.yml'
+
 
 permissions:
   contents: write

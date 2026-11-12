@@ -15,6 +15,12 @@ class RadioApp : Application() {
     override fun onCreate() {
         super.onCreate()
         app = this
+        // Solo en la versión de prueba (la de la prueba de estrés): Android anota con detalle lo que traba
+        // la pantalla o se queda abierto. En la que instalas no hace nada.
+        if ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            android.os.StrictMode.setThreadPolicy(android.os.StrictMode.ThreadPolicy.Builder().detectDiskReads().detectDiskWrites().detectNetwork().detectCustomSlowCalls().penaltyLog().build())
+            android.os.StrictMode.setVmPolicy(android.os.StrictMode.VmPolicy.Builder().detectLeakedClosableObjects().detectLeakedRegistrationObjects().detectActivityLeaks().penaltyLog().build())
+        }
         rr.revista.PlataformaAndroid.ctx = this
         prefs = Prefs(getSharedPreferences("radio", Context.MODE_PRIVATE))
         Reportes.iniciar(this)

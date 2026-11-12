@@ -65,6 +65,8 @@ for semilla in 11 22 33 44 55 66; do
   adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1 >/dev/null; sleep 2
   adb shell input keyevent 126; sleep 25; adb shell input keyevent 87; sleep 5; adb shell input keyevent 87; sleep 3; adb shell input keyevent 127
 done
+# detalles de cada «no responde» que guardó Android (el teléfono virtual deja entrar como administrador)
+if vivo; then timeout 30 adb root >/dev/null 2>&1; sleep 3; timeout 120 adb pull /data/anr "$OUT/anr" >/dev/null 2>&1; for f in "$OUT"/anr/*; do [ -f "$f" ] && cp "$f" "$OUT/anr-$(basename "$f").txt"; done; fi
 timeout 60 adb logcat -d -b crash > "$OUT/crash.txt" 2>&1
 timeout 120 adb logcat -d > "$OUT/logcat.txt" 2>&1
 timeout 60 adb shell dumpsys activity exit-info $PKG > "$OUT/salidas.txt" 2>&1

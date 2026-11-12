@@ -96,7 +96,8 @@ fun App() {
     }
     val listaInicio = rememberLazyGridState()
     val foco = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { foco.requestFocus() } }
+    // el foco (para la tecla Esc) se pide cuando la pantalla ya existe, no mientras cargan las letras
+    LaunchedEffect(Fuentes.cargadas) { if (Fuentes.cargadas) { kotlinx.coroutines.delay(50); runCatching { foco.requestFocus() } } }
     val arriba = Nav.pila.lastOrNull()
     if (!Fuentes.cargadas) { Box(Modifier.fillMaxSize().background(Asfalto), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Amarillo) }; return }
     val base = Fuentes.de("barlow")

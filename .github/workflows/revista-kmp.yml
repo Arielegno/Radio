@@ -63,6 +63,13 @@ jobs:
           node capturas.js
           ls capturas
 
+      # Prueba de estrés: clics, texto, teclas y cambios de tamaño al azar en todas las secciones (Chromium y Firefox)
+      - name: Prueba de estrés
+        continue-on-error: true
+        run: |
+          timeout 1500 node estres.js http://localhost:8080/ 250 || true
+          cp estres-revista.txt capturas/ 2>/dev/null || true
+
       - name: Publicar capturas y paquete en Releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -70,7 +77,7 @@ jobs:
           (cd composeApp/build/dist/wasmJs/productionExecutable && zip -qr $GITHUB_WORKSPACE/revista-nativa.zip .)
           gh release view revista-kmp --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create revista-kmp --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "Revista nativa (Kotlin)" --notes "Prototipo de la Revista hecha en Kotlin. Se abre en https://arielegno.github.io/Radio/revista-nativa/"
-          gh release upload revista-kmp capturas/*.png capturas/consola.txt $GITHUB_WORKSPACE/revista-nativa.zip --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload revista-kmp capturas/*.png capturas/consola.txt $(ls capturas/estres-revista.txt 2>/dev/null) $GITHUB_WORKSPACE/revista-nativa.zip --repo "$GITHUB_REPOSITORY" --clobber
 
       - name: Publicar en la web (carpeta revista-nativa/ de main)
         working-directory: .

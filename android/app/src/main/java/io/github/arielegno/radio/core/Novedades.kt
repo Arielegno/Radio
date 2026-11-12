@@ -3,6 +3,12 @@ package io.github.arielegno.radio.core
 /** Historial de cambios (se muestra en Ajustes › Acerca de › Novedades). Lo más nuevo arriba. */
 object Novedades {
     val LISTA: List<Pair<String, List<String>>> = listOf(
+        "2.1.1" to listOf(
+            "La app abre más rápido después de un cierre: la revisión de qué pasó se hace en segundo plano (antes podía causar «no responde» al abrir).",
+            "Revista: en la computadora, «Compartir» ahora sí copia el enlace (antes fallaba en silencio en algunos navegadores).",
+            "Revista: la tecla Esc funciona desde que se abre (pedía el foco antes de tiempo).",
+            "Pruebas automáticas de estrés: la app se usa a lo loco en un teléfono virtual (con Luna hablando) y la Revista en Chromium y Firefox, buscando cierres y errores.",
+        ),
         "2.1" to listOf(
             "Arreglado: Luna a veces se quedaba callada o se saltaba un comentario de por medio cuando hablaba encima de la música.",
             "Arreglado: agregar música, «Limpiar y completar» y descargar voces se cortaban si te ibas a otra pestaña (la barra se quedaba congelada en un número). Ahora siguen trabajando.",

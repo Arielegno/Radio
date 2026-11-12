@@ -79,7 +79,9 @@ actual suspend fun procesarFoto(dataUrl: String, giro: Int, espejo: Boolean, pro
 actual suspend fun recortarFoto(dataUrl: String, proporcion: Float, encuadre: Float, max: Int): String =
     jsRecortar(dataUrl, proporcion.toDouble(), encuadre.toDouble(), max).await<JsString>().toString()
 
-@JsFun("(t, u) => { try { if (navigator.share) { navigator.share({ title: t, url: u }).catch(() => {}); return true; } } catch (e) {} try { navigator.clipboard.writeText(u); } catch (e) {} return false; }")
+// Sin menú de compartir (computadoras): se copia el enlace. Primero de la forma clásica (no pide permiso);
+// si no se puede, con el portapapeles moderno y sus fallos atrapados (antes fallaba en silencio sin copiar nada).
+@JsFun("(t, u) => { try { if (navigator.share) { navigator.share({ title: t, url: u }).catch(() => {}); return true; } } catch (e) {} let ok = false; try { const a = document.createElement('textarea'); a.value = u; a.setAttribute('readonly', ''); a.style.position = 'fixed'; a.style.opacity = '0'; document.body.appendChild(a); a.select(); ok = document.execCommand('copy'); a.remove(); } catch (e) {} if (!ok) { try { navigator.clipboard.writeText(u).catch(() => {}); } catch (e) {} } return false; }")
 private external fun jsCompartir(t: String, u: String): Boolean
 actual fun compartir(texto: String, url: String): Boolean = jsCompartir(texto, url)
 

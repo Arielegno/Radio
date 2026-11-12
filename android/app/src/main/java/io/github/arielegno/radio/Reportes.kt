@@ -47,6 +47,12 @@ object Reportes {
             } catch (x: Throwable) {}
             anterior?.uncaughtException(hilo, e)
         }
+        // Revisar por qué se cerró la vez anterior lee el registro de Android (puede tardar segundos):
+        // se hace en segundo plano para que la app abra al instante (si no, Android la marcaba «no responde»)
+        Thread({ try { revisarCierres(ctx) } catch (e: Throwable) {} }, "reportes").start()
+    }
+
+    private fun revisarCierres(ctx: Context) {
         val java = try { File(dir, "ultimo_cierre_java").readText().toLong() } catch (e: Exception) { 0L }
         // Android 11+: también los cierres del motor nativo (voces), por falta de memoria o por «no responde»
         if (Build.VERSION.SDK_INT >= 30) try {
@@ -72,7 +78,10 @@ object Reportes {
         if (java > 0 && File(dir, "ultimo_cierre_java").lastModified() > (RadioApp.prefs.str("javaVisto", "0").toLongOrNull() ?: 0L)) {
             RadioApp.prefs.set("javaVisto", System.currentTimeMillis().toString()); RadioApp.prefs.set("reporteNuevo", true)
         }
-        if (RadioApp.prefs.bool("reporteNuevo", false)) { pendiente = todosJuntos().take(90_000); RadioApp.prefs.set("reporteNuevo", false) }
+        if (RadioApp.prefs.bool("reporteNuevo", false)) {
+            val texto = todosJuntos().take(90_000); RadioApp.prefs.set("reporteNuevo", false)
+            android.os.Handler(android.os.Looper.getMainLooper()).post { pendiente = texto }
+        }
     }
 
     /** Las últimas líneas del registro de Android de esta app (errores y avisos), para entender un cierre. */

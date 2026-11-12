@@ -44,9 +44,9 @@ class Biblioteca(private val ctx: Context) {
     @Volatile private var indicePorId: Map<Long, Track> = pistas.associateBy { it.id }
     /** Texto de progreso mientras se agregan o restauran canciones (null si no hay nada en curso). */
     var progreso by mutableStateOf<String?>(null)
+        private set
     /** El último resultado (agregadas, completadas…) para mostrar en la Biblioteca. */
     var aviso by mutableStateOf("")
-        private set
 
     // Al abrir solo se lee la lista; revisar que cada archivo exista se hace después, en segundo plano
     private fun cargar(): List<Track> = Json.arr(Datos.leer(indice)).mapNotNull { it.asObj()?.let(Track::from) }

@@ -3,7 +3,7 @@
 set -u
 PKG=io.github.arielegno.radio
 APK=$1; SEM=$2; OUT=$3; mkdir -p "$OUT"
-adb wait-for-device
+timeout 300 adb wait-for-device
 adb shell settings put global window_animation_scale 0; adb shell settings put global transition_animation_scale 0; adb shell settings put global animator_duration_scale 0
 adb install -r -g "$APK" || { echo "No se pudo instalar"; exit 1; }
 # primera apertura (crea sus carpetas) y se cierra
@@ -14,7 +14,9 @@ adb shell "run-as $PKG sh -c 'mkdir -p files/music files/covers && cp /data/loca
 adb shell "run-as $PKG ls files/music | wc -l"
 adb logcat -c
 total=0
+vivo() { [ "$(timeout 10 adb get-state 2>/dev/null)" = "device" ]; }
 for semilla in 11 22 33 44 55 66; do
+  vivo || { echo "El teléfono virtual se cayó: se termina la prueba con lo que hay"; break; }
   echo "=== Ronda con semilla $semilla ==="
   adb shell monkey -p $PKG --ignore-crashes --ignore-timeouts --ignore-security-exceptions --monitor-native-crashes \
      --pct-syskeys 2 --pct-appswitch 2 --pct-touch 45 --pct-motion 20 --pct-nav 8 --pct-majornav 8 --pct-anyevent 2 \
@@ -25,7 +27,7 @@ for semilla in 11 22 33 44 55 66; do
   adb shell input keyevent 126; sleep 25; adb shell input keyevent 87; sleep 5; adb shell input keyevent 87; sleep 3; adb shell input keyevent 127
 done
 # ===== Segunda parte: Luna hablando con la voz de la app (Ald) entre TODAS las canciones, mientras se usa la app =====
-if [ -d "$SEM/voces" ]; then
+if [ -d "$SEM/voces" ] && vivo; then
   echo "=== Luna con voz de la app ==="
   adb shell am force-stop $PKG
   adb push "$SEM/voces" /data/local/tmp/voces >/dev/null
@@ -50,6 +52,7 @@ PY
   adb shell "run-as $PKG sh -c 'mkdir -p shared_prefs && cp /data/local/tmp/radio.xml shared_prefs/radio.xml'"
   adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1 >/dev/null; sleep 4
   for vuelta in 1 2 3; do
+    vivo || { echo "El teléfono virtual se cayó"; break; }
     adb shell input keyevent 126            # play: arranca la radio y Luna saluda
     sleep 70                                # varias canciones cortas: Luna habla entre cada una
     adb shell monkey -p $PKG --ignore-crashes --ignore-timeouts --ignore-security-exceptions --monitor-native-crashes \
@@ -62,10 +65,10 @@ PY
   done
 fi
 
-adb logcat -d -b crash > "$OUT/crash.txt" 2>&1
-adb logcat -d > "$OUT/logcat.txt" 2>&1
-adb shell dumpsys activity exit-info $PKG > "$OUT/salidas.txt" 2>&1
-adb shell "run-as $PKG sh -c 'for f in files/reportes/reporte-*.txt; do cat \$f; echo; echo ────────────; done'" > "$OUT/reportes-app.txt" 2>&1
+timeout 60 adb logcat -d -b crash > "$OUT/crash.txt" 2>&1
+timeout 120 adb logcat -d > "$OUT/logcat.txt" 2>&1
+timeout 60 adb shell dumpsys activity exit-info $PKG > "$OUT/salidas.txt" 2>&1
+timeout 60 adb shell "run-as $PKG sh -c 'for f in files/reportes/reporte-*.txt; do cat \$f; echo; echo ────────────; done'" > "$OUT/reportes-app.txt" 2>&1
 grep -E "FATAL EXCEPTION|ANR in $PKG|Fatal signal|Process: $PKG|Luna no pudo|ERROR ATRAPADO" "$OUT/logcat.txt" > "$OUT/resumen.txt" || true
 echo "Cierres y bloqueos encontrados:"; cat "$OUT/resumen.txt"; grep -c "" "$OUT/resumen.txt"
 exit 0

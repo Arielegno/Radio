@@ -7,6 +7,11 @@ timeout 300 adb wait-for-device
 vivo() { [ "$(timeout 10 adb get-state 2>/dev/null)" = "device" ]; }
 adb shell settings put global window_animation_scale 0; adb shell settings put global transition_animation_scale 0; adb shell settings put global animator_duration_scale 0
 adb install -r -g "$APK" || { echo "No se pudo instalar"; exit 1; }
+# el registro se copia en vivo afuera del teléfono virtual: si este se cae, no se pierde nada
+timeout 30 adb root >/dev/null 2>&1; sleep 3; timeout 60 adb wait-for-device
+adb logcat -G 16M >/dev/null 2>&1
+( adb logcat -v threadtime > "$OUT/logcat-vivo.txt" 2>&1 ) &
+traerANR() { timeout 60 adb pull /data/anr "$OUT/anr" >/dev/null 2>&1; for f in "$OUT"/anr/*; do [ -f "$f" ] && cp "$f" "$OUT/anr-$(basename "$f").txt"; done; }
 # primera apertura (crea sus carpetas) y se cierra
 adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1 >/dev/null; sleep 8; adb shell am force-stop $PKG
 # cargar las canciones de prueba dentro de la app
@@ -47,6 +52,7 @@ PY
        --pct-syskeys 0 --pct-appswitch 0 --pct-touch 55 --pct-motion 25 --pct-nav 10 --pct-majornav 10 \
        -s $((100 + vuelta)) --throttle 250 -v 500 > "$OUT/monkey-luna-$vuelta.txt" 2>&1
     grep -E "CRASH|NOT RESPONDING|Events injected" "$OUT/monkey-luna-$vuelta.txt" | head
+    grep -q "NOT RESPONDING" "$OUT/monkey-luna-$vuelta.txt" && traerANR
     adb shell input keyevent 87; sleep 3; adb shell input keyevent 87; sleep 3; adb shell input keyevent 87   # saltar seguido
     sleep 40
     adb shell input keyevent 127; sleep 2; adb shell input keyevent 126; sleep 20   # pausa y sigue
@@ -61,16 +67,17 @@ for semilla in 11 22 33 44 55 66; do
      --pct-syskeys 2 --pct-appswitch 2 --pct-touch 45 --pct-motion 20 --pct-nav 8 --pct-majornav 8 --pct-anyevent 2 \
      -s $semilla --throttle 40 -v 2500 > "$OUT/monkey-$semilla.txt" 2>&1
   grep -E "CRASH|NOT RESPONDING|Monkey aborted|Events injected" "$OUT/monkey-$semilla.txt" | head -20
+  grep -q "NOT RESPONDING" "$OUT/monkey-$semilla.txt" && traerANR
   # entre rondas: abrir la app y poner la radio con el botón multimedia (play) para que suene y hable
   adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1 >/dev/null; sleep 2
   adb shell input keyevent 126; sleep 25; adb shell input keyevent 87; sleep 5; adb shell input keyevent 87; sleep 3; adb shell input keyevent 127
 done
 # detalles de cada «no responde» que guardó Android (el teléfono virtual deja entrar como administrador)
-if vivo; then timeout 30 adb root >/dev/null 2>&1; sleep 3; timeout 120 adb pull /data/anr "$OUT/anr" >/dev/null 2>&1; for f in "$OUT"/anr/*; do [ -f "$f" ] && cp "$f" "$OUT/anr-$(basename "$f").txt"; done; fi
+if vivo; then traerANR; fi
 timeout 60 adb logcat -d -b crash > "$OUT/crash.txt" 2>&1
-timeout 120 adb logcat -d > "$OUT/logcat.txt" 2>&1
+timeout 120 adb logcat -d > "$OUT/logcat.txt" 2>&1; [ -s "$OUT/logcat.txt" ] && [ $(wc -l < "$OUT/logcat.txt") -gt 10 ] || cp "$OUT/logcat-vivo.txt" "$OUT/logcat.txt"
 timeout 60 adb shell dumpsys activity exit-info $PKG > "$OUT/salidas.txt" 2>&1
 timeout 60 adb shell "run-as $PKG sh -c 'for f in files/reportes/reporte-*.txt; do cat \$f; echo; echo ────────────; done'" > "$OUT/reportes-app.txt" 2>&1
-grep -E "FATAL EXCEPTION|ANR in $PKG|Fatal signal|Process: $PKG|Luna no pudo|ERROR ATRAPADO" "$OUT/logcat.txt" > "$OUT/resumen.txt" || true
+grep -E "FATAL EXCEPTION|ANR in $PKG|Fatal signal|Process: $PKG" "$OUT/logcat-vivo.txt" > "$OUT/resumen.txt" || true
 echo "Cierres y bloqueos encontrados:"; cat "$OUT/resumen.txt"; grep -c "" "$OUT/resumen.txt"
 exit 0

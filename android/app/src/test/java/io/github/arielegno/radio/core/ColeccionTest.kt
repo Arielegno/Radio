@@ -27,6 +27,14 @@ class ColeccionTest {
         assertEquals("Soda Stereo", Limpieza.artistaPrincipal("Soda Stereo feat. Andrea Echeverri"))
     }
 
+    @Test fun junta_albumes_casi_iguales() {
+        val a = Coleccion.albumBase("Ciencias Celestes")
+        assertEquals(a, Coleccion.albumBase("Ciencias Celeste"))
+        assertEquals(Coleccion.albumBase("Melophobia"), Coleccion.albumBase("Melophobia (Deluxe Edition)"))
+        // los que difieren en un número son discos distintos
+        org.junit.Assert.assertNotEquals(Coleccion.albumBase("Greatest Hits 2"), Coleccion.albumBase("Greatest Hits 3"))
+    }
+
     @Test fun completa_con_itunes_y_musicbrainz() {
         val it = """{"results":[{"trackName":"Labios Rotos","artistName":"Zoé","collectionName":"Memo Rex Commander y el Corazón Atómico de la Vía Láctea","releaseDate":"2006-03-21T08:00:00Z","artworkUrl100":"https://is1.mzstatic.com/x/100x100bb.jpg"}]}"""
         val d = Limpieza.deItunes(it, "Labios rotos", "Zoé")!!
@@ -44,7 +52,15 @@ class ColeccionTest {
         assertEquals("Signos", Limpieza.aplicar(malAlbum, m).album)
         val aMano = malAlbum.copy(manual = setOf("album"))
         assertEquals("Soda Stereo Canal", Limpieza.aplicar(aMano, m).album)
-        assertEquals("Signos", Limpieza.aplicar(aMano, m, forzar = true).album)
+        // lo corregido a mano se respeta siempre, incluso al forzar
+        assertEquals("Soda Stereo Canal", Limpieza.aplicar(aMano, m, forzar = true).album)
+        // sin permiso para cambiar álbumes: solo se llena uno vacío, nunca se mueve la canción de álbum
+        assertEquals("Soda Stereo Canal", Limpieza.aplicar(malAlbum, m, cambiarAlbum = false).album)
+        assertEquals("Signos", Limpieza.aplicar(sinAlbum, m, cambiarAlbum = false).album)
+        // colaboraciones con «/» y « x » van con el artista principal
+        assertEquals("Carlos Sadness", Limpieza.artistaPrincipal("Carlos Sadness / Bomba Estéreo"))
+        assertEquals("Bad Bunny", Limpieza.artistaPrincipal("Bad Bunny x Jhay Cortez"))
+        assertEquals("Maxwell", Limpieza.artistaPrincipal("Maxwell"))
         assertEquals("Signos", Limpieza.aplicar(sinAlbum.copy(album = "Signos"), m).album)
         assertEquals("Soda Stereo", Limpieza.nombreOficial("""{"artists":[{"score":100,"name":"Soda Stereo"}]}""", "soda stereo"))
         assertNull(Limpieza.nombreOficial("""{"artists":[{"score":100,"name":"Gustavo Cerati"}]}""", "soda stereo"))

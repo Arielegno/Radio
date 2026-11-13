@@ -126,6 +126,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     var borrarStats by remember { mutableStateOf(false) }
+    var borrarMusica by remember { mutableStateOf(false) }
     var aviso by remember { mutableStateOf("") }
     var cat by rememberSaveable { mutableStateOf("") }
     BackHandler(enabled = cat.isNotEmpty()) { cat = ""; aviso = "" }
@@ -241,6 +242,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     Ayuda("${RadioApp.biblioteca.pistas.size} canciones guardadas en este celular, tal cual el archivo original (sin comprimir).")
                     Boton("Agregar música o restaurar copia", agregarMusica)
                     Interruptor("mezclar", "Orden aleatorio al iniciar la radio", true) { r.ponerMezclar(it) }
+                    if (RadioApp.biblioteca.pistas.isNotEmpty()) TextButton(onClick = { borrarMusica = true }) { Text("Eliminar toda la música", color = MaterialTheme.colorScheme.error) }
                 }
                 Grupo("Tu nube de datos") {
                     Ayuda("La misma dirección que usas en la web (Netlify, GitHub Pages…). De ahí salen las fichas de artistas (artistas/<nombre>.json) y festivales (festivales/<nombre>.json). Si no hay, se usa Wikipedia y la IA.")
@@ -550,6 +552,10 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
         }
         Spacer(Modifier.height(32.dp))
     }
+    if (borrarMusica) AlertDialog(onDismissRequest = { borrarMusica = false }, title = { Text("¿Eliminar toda la música?") },
+        text = { Text("Se quitan de la app tus ${RadioApp.biblioteca.pistas.size} canciones con sus carátulas, para que las vuelvas a agregar desde cero. Tus archivos originales del teléfono no se tocan. Tus escuchas, favoritas, biografías y ajustes se quedan.") },
+        confirmButton = { TextButton(onClick = { borrarMusica = false; aviso = "Eliminando la música…"; RadioApp.scope.launchSafe { val n = RadioApp.biblioteca.borrarTodo(); aviso = "Listo: se quitaron $n canciones. Agrégalas otra vez desde Biblioteca › Agregar música." } }) { Text("Eliminar todo", color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onClick = { borrarMusica = false }) { Text("Cancelar") } })
     if (borrarStats) AlertDialog(onDismissRequest = { borrarStats = false }, title = { Text("¿Borrar estadísticas?") },
         text = { Text("Se borran las más escuchadas, tu resumen y el mapa de viajes. Tus favoritas y tu música se quedan.") },
         confirmButton = { TextButton(onClick = { RadioApp.stats.clear(); Datos.guardarStats(); borrarStats = false; aviso = "Estadísticas borradas." }) { Text("Borrar") } },

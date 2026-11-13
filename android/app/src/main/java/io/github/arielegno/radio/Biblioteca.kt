@@ -272,6 +272,24 @@ class Biblioteca(private val ctx: Context) {
         withContext(Dispatchers.Main) { listas.quitarDeTodas(ids); guardarListas() }
     }
 
+    /**
+     * Quita TODA la música de la app (las copias y sus carátulas) para empezar de cero.
+     * Tus archivos originales del teléfono, las escuchas, favoritas, biografías y ajustes se quedan.
+     */
+    suspend fun borrarTodo(): Int {
+        val n = pistas.size
+        withContext(Dispatchers.Main) { RadioApp.radio.detener() }
+        borrar(pistas.map { it.id }.toSet())
+        // lo que recordaba de la música anterior: así todo se puede volver a agregar y revisar desde cero
+        RadioApp.prefs.set("origenes", "[]"); RadioApp.prefs.set("guiaRonda", ""); RadioApp.prefs.set("faltantes", "[]")
+        portadasAlbum.values.forEach { File(dirCaratulas, it).delete() }
+        RadioApp.prefs.set("portadasAlbum", "{}")
+        withContext(Dispatchers.Main) { portadasAlbum = emptyMap(); aviso = "" }
+        // por si quedó algún archivo suelto de una importación cortada
+        withContext(Dispatchers.IO) { dirMusica.listFiles()?.forEach { it.delete() } }
+        return n
+    }
+
     /** Guarda cambios de varias canciones a la vez; las escuchas y favoritas siguen al nombre nuevo. */
     suspend fun actualizar(cambios: List<Track>) = withContext(Dispatchers.IO) {
         if (cambios.isEmpty()) return@withContext

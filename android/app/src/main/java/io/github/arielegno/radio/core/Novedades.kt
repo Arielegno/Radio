@@ -4,6 +4,7 @@ package io.github.arielegno.radio.core
 object Novedades {
     val LISTA: List<Pair<String, List<String>>> = listOf(
         "2.2" to listOf(
+            "Ajustes › Tu biblioteca › «Eliminar toda la música»: quita todas las canciones de la app para volver a agregarlas desde cero (tus archivos originales, escuchas y favoritas se quedan).",
             "La guía ya no cambia ni separa tus álbumes: solo limpia nombres y completa lo que falta. Si quieres que ordene álbumes, hay un interruptor en Ajustes › La guía (apagado de fábrica).",
             "Dentro de cada álbum: «Completar este álbum» (busca sus datos y lo ordena solo cuando tú lo pides) y «¿Qué canciones me faltan?» (compara con el disco completo).",
             "Nuevo en Ajustes: «Canciones que te faltan», con lo encontrado en tus álbumes y un botón para buscar cada canción.",

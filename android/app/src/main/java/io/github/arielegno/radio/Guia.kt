@@ -12,6 +12,8 @@ import io.github.arielegno.radio.core.Limpieza
 import io.github.arielegno.radio.core.Track
 import io.github.arielegno.radio.core.normNombre
 import io.github.arielegno.radio.core.str
+import io.github.arielegno.radio.core.asObj
+import io.github.arielegno.radio.core.list
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
@@ -151,19 +153,23 @@ object Guia {
     }
 
     /** Limpia y completa una canción. forzar = «Completar» (también cambia lo editado a mano). */
-    private suspend fun revisar(t0: Track, forzar: Boolean): Track? {
+    /** Si la guía puede mover canciones de álbum (apagado de fábrica: solo limpia y completa lo que falta). */
+    val cambiaAlbumes get() = RadioApp.prefs.bool("guiaCambiaAlbum", false)
+
+    private suspend fun revisar(t0: Track, forzar: Boolean, cambiarAlbum: Boolean = cambiaAlbumes): Track? {
         var t = t0
-        val libre = { c: String -> forzar || c !in t0.manual }
+        // lo que corregiste a mano se respeta siempre; el álbum solo se cambia si se permite (o si estaba vacío)
+        val libre = { c: String -> if (c == "album") c !in t0.manual && (cambiarAlbum || t0.album.isEmpty()) else forzar || c !in t0.manual }
         var artista = if (libre("artist")) Limpieza.artista(t.artist) else t.artist
         if (libre("artist") && Red.hayInternet(ctx)) artista = nombreOficial(artista)
         val nombre = if (libre("name")) Limpieza.titulo(t.name, artista, t0.artist) else t.name
         t = t.copy(name = nombre, artist = artista)
-        if (libre("album") && albumBasura(t)) t = t.copy(album = "")
+        if ("album" !in t0.manual && albumBasura(t)) t = t.copy(album = "")   // basura («Unknown», páginas web…): se quita y se busca el real
         if (!Red.hayInternet(ctx)) return if (t != t0) t else null
         // Para buscar se usa el artista principal («Lana Del Rey, A$AP Rocky» → Lana Del Rey)
         val busca = t.copy(artist = Limpieza.artistaPrincipal(t.artist).ifBlank { t.artist })
         val d = (if (artistaDudoso(t)) null else datos(busca)) ?: Limpieza.Datos()
-        t = Limpieza.aplicar(t, d, forzar)
+        t = Limpieza.aplicar(t, d, forzar, cambiarAlbum = cambiarAlbum || t.album.isEmpty())
         var portada = d.portada
         // Si faltan artista, álbum o año: iTunes por título y, al final, la IA
         if (artistaDudoso(t) || t.album.isEmpty() || t.year == 0) {
@@ -187,8 +193,90 @@ object Guia {
         if ((t.cover.isEmpty() || (forzar && "cover" !in t0.manual) || salioDeRecopilatorio) && (t0.cover.isEmpty() || salioDeRecopilatorio) && d2.portada.isNotEmpty() && libre("cover")) {
             bajarImagen(d2.portada)?.let { b -> bib.guardarCaratulaDe(b, t.id).takeIf { it.isNotEmpty() }?.let { t = t.copy(cover = it) } }
         }
-        t = t.copy(revisada = true, manual = if (forzar) emptySet() else t0.manual)
+        t = t.copy(revisada = true, manual = t0.manual)   // tus correcciones a mano se conservan siempre
         return if (t != t0) t else null
+    }
+
+    /** Botón «Completar este álbum»: busca los datos de sus canciones y, solo aquí, deja que la guía ordene el álbum. */
+    suspend fun completarAlbum(canciones: List<Track>): String {
+        if (!Red.hayInternet(ctx)) return "No hay conexión para consultar la guía."
+        if (trabajando) return "La guía ya está trabajando: espera a que termine."
+        trabajando = true
+        try {
+            val cambios = mutableListOf<Track>()
+            for ((i, t0) in canciones.withIndex()) {
+                progreso = "Completando el álbum (${i + 1} de ${canciones.size})…"
+                bib.porId(t0.id)?.let { t -> revisar(t, forzar = false, cambiarAlbum = true)?.let { cambios += it } }
+            }
+            if (cambios.isNotEmpty()) bib.actualizar(cambios)
+            return if (cambios.isEmpty()) "Este álbum ya estaba completo." else "Listo: la guía completó ${cambios.size} ${if (cambios.size == 1) "canción" else "canciones"} del álbum."
+        } finally { progreso = ""; trabajando = false }
+    }
+
+    /** Las canciones de un disco que no tienes (según iTunes). */
+    data class Faltantes(val album: String, val artista: String, val total: Int, val faltan: List<String>, val fecha: Long)
+
+    private fun tituloBase(s: String) = normNombre(s.replace(Regex("\\s*[(\\[][^)\\]]*[)\\]]"), "").substringBefore(" - "))
+
+    /** Busca el disco completo y compara con lo que tienes. null = no se encontró el disco. Se guarda para verlo en Ajustes. */
+    suspend fun faltantes(album: String, canciones: List<Track>): Faltantes? {
+        if (album.isBlank() || canciones.isEmpty() || !Red.hayInternet(ctx)) return null
+        val artista = Limpieza.artistaPrincipal(canciones.groupingBy { it.artist }.eachCount().maxByOrNull { it.value }?.key ?: "").ifBlank { return null }
+        val na = normNombre(artista); val nb = normNombre(io.github.arielegno.radio.core.Coleccion.albumBase(album))
+        val (c, j) = try { Red.crudo("GET", "https://itunes.apple.com/search?media=music&entity=album&limit=15&term=" + enc("$artista $album"), timeoutMs = 9000) } catch (e: Exception) { return null }
+        if (c != 200) return null
+        val disco = try {
+            Json.obj(j).list("results").mapNotNull { it.asObj() }.filter { normNombre(it.str("artistName")).contains(na) }
+                .map { it to normNombre(io.github.arielegno.radio.core.Coleccion.albumBase(it.str("collectionName"))) }
+                .sortedBy { (_, n) -> if (n == nb) 0 else if (n.contains(nb) || nb.contains(n)) 1 else 9 }
+                .firstOrNull { (_, n) -> n == nb || (nb.length >= 4 && (n.contains(nb) || nb.contains(n))) }?.first
+        } catch (e: Exception) { null } ?: return null
+        val id = (disco["collectionId"] as? Number)?.toLong() ?: return null
+        val (c2, j2) = try { Red.crudo("GET", "https://itunes.apple.com/lookup?entity=song&limit=200&id=$id", timeoutMs = 9000) } catch (e: Exception) { return null }
+        if (c2 != 200) return null
+        val pistas = try { Json.obj(j2).list("results").mapNotNull { it.asObj() }.filter { it.str("wrapperType") == "track" }
+            .sortedWith(compareBy({ (it["discNumber"] as? Number)?.toInt() ?: 1 }, { (it["trackNumber"] as? Number)?.toInt() ?: 0 })).map { it.str("trackName") } } catch (e: Exception) { emptyList() }
+        if (pistas.isEmpty()) return null
+        val tengo = canciones.map { tituloBase(it.name) }.filter { it.isNotEmpty() }
+        val faltan = pistas.filter { p -> val b = tituloBase(p); b.isNotEmpty() && tengo.none { it == b || (b.length >= 5 && (it.contains(b) || b.contains(it) && it.length >= 5)) } }.distinct()
+        val r = Faltantes(album, artista, pistas.size, faltan, System.currentTimeMillis())
+        guardarFaltantes(r)
+        return r
+    }
+
+    fun faltantesGuardados(): List<Faltantes> = try {
+        Json.arr(RadioApp.prefs.str("faltantes", "[]")).mapNotNull { it?.asObj() }.map { m ->
+            Faltantes(m.str("album"), m.str("artista"), (m["total"] as? Number)?.toInt() ?: 0, (m["faltan"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(), (m["fecha"] as? Number)?.toLong() ?: 0L)
+        }.sortedByDescending { it.faltan.size }
+    } catch (e: Exception) { emptyList() }
+
+    private fun guardarFaltantes(r: Faltantes) {
+        val k = normNombre(r.artista) + "|" + normNombre(r.album)
+        val l = faltantesGuardados().filter { normNombre(it.artista) + "|" + normNombre(it.album) != k } + listOfNotNull(r.takeIf { it.faltan.isNotEmpty() })
+        RadioApp.prefs.set("faltantes", Json.write(l.takeLast(300).map { mapOf("album" to it.album, "artista" to it.artista, "total" to it.total, "faltan" to it.faltan, "fecha" to it.fecha) }))
+    }
+    fun olvidarFaltantes(album: String, artista: String) {
+        val k = normNombre(artista) + "|" + normNombre(album)
+        RadioApp.prefs.set("faltantes", Json.write(faltantesGuardados().filter { normNombre(it.artista) + "|" + normNombre(it.album) != k }.map { mapOf("album" to it.album, "artista" to it.artista, "total" to it.total, "faltan" to it.faltan, "fecha" to it.fecha) }))
+    }
+
+    /** Revisa qué canciones te faltan en tus álbumes (los que tienen al menos 2 canciones; hasta 40 por vez). */
+    suspend fun revisarFaltantes(): String {
+        if (!Red.hayInternet(ctx)) return "No hay conexión."
+        if (trabajando) return "La guía ya está trabajando: espera a que termine."
+        trabajando = true
+        try {
+            val albumes = bib.pistas.filter { it.album.isNotBlank() }.groupBy { io.github.arielegno.radio.core.Coleccion.albumBase(it.album) }
+                .filter { it.value.size >= 2 }.entries.sortedByDescending { it.value.size }.take(40)
+            var conFaltas = 0; var n = 0
+            for ((a, l) in albumes) {
+                if (!trabajando) break
+                progreso = "Revisando tus álbumes (${++n} de ${albumes.size})…"
+                if ((faltantes(a, l)?.faltan?.size ?: 0) > 0) conFaltas++
+                kotlinx.coroutines.delay(1200)   // sin apurar a iTunes
+            }
+            return "Revisé ${albumes.size} álbumes: a $conFaltas les faltan canciones."
+        } finally { progreso = ""; trabajando = false }
     }
 
     /** Botón «Completar» de una canción. Devuelve un mensaje para mostrar. */

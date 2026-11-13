@@ -34,6 +34,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.runtime.mutableIntStateOf
 import io.github.arielegno.radio.core.Fichas
 import io.github.arielegno.radio.FichasRed
 import androidx.compose.material.icons.automirrored.filled.List
@@ -572,7 +576,50 @@ private fun CabeceraAlbum(album: String, canciones: List<Track>, portada: Track?
             }
         }
     }
+    // Opcional y solo para este álbum: que la guía lo complete/ordene, o ver qué canciones del disco te faltan
+    var faltan by remember(album) { mutableStateOf(Guia.faltantesGuardados().firstOrNull { normNombre(it.album) == normNombre(album) }) }
+    var buscando by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(enabled = !Guia.trabajando, onClick = { aviso = "Completando el álbum…"; RadioApp.scope.launchSafe { aviso = Guia.completarAlbum(canciones) } }) {
+            Icon(Icons.Filled.AutoFixHigh, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Completar este álbum")
+        }
+        OutlinedButton(enabled = !buscando, onClick = {
+            buscando = true; aviso = "Buscando el disco completo…"
+            RadioApp.scope.launchSafe {
+                val r = Guia.faltantes(album, canciones); faltan = r; buscando = false
+                aviso = when { r == null -> "No encontré este disco en internet."; r.faltan.isEmpty() -> "¡Tienes el disco completo! (${r.total} canciones)"; else -> "Te faltan ${r.faltan.size} de ${r.total} canciones (también quedan en Ajustes › Canciones que te faltan)." }
+            }
+        }) { Icon(Icons.Filled.Search, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("¿Qué canciones me faltan?") }
+    }
+    if (Guia.trabajando && Guia.progreso.isNotEmpty()) Text(Guia.progreso, color = Amarillo, style = MaterialTheme.typography.bodySmall)
     if (aviso.isNotEmpty()) Text(aviso, color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall)
+    faltan?.takeIf { it.faltan.isNotEmpty() }?.let { ListaFaltantes(it, abierta = true) }
+}
+
+/** Las canciones que te faltan de un disco, cada una con un botón para buscarla. */
+@Composable
+fun ListaFaltantes(f: Guia.Faltantes, abierta: Boolean = false, quitar: (() -> Unit)? = null) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var ver by remember(f.album, f.artista) { mutableStateOf(abierta) }
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(14.dp)).background(LocalExtra.current.tarjeta).padding(12.dp)) {
+        Row(Modifier.fillMaxWidth().clickable { ver = !ver }, verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(f.album, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("${f.artista} · te faltan ${f.faltan.size} de ${f.total}", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (quitar != null) IconButton(onClick = quitar) { Icon(Icons.Filled.Close, "Quitar de la lista") }
+            Icon(if (ver) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, null)
+        }
+        if (ver) f.faltan.forEach { titulo ->
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("• $titulo", Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                TextButton(onClick = {
+                    val q = java.net.URLEncoder.encode("${f.artista} $titulo", "UTF-8")
+                    try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com/search?q=$q")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) {}
+                }) { Text("Buscar") }
+            }
+        }
+    }
 }
 
 /** Tarjeta grande de artista con su foto (como en la web). */

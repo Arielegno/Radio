@@ -2,6 +2,14 @@
 
 Lo más nuevo arriba. También se ve dentro de la app en Ajustes › Acerca de › Novedades.
 
+## 2.2
+- La guía ya no cambia ni separa tus álbumes: solo limpia nombres y completa lo que falta. Si quieres que ordene álbumes, hay un interruptor en Ajustes › La guía (apagado de fábrica).
+- Dentro de cada álbum: «Completar este álbum» (busca sus datos y lo ordena solo cuando tú lo pides) y «¿Qué canciones me faltan?» (compara con el disco completo).
+- Nuevo en Ajustes: «Canciones que te faltan», con lo encontrado en tus álbumes y un botón para buscar cada canción.
+- Colaboraciones con «/» o « x » (por ejemplo «Carlos Sadness / Bomba Estéreo») ya se juntan con el artista principal.
+- Álbumes que solo difieren en una letra (como «Ciencias Celeste» y «Ciencias Celestes») se juntan en uno.
+- Tus correcciones a mano se respetan siempre, incluso al usar «Completar» en una canción.
+
 ## 2.1.3
 - Revista: los nombres largos ya no se salen de su casilla. En un artículo, el botón «Seguir» queda siempre dentro aunque el autor tenga un nombre muy largo.
 - Revista: nombres en perfiles, comentarios, búsqueda de artistas y panel de administración se recortan con «…» en vez de desbordarse.

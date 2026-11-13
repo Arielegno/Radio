@@ -59,7 +59,7 @@ class RadioApp : Application() {
 object Almacen {
     private val dir by lazy { java.io.File(RadioApp.app.filesDir, "datos").apply { mkdirs() } }
     private val memoria = object : android.util.LruCache<String, String>(2 * 1024 * 1024) { override fun sizeOf(key: String, value: String) = value.length * 2 }
-    private val PREFIJOS = listOf("bio_v", "artof_", "artimg_", "wiki_v", "nube_", "miembro_v", "festival_v", "origenes", "guiaRonda", "guion_")
+    private val PREFIJOS = listOf("bio_v", "artof_", "artimg_", "wiki_v", "nube_", "miembro_v", "festival_v", "origenes", "guiaRonda", "guion_", "faltantes")
     fun esDato(k: String) = PREFIJOS.any { k.startsWith(it) } || (k.startsWith("bio_") && !k.startsWith("bio_user_"))
     private fun archivo(k: String): java.io.File {
         val limpio = k.replace(Regex("[^A-Za-z0-9_.-]"), "_")

@@ -34,7 +34,27 @@ object Coleccion {
         var b = a.trim(); var n = 0
         while (n++ < 3) { val c = b.replace(EDICION, "").trim(); if (c == b || c.isEmpty()) break; b = c }
         val k = normNombre(b).ifEmpty { return b }
+        nombresAlbum[k]?.let { return it }
+        // «Ciencias Celeste» y «Ciencias Celestes»: si difieren en una sola letra (y el nombre es largo), son el mismo álbum
+        if (k.length >= 8) synchronized(nombresAlbum) {
+            nombresAlbum.entries.firstOrNull { (k2, _) -> kotlin.math.abs(k2.length - k.length) <= 1 && unaLetra(k, k2) }?.let { (_, nombre) -> nombresAlbum[k] = nombre; return nombre }
+        }
         return nombresAlbum.getOrPut(k) { b }
+    }
+
+    /** true si a y b son iguales salvo por una letra (cambiada, sobrante o faltante). */
+    private fun unaLetra(a: String, b: String): Boolean {
+        if (a == b) return true
+        if (kotlin.math.abs(a.length - b.length) > 1 || b.length < 8) return false
+        var i = 0; var j = 0; var dif = 0
+        while (i < a.length && j < b.length) {
+            if (a[i] == b[j]) { i++; j++; continue }
+            if (a[i].isDigit() || b[j].isDigit()) return false   // «Vol. 2» y «Vol. 3» son discos distintos
+            if (++dif > 1) return false
+            when { a.length > b.length -> i++; b.length > a.length -> j++; else -> { i++; j++ } }
+        }
+        if (a.drop(i).any { it.isDigit() } || b.drop(j).any { it.isDigit() }) return false
+        return dif + (a.length - i) + (b.length - j) <= 1
     }
 
     fun clave(t: Track, vista: String): String = when (vista) {

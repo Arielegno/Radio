@@ -39,7 +39,8 @@ object Limpieza {
     }
 
     /** Primer artista de «A, B & C feat. D». */
-    private val SEPARA_ARTISTAS = Regex("[,;&]|\\bfeat\\.?\\b|\\bft\\.?\\b", RegexOption.IGNORE_CASE)
+    // colaboraciones: «A, B», «A & B», «A feat. B», «A ft. B», «A / B», «A x B»
+    private val SEPARA_ARTISTAS = Regex("[,;&/]|\\bfeat\\.?\\b|\\bft\\.?\\b|\\s[x×]\\s", RegexOption.IGNORE_CASE)
     private val cachePrincipal = java.util.concurrent.ConcurrentHashMap<String, String>()
     /** El artista principal («Lana Del Rey feat. X» → «Lana Del Rey»). Se guarda lo ya calculado: se usa miles de veces. */
     fun artistaPrincipal(a: String?): String {
@@ -60,10 +61,11 @@ object Limpieza {
     data class Datos(val album: String = "", val anio: Int = 0, val portada: String = "", val albumes: List<String> = emptyList())
 
     /** Completa lo que falta y corrige un álbum que no coincide con ninguno conocido (como la web). */
-    fun aplicar(t: Track, d: Datos, forzar: Boolean = false): Track {
+    fun aplicar(t: Track, d: Datos, forzar: Boolean = false, cambiarAlbum: Boolean = true): Track {
         var x = t; var cambio = false
         val conocidos = d.albumes.map(::normNombre).filter { it.isNotEmpty() }.toSet()
-        val libre = { c: String -> forzar || c !in t.manual }
+        // el álbum que corregiste a mano nunca se toca; y si no se permite cambiar álbumes, solo se llena uno vacío
+        val libre = { c: String -> if (c == "album") c !in t.manual && (cambiarAlbum || t.album.isEmpty()) else forzar || c !in t.manual }
         // nunca se cambia un álbum de verdad por un recopilatorio; uno de recopilatorio sí se cambia por el real
         val mejor = !esRecopilatorio(d.album) || t.album.isEmpty()
         if (d.album.isNotEmpty() && libre("album") && mejor && (t.album.isEmpty() || (esRecopilatorio(t.album) && !esRecopilatorio(d.album)) || (conocidos.isNotEmpty() && normNombre(t.album) !in conocidos)) && t.album != d.album) {

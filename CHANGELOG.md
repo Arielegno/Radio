@@ -2,6 +2,10 @@
 
 Lo más nuevo arriba. También se ve dentro de la app en Ajustes › Acerca de › Novedades.
 
+## 2.2.2
+- Revista: el perfil abre en «Artículos» (lo que la persona creó). El «Muro» con las notas de la gente queda en su propia pestaña, más adelante.
+- Revista: el administrador puede cambiar el nombre de una persona (desde su perfil o en Administración › Usuarios).
+
 ## 2.2.1
 - La IA ya no separa un mismo disco en varios álbumes: al completar una canción sin álbum, conoce los álbumes que ya tienes de ese artista y usa ese mismo nombre.
 - Si la IA o internet dan un nombre parecido a un álbum tuyo («Ciencias Celeste» / «Ciencias Celestes», «X (Deluxe)» / «X»), se usa el tuyo.

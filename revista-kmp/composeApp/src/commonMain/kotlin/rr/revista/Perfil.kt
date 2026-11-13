@@ -52,7 +52,8 @@ private data class Actividad(val texto: String, val sub: String, val post: Strin
 fun PerfilPantalla(id: String) {
     val scope = rememberCoroutineScope()
     var version by remember { mutableStateOf(0) }
-    var pestana by remember(id) { mutableStateOf("wall") }
+    var pestana by remember(id) { mutableStateOf("posts") }
+    var renombrarPerfil by remember(id) { mutableStateOf(false) }   // primero lo que la persona creó; el muro va aparte
     var denunciar by remember { mutableStateOf(false) }
     var salir by remember { mutableStateOf(false) }
     val datos by produceState<Result<DatosPerfil?>?>(null, id, version, if (Cuenta.uid == id) Cuenta.yo else null) {
@@ -94,6 +95,7 @@ fun PerfilPantalla(id: String) {
             }
             else -> {
                 val d = r.getOrThrow()!!; val p = d.p
+                if (renombrarPerfil) DialogoCambiarNombre(id, p.str("name"), cerrar = { renombrarPerfil = false }) { version++ }
                 val mio = Cuenta.uid == id
                 val est = Estilo.de(p.map("style")); val tema = Temas.de(est)
                 val ban = imagen(Diseno.imagenOk(p.str("banner")))
@@ -129,6 +131,7 @@ fun PerfilPantalla(id: String) {
                                 val rol = when (p.str("role")) { "admin" -> "Admin"; "editor" -> "Editor"; else -> "" }
                                 if (rol.isNotEmpty()) Text(rol, color = Color(0xFF1B1E23), fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(999.dp)).background(Amarillo).padding(horizontal = 10.dp, vertical = 3.dp))
                                 if (p.bool("banned")) Text("Cuenta suspendida", color = Color(0xFFFF8A7A), modifier = Modifier.padding(top = 6.dp))
+                                if (Cuenta.esAdmin && id != Cuenta.uid && p.str("role") != "admin") Enlace("Cambiar nombre (admin)", Tenue) { renombrarPerfil = true }
                                 if (p.str("bio").isNotBlank()) Text(p.str("bio"), fontSize = 16.sp, lineHeight = 22.sp, modifier = Modifier.padding(top = 10.dp))
                                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                     listOf("${d.seguidores}" to "seguidores", "${d.siguiendo}" to "siguiendo", "${d.articulos}" to "artículos").forEach { (n, t) ->
@@ -140,7 +143,7 @@ fun PerfilPantalla(id: String) {
                                 if (!mio) Enlace("Denunciar perfil", Tenue) { if (Nav.necesitaCuenta()) denunciar = true }
                             }
                             Row(Modifier.padding(bottom = 12.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf("wall" to "Muro", "posts" to "Artículos", "lists" to "Listas", "recs" to "Recomendados", "cols" to "Colecciones", "comments" to "Comentarios", "likes" to "Me gusta").forEach { (k, n) ->
+                                listOf("posts" to "Artículos", "lists" to "Listas", "cols" to "Colecciones", "recs" to "Recomendados", "wall" to "Muro", "comments" to "Comentarios", "likes" to "Me gusta").forEach { (k, n) ->
                                     val on = pestana == k
                                     Text(n, color = if (on) Color(0xFF1B1E23) else TextoClaro, fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(if (on) Amarillo else Color.Transparent).border(1.dp, if (on) Amarillo else Color(0x33FFFFFF), RoundedCornerShape(999.dp)).clickable { pestana = k }.padding(horizontal = 14.dp, vertical = 8.dp))

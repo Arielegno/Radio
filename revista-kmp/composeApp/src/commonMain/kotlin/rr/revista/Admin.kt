@@ -133,6 +133,8 @@ private fun Usuarios() {
     var q by remember { mutableStateOf("") }
     var version by remember { mutableStateOf(0) }
     var lista by remember { mutableStateOf<List<Map<String, Any?>>?>(null) }
+    var renombrar by remember { mutableStateOf<Map<String, Any?>?>(null) }
+    renombrar?.let { u -> DialogoCambiarNombre(u.str("id"), u.str("name"), cerrar = { renombrar = null }) { version++ } }
     LaunchedEffect(q, version) {
         kotlinx.coroutines.delay(if (q.isEmpty()) 0 else 350)
         val t = q.trim().replace(Regex("[*,()%]"), " ").trim()
@@ -151,6 +153,7 @@ private fun Usuarios() {
                     Text(when (u.str("role")) { "admin" -> "Admin"; "editor" -> "Editor"; else -> "Usuario" } + (if (u.bool("banned")) " · suspendida" else "") + " · desde ${Fechas.mesAnio(u.str("created_at")).lowercase()}", color = if (u.bool("banned")) Color(0xFFFF8A7A) else Tenue, fontSize = 13.sp)
                 }
                 if (u.str("role") != "admin" && u.str("id") != Cuenta.uid) Column(horizontalAlignment = Alignment.End) {
+                    Enlace("Cambiar nombre", Tenue) { renombrar = u }
                     Enlace(if (u.bool("banned")) "Reactivar" else "Suspender") { scope.launch { runCatching { Cuenta.api("PATCH", "/rest/v1/profiles?id=eq.${u.str("id")}", mapOf("banned" to !u.bool("banned")), "return=minimal") }.onFailure { Aviso.mostrar(it.message ?: "", true) }; version++ } }
                     Enlace(if (u.str("role") == "editor") "Quitar editor" else "Hacer editor", Tenue) { scope.launch { runCatching { Cuenta.api("PATCH", "/rest/v1/profiles?id=eq.${u.str("id")}", mapOf("role" to if (u.str("role") == "editor") "user" else "editor"), "return=minimal") }.onFailure { Aviso.mostrar(it.message ?: "", true) }; version++ } }
                 }
@@ -205,5 +208,21 @@ private fun AjustesAdmin() {
             scope.launch { try { Cuenta.api("PATCH", "/rest/v1/rr_settings?id=eq.1", mapOf("invite_only" to soloInv, "invite_code" to codigo.trim().ifEmpty { null }), "return=minimal"); Aviso.mostrar(if (soloInv) "Listo: la revista ahora es solo con invitación." else "Listo: cualquiera puede crear una cuenta.") } catch (e: Throwable) { Aviso.mostrar(e.message ?: "", true) } }
         }
         Text("Límites automáticos contra spam: por persona y por hora, 10 artículos, 30 comentarios, 15 pósters y 20 denuncias. Tú no tienes límite.", color = Tenue, fontSize = 14.sp)
+    }
+}
+
+
+/** El administrador corrige el nombre público de una persona (de 2 a 40 letras). */
+@Composable
+fun DialogoCambiarNombre(id: String, actual: String, cerrar: () -> Unit, listo: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    DialogoTexto("Cambiar nombre", "Es el nombre público de esta persona en la Revista (de 2 a 40 letras).", "Nombre", "Guardar", max = 40, inicial = actual, cerrar = cerrar) { t ->
+        val nombre = t.replace(Regex("\\s+"), " ").trim().take(40)
+        if (nombre.length < 2) { Aviso.mostrar("El nombre debe tener al menos 2 letras.", true); return@DialogoTexto }
+        scope.launch {
+            runCatching { Cuenta.api("PATCH", "/rest/v1/profiles?id=eq.$id", mapOf("name" to nombre), "return=minimal") }
+                .onSuccess { Aviso.mostrar("Nombre cambiado."); cerrar(); listo() }
+                .onFailure { Aviso.mostrar(it.message ?: "No se pudo cambiar el nombre.", true) }
+        }
     }
 }

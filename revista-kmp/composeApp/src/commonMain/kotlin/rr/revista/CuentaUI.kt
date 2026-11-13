@@ -158,8 +158,8 @@ fun DialogoDenuncia(tipo: String, id: String, cerrar: () -> Unit) {
 
 /** Ventana con un campo de texto (por ejemplo, la nota al recomendar). */
 @Composable
-fun DialogoTexto(titulo: String, explicacion: String, etiqueta: String, boton: String, max: Int = 280, cerrar: () -> Unit, listo: (String) -> Unit) {
-    var t by remember { mutableStateOf("") }
+fun DialogoTexto(titulo: String, explicacion: String, etiqueta: String, boton: String, max: Int = 280, inicial: String = "", cerrar: () -> Unit, listo: (String) -> Unit) {
+    var t by remember { mutableStateOf(inicial) }
     Hoja(titulo, cerrar) {
         if (explicacion.isNotEmpty()) Text(explicacion, color = Tenue)
         Campo(t, { t = it }, etiqueta, lineas = 2, max = max)

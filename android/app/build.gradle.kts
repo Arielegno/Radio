@@ -12,8 +12,8 @@ android {
         applicationId = "io.github.arielegno.radio"
         minSdk = 26
         targetSdk = 35
-        versionCode = 28
-        versionName = "2.2"
+        versionCode = 29
+        versionName = "2.2.1"
         // Voces propias (sherpa-onnx): solo para los procesadores de teléfonos (así el APK pesa menos)
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")

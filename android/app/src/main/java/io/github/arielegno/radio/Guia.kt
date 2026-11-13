@@ -131,12 +131,34 @@ object Guia {
 
     /** Último recurso: la IA de la persona (Gemini o Claude) adivina los datos desde el nombre del archivo. */
     private var usosIA = 0
+    /** Los álbumes que ya tienes de un artista (nombres como se muestran). */
+    private fun albumesDe(artista: String): List<String> {
+        val na = normNombre(Limpieza.artistaPrincipal(artista)); if (na.isEmpty()) return emptyList()
+        return bib.pistas.filter { it.album.isNotBlank() && normNombre(Limpieza.artistaPrincipal(it.artist)) == na }
+            .groupingBy { io.github.arielegno.radio.core.Coleccion.albumBase(it.album) }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
+    }
+
+    /**
+     * Un álbum que llega de internet o de la IA: si se parece a uno que ya tienes de ese artista
+     * («Ciencias Celeste» / «Ciencias Celestes», «X (Deluxe)» / «X»), se usa el tuyo para no separarlos.
+     */
+    private fun albumConocido(artista: String, propuesto: String): String {
+        if (propuesto.isBlank()) return propuesto
+        val np = normNombre(io.github.arielegno.radio.core.Coleccion.albumBase(propuesto)); if (np.isEmpty()) return propuesto
+        return albumesDe(artista).firstOrNull { a ->
+            val na = normNombre(a)
+            na == np || io.github.arielegno.radio.core.Coleccion.unaLetra(na, np) || (minOf(na.length, np.length) >= 6 && (na.startsWith(np) || np.startsWith(na)))
+        } ?: propuesto
+    }
+
     private suspend fun preguntarIA(t: Track): Map<String, Any?>? {
         if (usosIA >= 60 || !FichasRed.hayIA()) return null
         usosIA++
         val p = RadioApp.prefs
         val pedido = "Identifica esta canción a partir de lo que dice el archivo. Responde SOLO un JSON {\"titulo\":\"\",\"artista\":\"\",\"album\":\"\",\"anio\":0}. " +
-            "Si no estás seguro de un dato, déjalo vacío o en 0. Título: «${t.name}». Artista: «${t.artist}». Álbum: «${t.album}»."
+            "Si no estás seguro de un dato, déjalo vacío o en 0. Título: «${t.name}». Artista: «${t.artist}». Álbum: «${t.album}»." +
+            // para no separar un mismo disco en varios: si la canción es de un álbum que ya tengo, que use ESE nombre
+            albumesDe(t.artist).take(15).let { l -> if (l.isEmpty()) "" else " Álbumes que ya tengo de este artista: ${l.joinToString(" | ") { "«$it»" }}. Si la canción pertenece a uno de ellos, escribe el álbum EXACTAMENTE igual que en esa lista." }
         return try {
             val texto = if (p.str("proveedor", "gemini") == "claude") {
                 val (c, r) = Red.crudo("POST", "https://api.anthropic.com/v1/messages", io.github.arielegno.radio.core.Luna.peticionClaude(p.str("claudeModel", "claude-sonnet-5-5").ifBlank { "claude-sonnet-5-5" }, "Eres un experto en música.", pedido),
@@ -169,13 +191,13 @@ object Guia {
         // Para buscar se usa el artista principal («Lana Del Rey, A$AP Rocky» → Lana Del Rey)
         val busca = t.copy(artist = Limpieza.artistaPrincipal(t.artist).ifBlank { t.artist })
         val d = (if (artistaDudoso(t)) null else datos(busca)) ?: Limpieza.Datos()
-        t = Limpieza.aplicar(t, d, forzar, cambiarAlbum = cambiarAlbum || t.album.isEmpty())
+        t = Limpieza.aplicar(t, d.copy(album = albumConocido(t.artist, d.album)), forzar, cambiarAlbum = cambiarAlbum || t.album.isEmpty())
         var portada = d.portada
         // Si faltan artista, álbum o año: iTunes por título y, al final, la IA
         if (artistaDudoso(t) || t.album.isEmpty() || t.year == 0) {
             identificar(t)?.let { r ->
                 if (artistaDudoso(t) && libre("artist")) t = t.copy(artist = r.str("artistName").take(200))
-                if (t.album.isEmpty() && libre("album")) t = t.copy(album = r.str("collectionName").replace(Regex("\\s+-\\s+(single|ep)$", RegexOption.IGNORE_CASE), "").take(200))
+                if (t.album.isEmpty() && libre("album")) t = t.copy(album = albumConocido(t.artist, r.str("collectionName").replace(Regex("\\s+-\\s+(single|ep)$", RegexOption.IGNORE_CASE), "")).take(200))
                 if (t.year == 0 && libre("year")) t = t.copy(year = Regex("^(\\d{4})").find(r.str("releaseDate"))?.groupValues?.get(1)?.toInt() ?: 0)
                 if (portada.isEmpty()) portada = r.str("artworkUrl100").replace(Regex("/\\d+x\\d+bb\\."), "/600x600bb.")
             }
@@ -183,7 +205,7 @@ object Guia {
         if (artistaDudoso(t) || t.album.isEmpty()) preguntarIA(t)?.let { r ->
             if (artistaDudoso(t) && libre("artist") && r.str("artista").isNotBlank()) t = t.copy(artist = r.str("artista").take(200))
             if (libre("name") && r.str("titulo").isNotBlank() && normNombre(r.str("titulo")).let { it.isNotEmpty() && normNombre(t.name).contains(it) }) t = t.copy(name = r.str("titulo").take(200))
-            if (t.album.isEmpty() && libre("album") && r.str("album").isNotBlank()) t = t.copy(album = r.str("album").take(200))
+            if (t.album.isEmpty() && libre("album") && r.str("album").isNotBlank()) t = t.copy(album = albumConocido(t.artist, r.str("album")).take(200))
             val y = (r["anio"] as? Number)?.toInt() ?: r.str("anio").toIntOrNull() ?: 0
             if (t.year == 0 && libre("year") && y in 1900..2100) t = t.copy(year = y)
         }

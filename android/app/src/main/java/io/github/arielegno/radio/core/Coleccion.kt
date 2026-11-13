@@ -43,7 +43,7 @@ object Coleccion {
     }
 
     /** true si a y b son iguales salvo por una letra (cambiada, sobrante o faltante). */
-    private fun unaLetra(a: String, b: String): Boolean {
+    fun unaLetra(a: String, b: String): Boolean {
         if (a == b) return true
         if (kotlin.math.abs(a.length - b.length) > 1 || b.length < 8) return false
         var i = 0; var j = 0; var dif = 0

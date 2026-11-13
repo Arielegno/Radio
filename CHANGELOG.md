@@ -2,6 +2,10 @@
 
 Lo más nuevo arriba. También se ve dentro de la app en Ajustes › Acerca de › Novedades.
 
+## 2.2.1
+- La IA ya no separa un mismo disco en varios álbumes: al completar una canción sin álbum, conoce los álbumes que ya tienes de ese artista y usa ese mismo nombre.
+- Si la IA o internet dan un nombre parecido a un álbum tuyo («Ciencias Celeste» / «Ciencias Celestes», «X (Deluxe)» / «X»), se usa el tuyo.
+
 ## 2.2
 - Ajustes › Tu biblioteca › «Eliminar toda la música»: quita todas las canciones de la app para volver a agregarlas desde cero (tus archivos originales, escuchas y favoritas se quedan).
 - La guía ya no cambia ni separa tus álbumes: solo limpia nombres y completa lo que falta. Si quieres que ordene álbumes, hay un interruptor en Ajustes › La guía (apagado de fábrica).

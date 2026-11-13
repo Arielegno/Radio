@@ -60,6 +60,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 
 /** Todo lo que define cómo se ve un artículo, ya resuelto (estética + diseño avanzado). */
 private class Look(a: Articulo) {
@@ -167,11 +168,11 @@ internal fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Un
                         if (av != null) Image(av, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) else Text(a.autor.nombre.take(1).uppercase(), color = Color(0xFF1B1E23), fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     }
                     Spacer(Modifier.width(10.dp))
-                    Column {
-                        Text(a.autor.nombre, color = L.encabezado, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Column(Modifier.weight(1f)) {   // con un nombre largo, el botón «Seguir» sigue dentro de la casilla
+                        Text(a.autor.nombre, color = L.encabezado, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Text("${Fechas.corta(a.fecha)} · ${Formato.minutos(a.texto)} min de lectura", color = L.tenue, fontSize = 13.sp)
                     }
-                    Spacer(Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
                     if (!mio && a.autor.id.isNotEmpty()) {
                         val sigo = a.autor.id in Cuenta.sigo
                         Text(if (sigo) "Siguiendo" else "Seguir", color = if (sigo) L.encabezado else Color(0xFF1B1E23), fontWeight = FontWeight.Bold, fontSize = 14.sp,
@@ -289,7 +290,7 @@ private fun UnComentario(c: Comentario, L: Look, respuesta: Boolean, responder: 
     Column(Modifier.fillMaxWidth().padding(start = if (respuesta) 26.dp else 0.dp, top = 5.dp, bottom = 5.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x33000000)).padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(enabled = c.autorId.isNotEmpty()) { Nav.ir(Destino.Perfil(c.autorId)) }) {
             Avatar(Autor(c.autorId, c.nombre, c.avatar), 24); Spacer(Modifier.width(8.dp))
-            Text("${c.nombre} · ${Fechas.corta(c.fecha)}", color = L.acento, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Text("${c.nombre} · ${Fechas.corta(c.fecha)}", color = L.acento, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Text(c.texto, color = L.texto, fontSize = 15.sp, lineHeight = 21.sp, modifier = Modifier.padding(top = 6.dp))
         if (c.id.isNotEmpty()) Row {

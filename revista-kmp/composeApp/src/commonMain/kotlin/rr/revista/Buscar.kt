@@ -81,7 +81,7 @@ fun BuscarPantalla() {
                     item { Titulo("Artistas") }
                     items(d.artistas, key = { "a" + it.str("id") }) { a ->
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).clickable { Nav.ir(Destino.Artista(a.str("id"))) }.padding(12.dp)) {
-                            Text(a.str("name"), fontWeight = FontWeight.Bold)
+                            Text(a.str("name"), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             val g = sinPuntos(a.str("genre")); if (g.isNotEmpty()) Text(g, color = Tenue, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }

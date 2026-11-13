@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import androidx.compose.ui.text.style.TextOverflow
 
 private val TIPOS = mapOf("post" to "Artículo", "comment" to "Comentario", "poster" to "Póster", "profile" to "Perfil", "artist" to "Artista", "poll" to "Debate", "event" to "Evento",
     "vault" to "Concierto de la Bóveda", "vcomment" to "Comentario de la Bóveda", "wall" to "Nota de un muro", "ccomment" to "Comentario del club", "list" to "Lista", "message" to "Mensaje privado")
@@ -146,7 +147,7 @@ private fun Usuarios() {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Panel).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Avatar(Autor(u.str("id"), u.str("name"), Diseno.imagenOk(u.str("avatar"))), 40); Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f).clickable { Nav.ir(Destino.Perfil(u.str("id"))) }) {
-                    Text(u.str("name"), fontWeight = FontWeight.Bold)
+                    Text(u.str("name"), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(when (u.str("role")) { "admin" -> "Admin"; "editor" -> "Editor"; else -> "Usuario" } + (if (u.bool("banned")) " · suspendida" else "") + " · desde ${Fechas.mesAnio(u.str("created_at")).lowercase()}", color = if (u.bool("banned")) Color(0xFFFF8A7A) else Tenue, fontSize = 13.sp)
                 }
                 if (u.str("role") != "admin" && u.str("id") != Cuenta.uid) Column(horizontalAlignment = Alignment.End) {

@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import androidx.compose.ui.text.style.TextOverflow
 
 private data class DatosPerfil(val p: Map<String, Any?>, val seguidores: Int, val siguiendo: Int, val articulos: Int)
 private data class Actividad(val texto: String, val sub: String, val post: String)
@@ -124,7 +125,7 @@ fun PerfilPantalla(id: String) {
                                 }
                             }
                             Column(Modifier.offset(y = (-28).dp)) {
-                                Text(p.str("name"), fontFamily = Fuentes.de("condensada"), fontWeight = FontWeight.ExtraBold, fontSize = 32.sp)
+                                Text(p.str("name"), fontFamily = Fuentes.de("condensada"), fontWeight = FontWeight.ExtraBold, fontSize = 32.sp, lineHeight = 34.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 val rol = when (p.str("role")) { "admin" -> "Admin"; "editor" -> "Editor"; else -> "" }
                                 if (rol.isNotEmpty()) Text(rol, color = Color(0xFF1B1E23), fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(999.dp)).background(Amarillo).padding(horizontal = 10.dp, vertical = 3.dp))
                                 if (p.bool("banned")) Text("Cuenta suspendida", color = Color(0xFFFF8A7A), modifier = Modifier.padding(top = 6.dp))

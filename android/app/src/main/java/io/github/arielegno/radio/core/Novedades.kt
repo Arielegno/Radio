@@ -3,6 +3,10 @@ package io.github.arielegno.radio.core
 /** Historial de cambios (se muestra en Ajustes › Acerca de › Novedades). Lo más nuevo arriba. */
 object Novedades {
     val LISTA: List<Pair<String, List<String>>> = listOf(
+        "2.1.3" to listOf(
+            "Revista: los nombres largos ya no se salen de su casilla. En un artículo, el botón «Seguir» queda siempre dentro aunque el autor tenga un nombre muy largo.",
+            "Revista: nombres en perfiles, comentarios, búsqueda de artistas y panel de administración se recortan con «…» en vez de desbordarse.",
+        ),
         "2.1.2" to listOf(
             "Pantalla más fluida: las portadas y fotos de artistas ya no leen el disco mientras se dibuja la pantalla (eso podía trabarla en teléfonos ocupados).",
             "Las fotos de artistas se buscan siempre en segundo plano.",

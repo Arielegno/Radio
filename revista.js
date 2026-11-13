@@ -553,7 +553,7 @@ async function revProfile(id, noPush) {
   if (!UUID.test(id)) return;
   if (!noPush) revPush();
   rev.sec = 'art'; rev.view = 'profile'; const my = ++rev.req, box = revBody(); box.innerHTML = '<p class="hint">Cargando…</p>'; revBar();
-  if (!rev.prof || rev.prof.id !== id) rev.profTab = 'wall';
+  if (!rev.prof || rev.prof.id !== id) rev.profTab = 'posts';   // lo primero que se ve es lo que la persona creó; el muro va aparte
   try {
     const me0 = revMe();
     const [pr, fol, fing, , , np] = await Promise.all([
@@ -570,7 +570,7 @@ async function revProfile(id, noPush) {
 function revDrawProfile() {
   const p = rev.prof, me = revMe(), st = revSt(p.style), mine = me && me.uid === p.id;
   const role = [p.role === 'admin' ? 'Admin' : p.role === 'editor' ? 'Editor' : '', p.role !== 'admin' && rev.curators && rev.curators.has(p.id) ? 'Curador de la Bóveda' : ''].filter(Boolean).join(' · ');
-  const adminBtn = revIsAdmin() && !mine && p.role !== 'admin' ? `<button type="button" class="alt" data-act="role" data-v="${p.role === 'editor' ? 'user' : 'editor'}">${p.role === 'editor' ? 'Quitar permiso de editor' : 'Hacer editor'}</button><button type="button" class="alt" data-act="ban" data-id="${esc(p.id)}" data-v="${p.banned ? 0 : 1}">${p.banned ? 'Reactivar cuenta' : 'Suspender cuenta'}</button><button type="button" class="alt" data-act="bvcur" data-id="${esc(p.id)}" data-v="${rev.curators && rev.curators.has(p.id) ? 0 : 1}">${rev.curators && rev.curators.has(p.id) ? 'Quitar curador de la Bóveda' : 'Hacer curador de la Bóveda'}</button>` : '';
+  const adminBtn = revIsAdmin() && !mine && p.role !== 'admin' ? `<button type="button" class="alt" data-act="role" data-v="${p.role === 'editor' ? 'user' : 'editor'}">${p.role === 'editor' ? 'Quitar permiso de editor' : 'Hacer editor'}</button><button type="button" class="alt" data-act="aname" data-id="${esc(p.id)}">Cambiar nombre</button><button type="button" class="alt" data-act="ban" data-id="${esc(p.id)}" data-v="${p.banned ? 0 : 1}">${p.banned ? 'Reactivar cuenta' : 'Suspender cuenta'}</button><button type="button" class="alt" data-act="bvcur" data-id="${esc(p.id)}" data-v="${rev.curators && rev.curators.has(p.id) ? 0 : 1}">${rev.curators && rev.curators.has(p.id) ? 'Quitar curador de la Bóveda' : 'Hacer curador de la Bóveda'}</button>` : '';
   const ban = revPic(p.banner);
   revBody().innerHTML = revHead('Volver', '') + `<section class="rv-prof nv-prof rv-st" ${revAttrs(st)}>
 <div class="nv-ban${ban ? '' : ' nv-ban0'}" style="--h:${nvHue(p.name)}">${ban ? `<img src="${esc(ban)}" alt="" decoding="async">` : ''}</div>
@@ -579,7 +579,7 @@ function revDrawProfile() {
 ${p.banned ? '<p class="rv-warn">Cuenta suspendida</p>' : ''}<div id="rvBadges" class="rv-badges"></div>${p.bio ? `<p class="rv-bio">${esc(p.bio)}</p>` : ''}${nvNowHtml(p)}
 <div class="nv-stats"><span><b>${p.nFol}</b> seguidores</span><span><b>${p.nFing}</b> siguiendo</span><span><b>${p.nPosts || 0}</b> artículos</span><span class="nv-since">desde ${revDate(p.created_at, { month: 'short', year: 'numeric' })}</span></div>
 <div class="rv-pbtns nv-pbtns2">${mine ? '<button type="button" class="alt" data-act="logout">Cerrar sesión</button><button type="button" class="alt" data-act="rules">Normas</button>' : ''}${adminBtn}${mine ? '' : `<button type="button" class="rv-x" data-act="report" data-type="profile" data-id="${esc(p.id)}">Denunciar</button>`}</div></div></section>
-<div class="rv-tabs nv-tabs">${[['wall', 'Muro'], ['posts', 'Artículos'], ['lists', 'Listas'], ['recs', 'Recomendados'], ['cols', 'Colecciones'], ['comments', 'Comentarios'], ['likes', 'Me gusta']].map(([k, n]) => `<button type="button" class="rv-tab${rev.profTab === k ? ' on' : ''}" data-act="ptab" data-v="${k}">${n}</button>`).join('')}</div>
+<div class="rv-tabs nv-tabs">${[['posts', 'Artículos'], ['lists', 'Listas'], ['cols', 'Colecciones'], ['recs', 'Recomendados'], ['wall', 'Muro'], ['comments', 'Comentarios'], ['likes', 'Me gusta']].map(([k, n]) => `<button type="button" class="rv-tab${rev.profTab === k ? ' on' : ''}" data-act="ptab" data-v="${k}">${n}</button>`).join('')}</div>
 <div id="rvPList"><p class="hint">Cargando…</p></div>`;
   revBadges(p);
 }
@@ -990,9 +990,10 @@ async function revAdmUsers() {
     const t = revPat(rev.uQ || '');
     const a = await revFetch(`/rest/v1/profiles?select=id,name,avatar,role,banned,created_at&order=created_at.desc&limit=60${t ? `&name=ilike.${encodeURIComponent('*' + t + '*')}` : ''}`);
     if (my !== rev.req || !$('rvUList')) return;
+    rev.admUsers = a;   // para mostrar el nombre actual al cambiarlo
     const me = revMe();
     $('rvUList').innerHTML = a.map(u => `<div class="rv-urow">${revAv(u, 40)}<div><b>${esc(u.name)}</b><small>${u.role === 'admin' ? 'Admin' : u.role === 'editor' ? 'Editor' : 'Usuario'}${u.banned ? ' · <span class="rv-bad">suspendida</span>' : ''} · desde ${revDate(u.created_at, { month: 'short', year: 'numeric' })}</small></div>
-<div class="rv-pcb"><button type="button" class="alt" data-act="admuser" data-id="${esc(u.id)}">Perfil</button>${u.role !== 'admin' && (!me || u.id !== me.uid) ? `<button type="button" class="alt" data-act="ban" data-id="${esc(u.id)}" data-v="${u.banned ? 0 : 1}">${u.banned ? 'Reactivar' : 'Suspender'}</button>` : ''}</div></div>`).join('') || '<p class="hint">Sin resultados.</p>';
+<div class="rv-pcb"><button type="button" class="alt" data-act="admuser" data-id="${esc(u.id)}">Perfil</button>${u.role !== 'admin' && (!me || u.id !== me.uid) ? `<button type="button" class="alt" data-act="aname" data-id="${esc(u.id)}">Nombre</button><button type="button" class="alt" data-act="ban" data-id="${esc(u.id)}" data-v="${u.banned ? 0 : 1}">${u.banned ? 'Reactivar' : 'Suspender'}</button>` : ''}</div></div>`).join('') || '<p class="hint">Sin resultados.</p>';
   } catch (e) { revAdmErr(e); }
 }
 async function revAdmStats() {
@@ -2681,6 +2682,17 @@ async function revAct(b) {
       case 'ics': return rev.events[+d.i] && revIcs(rev.events[+d.i]);
       case 'delev': if (await uiConfirm('¿Borrar este evento?', 'Se quita de la agenda.', 'Borrar')) { await revFetch(`/rest/v1/events?id=eq.${d.id}`, { method: 'DELETE' }); revAgenda(); } return;
       case 'todayp': rev.pQ = d.v; rev.pFilter = 'all'; rev.stack = []; return revPosters(true);
+      case 'aname': {   // el administrador corrige el nombre de una persona (2 a 40 letras)
+        const actual = (rev.prof && rev.prof.id === d.id) ? rev.prof.name : ((rev.admUsers || []).find(u => u.id === d.id) || {}).name || '';
+        const v = await uiDialog({ title: 'Cambiar nombre', text: 'Es el nombre público de esta persona en la Revista (de 2 a 40 letras).', fields: [{ key: 'name', label: 'Nombre', value: actual }], ok: 'Guardar' });
+        if (!v) return;
+        const nombre = (v.name || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+        if (nombre.length < 2) return toast('El nombre debe tener al menos 2 letras.');
+        await revFetch(`/rest/v1/profiles?id=eq.${d.id}`, { method: 'PATCH', body: { name: nombre }, prefer: 'return=minimal' });
+        toast('Nombre cambiado.');
+        if (rev.view === 'profile' && rev.prof && rev.prof.id === d.id) { rev.prof.name = nombre; revDrawProfile(); return revProfTab(rev.profTab); }
+        return revAdmin(rev.admTab);
+      }
       case 'ban': {
         const on = d.v === '1';
         if (!(await uiConfirm(on ? '¿Suspender esta cuenta?' : '¿Reactivar esta cuenta?', on ? 'Podrá leer, pero no publicar, comentar, dar me gusta ni seguir.' : 'Podrá volver a publicar.', on ? 'Suspender' : 'Reactivar', on))) return;

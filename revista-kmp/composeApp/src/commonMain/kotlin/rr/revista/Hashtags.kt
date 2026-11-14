@@ -59,8 +59,9 @@ object Hashtags {
         val bytes = mutableListOf<Byte>(); var i = 0
         while (i < crudo.length) {
             val c = crudo[i]
-            if (c == '%' && i + 2 < crudo.length + 0 && i + 2 <= crudo.lastIndex) { crudo.substring(i + 1, i + 3).toIntOrNull(16)?.let { bytes += it.toByte(); i += 3; continue } }
-            c.toString().encodeToByteArray().forEach { bytes += it }; i++
+            val hex = if (c == '%' && i + 2 <= crudo.lastIndex) crudo.substring(i + 1, i + 3).toIntOrNull(16) else null
+            if (hex != null) { bytes += hex.toByte(); i += 3 }
+            else { c.toString().encodeToByteArray().forEach { bytes += it }; i++ }
         }
         abrir(bytes.toByteArray().decodeToString())
     }

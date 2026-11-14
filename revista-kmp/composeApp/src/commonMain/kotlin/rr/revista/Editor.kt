@@ -136,7 +136,7 @@ fun Editor(id: String?) {
                 val col = b.diseno.col.map { i -> if (i.k == "img" && i.s.startsWith("data:")) i.copy(s = subirFoto(Foto(i.s, i.s), "k")) else i }
                 val dz = b.diseno.copy(col = col)
                 val fila = linkedMapOf<String, Any?>("title" to titulo.take(150), "subtitle" to b.subtitulo.trim().take(200).ifEmpty { null }, "cover" to portada, "body" to texto.take(20000),
-                    "style" to b.estilo.aMapa(), "tags" to etiquetas(b.etiquetas), "gallery" to gal.take(8),
+                    "style" to b.estilo.aMapa(), "tags" to Hashtags.juntar(etiquetas(b.etiquetas), texto), "gallery" to gal.take(8),
                     "status" to if (borrador) "draft" else "published", "publish_at" to ahoraIsoMenos(60))
                 if (id == null) fila["tracks"] = emptyList<Any>()
                 fila["review"] = if (b.resena) linkedMapOf("album" to b.disco.trim().take(100), "artist" to b.artista.trim().take(80), "year" to b.anio.trim().toIntOrNull()?.takeIf { it in 1900..2100 }, "score" to b.nota.toInt().coerceIn(1, 10)) else null
@@ -226,7 +226,7 @@ fun Editor(id: String?) {
                 }
                 if (total < 8) Boton("Añadir fotos", principal = false) { val e = elegirImagenes(1600, 520, true); scope.launch { val fs = e.esperar(); b = b.copy(galeria = (b.galeria + fs).take(8 - b.galeriaUrls.size)) } }
 
-                Campo(b.etiquetas, { b = b.copy(etiquetas = it) }, "Etiquetas (hasta 5)", max = 140, pista = "grunge, en vivo, reseña")
+                Campo(b.etiquetas, { b = b.copy(etiquetas = it) }, "Etiquetas (hasta 5)", max = 140, pista = "grunge, en vivo, reseña · o escribe #palabra en el texto")
 
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 8.dp)) {
                     Boton("Guardar borrador", principal = false, ocupado = guardando, modifier = Modifier.weight(1f)) { publicar(true) }
@@ -239,7 +239,7 @@ fun Editor(id: String?) {
             val a = Articulo("ejemplo-vista", b.titulo.ifBlank { "Tu título" }, b.subtitulo, b.portada?.grande ?: b.portadaUrl, b.estilo, ahoraIso(),
                 Autor(Cuenta.uid, Cuenta.yo.str("name").ifBlank { "Tú" }, Diseno.imagenOk(Cuenta.yo.str("avatar"))), 0, 0, texto = cuerpo.text.ifBlank { "Aquí se verá tu texto con esta estética." }, diseno = b.diseno,
                 resena = if (b.resena && b.disco.isNotBlank()) Resena(b.disco, b.artista, b.anio.toIntOrNull() ?: 0, b.nota.toInt()) else null,
-                galeria = b.galeriaUrls + b.galeria.map { it.mini }, etiquetas = etiquetas(b.etiquetas))
+                galeria = b.galeriaUrls + b.galeria.map { it.mini }, etiquetas = Hashtags.juntar(etiquetas(b.etiquetas), cuerpo.text))
             Box(Modifier.fillMaxSize()) { VistaArticulo(a, emptyList(), { vista = false }) {} }
         }
         if (collage) EditorCollage(b.diseno, b.portada?.grande ?: b.portadaUrl, cerrar = { collage = false }) { col -> b = b.copy(diseno = b.diseno.copy(col = col)); collage = false }

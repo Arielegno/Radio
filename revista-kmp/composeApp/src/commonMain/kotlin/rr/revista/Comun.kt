@@ -73,6 +73,7 @@ sealed class Destino {
     data class Edicion(val id: String) : Destino()
     data object Guardados : Destino()
     data class Comparar(val artista: String) : Destino()
+    data class Etiqueta(val tag: String) : Destino()
     data class EditarConcierto(val id: String?) : Destino()
     data class Lista(val id: String) : Destino()
     data class EditarLista(val id: String?) : Destino()

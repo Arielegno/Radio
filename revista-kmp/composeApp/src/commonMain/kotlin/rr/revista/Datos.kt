@@ -90,9 +90,10 @@ object Supa {
         )
     }
 
-    suspend fun portada(limite: Int = 30, autores: Set<String>? = null): List<Articulo> {
+    suspend fun portada(limite: Int = 30, autores: Set<String>? = null, etiqueta: String? = null): List<Articulo> {
         val sel = "id,title,subtitle,cover,style,review,tags,created_at,author_id,profiles!author_id(name,avatar),likes(count),comments(count)"
-        val de = autores?.filter { UUID.matches(it) }?.take(200)?.joinToString(",")?.let { "&author_id=in.($it)" } ?: ""
+        val de = (autores?.filter { UUID.matches(it) }?.take(200)?.joinToString(",")?.let { "&author_id=in.($it)" } ?: "") +
+            (etiqueta?.let(Hashtags::normal)?.takeIf { it.isNotEmpty() }?.let { "&tags=cs.%7B${enc(it)}%7D" } ?: "")
         val t = try { get("/rest/v1/posts?select=$sel$de${publicados()}&order=created_at.desc&limit=$limite") }
         catch (e: Exception) { sinEstado = true; get("/rest/v1/posts?select=id,title,subtitle,cover,style,created_at,author_id,profiles!author_id(name),likes(count),comments(count)&order=created_at.desc&limit=$limite") }
         return Json.arr(t).mapNotNull { it.asObj()?.let(::deFila) }

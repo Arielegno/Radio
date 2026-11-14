@@ -148,7 +148,7 @@ private fun Nota(w: Map<String, Any?>, d: DatosMuro, dueno: String, scope: kotli
         if (Cuenta.uid == w.str("author_id") || Cuenta.uid == dueno || Cuenta.esAdmin) Enlace("borrar", Tenue) { scope.launch { runCatching { Cuenta.api("DELETE", "/rest/v1/wall_posts?id=eq.${w.str("id")}") }; recargar() } }
         if (Cuenta.dentro && Cuenta.uid != w.str("author_id")) Enlace("denunciar", Tenue) { denunciar(w.str("id")) }
     }
-    Text(w.str("body"), fontSize = 16.sp, lineHeight = 22.sp)
+    Text(Hashtags.texto(w.str("body"), Amarillo), fontSize = 16.sp, lineHeight = 22.sp)
 }
 
 @Composable

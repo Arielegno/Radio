@@ -48,6 +48,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -193,7 +196,7 @@ internal fun VistaArticulo(a: Articulo, coms: List<Comentario>, cerrar: () -> Un
                     }
                 }
                 if (a.etiquetas.isNotEmpty()) Row(Modifier.padding(top = 14.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    a.etiquetas.forEach { Text("#$it", color = L.acento, fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(RoundedCornerShape(999.dp)).border(1.dp, L.acento.copy(alpha = .6f), RoundedCornerShape(999.dp)).padding(horizontal = 12.dp, vertical = 6.dp)) }
+                    a.etiquetas.forEach { Text("#$it", color = L.acento, fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(RoundedCornerShape(999.dp)).border(1.dp, L.acento.copy(alpha = .6f), RoundedCornerShape(999.dp)).mano().clickable { Hashtags.abrir(it) }.padding(horizontal = 12.dp, vertical = 6.dp)) }
                 }
                 // Me gusta, recomendar, compartir y denunciar
                 val gusta = a.id in Cuenta.likes; val recomendado = a.id in Cuenta.recomiendo
@@ -292,7 +295,7 @@ private fun UnComentario(c: Comentario, L: Look, respuesta: Boolean, responder: 
             Avatar(Autor(c.autorId, c.nombre, c.avatar), 24); Spacer(Modifier.width(8.dp))
             Text("${c.nombre} · ${Fechas.corta(c.fecha)}", color = L.acento, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        Text(c.texto, color = L.texto, fontSize = 15.sp, lineHeight = 21.sp, modifier = Modifier.padding(top = 6.dp))
+        Text(Hashtags.texto(c.texto, L.acento), color = L.texto, fontSize = 15.sp, lineHeight = 21.sp, modifier = Modifier.padding(top = 6.dp))
         if (c.id.isNotEmpty()) Row {
             Enlace("Responder", L.tenue, responder)
             if (mio || Cuenta.esAdmin) Enlace("Borrar", L.tenue) { borrar(c.id) }
@@ -385,10 +388,11 @@ private fun Resena(r: Resena, L: Look) {
 private fun texto(linea: String, acento: Color): AnnotatedString = buildAnnotatedString {
     Formato.trozos(linea).forEach { t ->
         when {
-            t.negrita -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(t.texto) }
-            t.cursiva -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(t.texto) }
-            t.enlace.isNotEmpty() -> withStyle(SpanStyle(color = acento, textDecoration = TextDecoration.Underline)) { append(t.texto) }
-            else -> append(t.texto)
+            t.negrita -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { Hashtags.agregar(this, t.texto, acento) }
+            t.cursiva -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { Hashtags.agregar(this, t.texto, acento) }
+            // los enlaces ahora se pueden tocar
+            t.enlace.isNotEmpty() -> withLink(LinkAnnotation.Clickable("url", TextLinkStyles(SpanStyle(color = acento, textDecoration = TextDecoration.Underline))) { abrirEnlace(t.enlace) }) { append(t.texto) }
+            else -> Hashtags.agregar(this, t.texto, acento)   // #palabra → enlace a su página
         }
     }
 }

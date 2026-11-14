@@ -67,7 +67,10 @@ fun BuscarPantalla() {
         }
         val r = res
         when {
-            q.trim().length < 2 -> item { Sugerencias("Sugerencias para ti", Modifier.padding(top = 10.dp)) }
+            q.trim().length < 2 -> { item { FilaTendencias("Tendencias") }; item { Sugerencias("Sugerencias para ti", Modifier.padding(top = 10.dp)) } }
+            q.trim().startsWith("#") && Hashtags.normal(q).length >= 2 -> item {
+                Enlace("Ver todos los artículos con #${Hashtags.normal(q)}  ›") { Hashtags.abrir(q) }
+            }
             r == null -> item { Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Amarillo) } }
             r.isFailure -> item { Text(r.exceptionOrNull()?.message ?: "", color = Tenue, modifier = Modifier.padding(16.dp)) }
             else -> {

@@ -91,6 +91,7 @@ fun App() {
         if (h == "#buscar") Nav.ir(Destino.Buscar)
         Regex("^#artista=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1)?.let { Nav.ir(Destino.Artista(it)) }
         Regex("^#lista=([0-9a-f-]{36})$").find(h)?.groupValues?.get(1)?.let { Nav.ir(Destino.Lista(it)) }
+        Regex("^#tag=([^&#]{1,80})$").find(h)?.groupValues?.get(1)?.let { Hashtags.abrirDesdeEnlace(it) }
         if (h == "#entrar") Nav.dialogo = "cuenta"
         Cuenta.social()
     }
@@ -152,6 +153,7 @@ fun App() {
                                 is Destino.Edicion -> androidx.compose.runtime.key(arriba.id) { EdicionPantalla(arriba.id) }
                                 Destino.Guardados -> GuardadosPantalla()
                                 is Destino.Comparar -> androidx.compose.runtime.key(arriba.artista) { CompararPantalla(arriba.artista) }
+                                is Destino.Etiqueta -> androidx.compose.runtime.key(arriba.tag) { EtiquetaPantalla(arriba.tag) }
                                 is Destino.EditarConcierto -> androidx.compose.runtime.key(arriba.id ?: "nuevo") { EditarConciertoPantalla(arriba.id) }
                                 null -> {}
                             }
@@ -231,6 +233,7 @@ private fun Inicio(lista: LazyGridState, abrir: (String) -> Unit) {
                 }
             }
         }
+        if (filtro == "todo" && etiqueta.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }, key = "tendencias") { FilaTendencias() }
         if (filtro == "todo" && etiqueta.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }, key = "hoy") { HoyEnLaMusica() }
         if (Cuenta.dentro && filtro == "todo" && etiqueta.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }, key = "sugerencias") { Sugerencias("Personas que quizá conozcas", Modifier.padding(top = 14.dp, bottom = 6.dp)) }
         val r = datos
@@ -250,7 +253,7 @@ private fun Inicio(lista: LazyGridState, abrir: (String) -> Unit) {
                     }
                 }
                 l.firstOrNull()?.let { a -> item(span = { GridItemSpan(maxLineSpan) }, key = "hero") { Destacado(a, ancha) { abrir(a.id) } } }
-                items(l.drop(1), key = { it.id }) { a -> Tarjeta(a, alEtiqueta = { etiqueta = it; filtro = "todo" }) { abrir(a.id) } }
+                items(l.drop(1), key = { it.id }) { a -> Tarjeta(a, alEtiqueta = { Hashtags.abrir(it) }) { abrir(a.id) } }
             }
         }
         item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(100.dp)) }   // para que el botón «+» no tape la última tarjeta

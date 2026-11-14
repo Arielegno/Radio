@@ -2,6 +2,12 @@
 
 Lo más nuevo arriba. También se ve dentro de la app en Ajustes › Acerca de › Novedades.
 
+## 2.3
+- Revista: sistema de #. Escribe #palabra en un artículo, comentario o nota del Muro y se vuelve un enlace a todos los artículos con ese #.
+- Revista: los # escritos en el texto se suman solos a las etiquetas del artículo al publicar (hasta 5).
+- Revista: «Tendencias» con los # más usados del último mes, en la portada y en el buscador; cada # tiene su propia página.
+- Revista: los enlaces dentro de un artículo ya se pueden tocar.
+
 ## 2.2.2
 - Revista: el perfil abre en «Artículos» (lo que la persona creó). El «Muro» con las notas de la gente queda en su propia pestaña, más adelante.
 - Revista: el administrador puede cambiar el nombre de una persona (desde su perfil o en Administración › Usuarios).

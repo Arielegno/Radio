@@ -3,6 +3,10 @@ package io.github.arielegno.radio.core
 /** Historial de cambios (se muestra en Ajustes › Acerca de › Novedades). Lo más nuevo arriba. */
 object Novedades {
     val LISTA: List<Pair<String, List<String>>> = listOf(
+        "2.3.1" to listOf(
+            "Playlists con portada propia: abre la playlist y toca su portada (o «Poner portada») para elegir una foto de la galería.",
+            "La portada se conserva si le cambias el nombre a la playlist, y con «Quitar portada» vuelve a usar la carátula de la primera canción.",
+        ),
         "2.3" to listOf(
             "Revista: sistema de #. Escribe #palabra en un artículo, comentario o nota del Muro y se vuelve un enlace a todos los artículos con ese #.",
             "Revista: los # escritos en el texto se suman solos a las etiquetas del artículo al publicar (hasta 5).",

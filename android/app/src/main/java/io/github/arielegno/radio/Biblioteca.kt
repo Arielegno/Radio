@@ -369,6 +369,23 @@ class Biblioteca(private val ctx: Context) {
     var versionListas by mutableStateOf(0)
         private set
     fun guardarListas() { RadioApp.prefs.set("playlists", listas.toJson()); versionListas++ }
+
+    /** La portada propia de una playlist (null = usa la de su primera canción). */
+    fun portadaLista(n: String): File? = listas.portadas[n]?.let { File(dirCaratulas, it) }
+
+    /** Pone una imagen de la galería como portada de la playlist. */
+    suspend fun cambiarPortadaLista(n: String, uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        val bytes = try { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } } catch (e: Throwable) { null } ?: return@withContext false
+        val nombre = guardarCaratula(bytes, 0, "lista_${n.hashCode().toUInt()}_${System.currentTimeMillis()}.jpg").ifEmpty { return@withContext false }
+        withContext(Dispatchers.Main) {
+            listas.portadas.put(n, nombre)?.let { File(dirCaratulas, it).delete() }   // la anterior ya no hace falta
+            guardarListas()
+        }
+        true
+    }
+
+    /** Vuelve a usar la carátula de la primera canción. */
+    fun quitarPortadaLista(n: String) { listas.portadas.remove(n)?.let { File(dirCaratulas, it).delete() }; guardarListas() }
     fun recargarListas() { listas = io.github.arielegno.radio.core.Playlists(RadioApp.prefs.str("playlists", "")); versionListas++ }
 
     /** Copia de seguridad con audios en la carpeta que elija la persona. */

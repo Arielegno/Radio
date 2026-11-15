@@ -120,11 +120,14 @@ object Coleccion {
 /** Playlists: { nombre: { canciones: [id, …] } } — mismo formato que la versión web. */
 class Playlists(texto: String?) {
     val datos: LinkedHashMap<String, MutableList<Long>> = linkedMapOf()
+    /** Portada propia de cada playlist (archivo en la carpeta de carátulas). Sin portada: la de la primera canción. */
+    val portadas: MutableMap<String, String> = mutableMapOf()
 
     init {
         Json.obj(texto).forEach { (k, v) ->
             if (k in setOf("__proto__", "constructor", "prototype")) return@forEach
             datos[k] = (v.asObj()?.list("canciones") ?: emptyList()).mapNotNull { (it as? Number)?.toLong() }.distinct().toMutableList()
+            (v.asObj()?.get("portada") as? String)?.takeIf { Regex("^[A-Za-z0-9_.-]{1,80}$").matches(it) }?.let { portadas[k] = it }
         }
     }
 
@@ -143,9 +146,10 @@ class Playlists(texto: String?) {
         if (t != viejo && datos.keys.any { it != viejo && normNombre(it) == normNombre(t) }) return "Ya existe una playlist con ese nombre."
         val copia = LinkedHashMap(datos); datos.clear()
         copia.forEach { (k, v) -> if (k == viejo) datos[t] = l else datos[k] = v }
+        portadas.remove(viejo)?.let { portadas[t] = it }   // la portada sigue a la playlist
         return null
     }
-    fun borrar(n: String) { datos.remove(n) }
+    fun borrar(n: String) { datos.remove(n); portadas.remove(n) }
     /** true si se añadió; false si ya estaba. */
     fun agregar(n: String, id: Long): Boolean { val l = datos[n] ?: return false; if (id in l) return false; l += id; return true }
     fun quitar(n: String, id: Long) { datos[n]?.remove(id) }
@@ -156,5 +160,5 @@ class Playlists(texto: String?) {
         l[i] = l[j].also { l[j] = l[i] }
     }
 
-    fun toJson(): String = Json.write(datos.mapValues { linkedMapOf("canciones" to it.value) })
+    fun toJson(): String = Json.write(datos.mapValues { (k, v) -> linkedMapOf<String, Any?>("canciones" to v).apply { portadas[k]?.let { put("portada", it) } } })
 }

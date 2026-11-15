@@ -284,7 +284,7 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
                 items(nombres, key = { "pl:$it" }) { n ->
                     val ids = b.listas.canciones(n)
                     val primera = ids.firstNotNullOfOrNull { id -> b.porId(id)?.takeIf { it.cover.isNotEmpty() } }
-                    FilaGrupo(n, "${ids.size} ${if (ids.size == 1) "canción" else "canciones"}", primera, Icons.Filled.LibraryMusic, redonda = false,
+                    FilaGrupo(n, "${ids.size} ${if (ids.size == 1) "canción" else "canciones"}", primera, Icons.Filled.LibraryMusic, redonda = false, propia = b.portadaLista(n),
                         play = { val orden2 = ids; r.iniciar({ it.id in orden2 }, desdeId = orden2.firstOrNull(), mezclarEsta = false) }) { carpeta = Carpeta("playlists", n) }
                 }
             }
@@ -365,7 +365,7 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
     borrarLista?.let { n ->
         AlertDialog(onDismissRequest = { borrarLista = null }, title = { Text("¿Borrar la playlist «$n»?") },
             text = { Text("Las canciones se quedan en tu biblioteca.") },
-            confirmButton = { TextButton(onClick = { b.listas.borrar(n); b.guardarListas(); carpeta = null; borrarLista = null }) { Text("Borrar") } },
+            confirmButton = { TextButton(onClick = { b.portadaLista(n)?.delete(); b.listas.borrar(n); b.guardarListas(); carpeta = null; borrarLista = null }) { Text("Borrar") } },
             dismissButton = { TextButton(onClick = { borrarLista = null }) { Text("Cancelar") } })
     }
 }
@@ -378,18 +378,18 @@ private class AccionesCancion(
 )
 
 @Composable
-private fun CaratulaLlena(t: Track?, semilla: String, icono: ImageVector, forma: androidx.compose.ui.graphics.Shape, album: String? = null) {
-    // un álbum puede tener su propia portada (elegida «solo para el álbum»)
-    val propia = album?.let { RadioApp.biblioteca.portadasAlbum.let { _ -> RadioApp.biblioteca.portadaAlbum(it) } }
+private fun CaratulaLlena(t: Track?, semilla: String, icono: ImageVector, forma: androidx.compose.ui.graphics.Shape, album: String? = null, archivo: java.io.File? = null) {
+    // un álbum o una playlist pueden tener su propia portada
+    val propia = archivo ?: album?.let { RadioApp.biblioteca.portadasAlbum.let { _ -> RadioApp.biblioteca.portadaAlbum(it) } }
     val img = cargarImagen(propia ?: t?.let { RadioApp.biblioteca.caratulaUi(it) }, 400)
     if (img != null) Image(img, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(forma))
     else Relleno(semilla, icono, Modifier.fillMaxSize(), forma)
 }
 
 @Composable
-private fun FilaGrupo(titulo: String, sub: String, portada: Track?, icono: ImageVector, redonda: Boolean, esAlbum: Boolean = false, play: () -> Unit, abrir: () -> Unit) {
+private fun FilaGrupo(titulo: String, sub: String, portada: Track?, icono: ImageVector, redonda: Boolean, esAlbum: Boolean = false, propia: java.io.File? = null, play: () -> Unit, abrir: () -> Unit) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = abrir).padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(56.dp)) { CaratulaLlena(portada, titulo, icono, if (redonda) CircleShape else RoundedCornerShape(10.dp), album = if (esAlbum) titulo else null) }
+        Box(Modifier.size(56.dp)) { CaratulaLlena(portada, titulo, icono, if (redonda) CircleShape else RoundedCornerShape(10.dp), album = if (esAlbum) titulo else null, archivo = propia) }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(titulo, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -497,7 +497,7 @@ private fun DetalleCarpeta(c: Carpeta, filtradas: List<Track>, acc: AccionesCanc
             when (c.vista) {
                 "artistas" -> CabeceraArtista(c.clave, canciones, abrir, abrirRevista)
                 "albumes" -> CabeceraAlbum(c.clave, canciones, portada) { art -> abrir(Carpeta("artistas", art)) }
-                else -> {
+                else -> if (esLista) CabeceraLista(c.clave, canciones) else {
                     Text(c.clave, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.padding(vertical = 6.dp))
                     Text("${canciones.size} ${if (canciones.size == 1) "canción" else "canciones"}", color = LocalExtra.current.tenue)
                 }
@@ -594,6 +594,33 @@ private fun CabeceraAlbum(album: String, canciones: List<Track>, portada: Track?
     if (Guia.trabajando && Guia.progreso.isNotEmpty()) Text(Guia.progreso, color = Amarillo, style = MaterialTheme.typography.bodySmall)
     if (aviso.isNotEmpty()) Text(aviso, color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall)
     faltan?.takeIf { it.faltan.isNotEmpty() }?.let { ListaFaltantes(it, abierta = true) }
+}
+
+/** Cabecera de una playlist: portada grande (propia o la de su primera canción) para cambiarla o quitarla. */
+@Composable
+private fun CabeceraLista(nombre: String, canciones: List<Track>) {
+    val b = RadioApp.biblioteca
+    val ver = b.versionListas   // se redibuja al cambiar la portada
+    val propia = remember(nombre, ver) { b.portadaLista(nombre) }
+    var aviso by remember(nombre) { mutableStateOf("") }
+    val galeria = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
+        if (uri != null) RadioApp.scope.launchSafe { aviso = if (b.cambiarPortadaLista(nombre, uri)) "Portada cambiada." else "No se pudo leer esa imagen." }
+    }
+    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(140.dp).clip(RoundedCornerShape(16.dp)).clickable { galeria.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
+            CaratulaLlena(canciones.firstOrNull { it.cover.isNotEmpty() }, nombre, Icons.Filled.LibraryMusic, RoundedCornerShape(16.dp), archivo = propia)
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(nombre, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Text("${canciones.size} ${if (canciones.size == 1) "canción" else "canciones"}", color = LocalExtra.current.tenue)
+            TextButton(onClick = { galeria.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                Icon(Icons.Filled.Image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(if (propia == null) "Poner portada" else "Cambiar portada")
+            }
+            if (propia != null) TextButton(onClick = { b.quitarPortadaLista(nombre); aviso = "Ahora usa la carátula de la primera canción." }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) { Text("Quitar portada") }
+        }
+    }
+    if (aviso.isNotEmpty()) Text(aviso, color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall)
 }
 
 /** Las canciones que te faltan de un disco, cada una con un botón para buscarla. */

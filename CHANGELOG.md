@@ -2,6 +2,9 @@
 
 Lo más nuevo arriba. También se ve dentro de la app en Ajustes › Acerca de › Novedades.
 
+## 2.3.2
+- Biblioteca: el botón «Mezclar» de artistas, álbumes y playlists ya no se parte letra por letra en pantallas angostas.
+
 ## 2.3.1
 - Playlists con portada propia: abre la playlist y toca su portada (o «Poner portada») para elegir una foto de la galería.
 - La portada se conserva si le cambias el nombre a la playlist, y con «Quitar portada» vuelve a usar la carátula de la primera canción.

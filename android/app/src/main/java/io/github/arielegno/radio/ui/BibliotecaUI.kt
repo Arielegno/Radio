@@ -502,12 +502,13 @@ private fun DetalleCarpeta(c: Carpeta, filtradas: List<Track>, acc: AccionesCanc
                     Text("${canciones.size} ${if (canciones.size == 1) "canción" else "canciones"}", color = LocalExtra.current.tenue)
                 }
             }
-            Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = { if (canciones.isNotEmpty()) acc.play(canciones, canciones.first()) }, enabled = canciones.isNotEmpty()) {
-                    Icon(Icons.Filled.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Reproducir todo")
+            // los dos botones se reparten el ancho y su texto no se parte en varias líneas
+            Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(onClick = { if (canciones.isNotEmpty()) acc.play(canciones, canciones.first()) }, enabled = canciones.isNotEmpty(), modifier = Modifier.weight(1.4f)) {
+                    Icon(Icons.Filled.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Reproducir todo", maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                OutlinedButton(onClick = { val ids = canciones.map { it.id }.toSet(); r.iniciar({ it.id in ids }, mezclarEsta = true) }, enabled = canciones.isNotEmpty()) {
-                    Icon(Icons.Filled.Shuffle, null); Spacer(Modifier.width(6.dp)); Text("Mezclar")
+                OutlinedButton(onClick = { val ids = canciones.map { it.id }.toSet(); r.iniciar({ it.id in ids }, mezclarEsta = true) }, enabled = canciones.isNotEmpty(), modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Filled.Shuffle, null); Spacer(Modifier.width(6.dp)); Text("Mezclar", maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             if (c.vista == "artistas") Text("Todas las canciones · ${canciones.size}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 4.dp))

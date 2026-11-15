@@ -53,16 +53,20 @@ def prefs_playlists():
     except Exception: return {}
 def abrir_app():
     sh(f"monkey -p {PKG} -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1"); time.sleep(6)
+    if hay(r"^Saltar$", 4): tocar(r"^Saltar$")   # la bienvenida de la primera vez
 def elegir_foto(cual):
     """Del selector de fotos de Android, toca la foto más reciente."""
     time.sleep(4); foto(f"selector-{cual}")
     for t, d, c, p, b in nodos():
         if re.search(r"^(Photo|Foto|Image|Imagen)", d) and b[3] - b[1] > 80:
             sh(f"input tap {(b[0]+b[2])//2} {(b[1]+b[3])//2}"); time.sleep(4); return True
-    log("   (no encontré la foto por su descripción; toco la primera casilla de la cuadrícula)")
-    for t, d, c, p, b in nodos():
-        if "ImageView" in c and b[2] - b[0] > 150 and b[3] - b[1] > 150 and ("photopicker" in p or "providers.media" in p):
-            sh(f"input tap {(b[0]+b[2])//2} {(b[1]+b[3])//2}"); time.sleep(4); return True
+    log("   (no encontré la foto por su descripción; toco la primera casilla debajo de «Recientes»)")
+    todos = nodos()
+    open(os.path.join(OUT, f"selector-{cual}.txt"), "w").write("\n".join(map(str, todos)))
+    for t, d, c, p, b in todos:
+        if re.match(r"^(Recent|Recientes)$", t):
+            ancho = int(re.search(r"(\d+)x", sh("wm size")).group(1)) if re.search(r"(\d+)x", sh("wm size")) else 1080
+            sh(f"input tap {ancho // 8} {b[3] + ancho // 8}"); time.sleep(4); return True
     return False
 def poner_imagen(nombre, color):
     local = os.path.join(OUT, nombre)
@@ -93,7 +97,7 @@ poner_imagen("rojo.jpg", "red")
 
 # ===== 1. poner la portada =====
 abrir_app(); foto("inicio")
-tocar(r"^Biblioteca$"); foto("biblioteca-playlists")
+tocar(r"^Bibliot"); foto("biblioteca-playlists")
 comprobar("La playlist aparece en la Biblioteca", hay(r"Mi playlist de prueba"))
 tocar(r"^Mi playlist de prueba$"); foto("playlist-abierta")
 comprobar("Dentro de la playlist sale «Poner portada»", hay(r"^Poner portada$"))
@@ -109,7 +113,7 @@ comprobar("La otra playlist no se tocó", "portada" not in p.get("Otra playlist"
 sh("input keyevent 4"); time.sleep(2); foto("lista-con-portada")
 
 # ===== 2. se conserva al cerrar y abrir la app =====
-sh(f"am force-stop {PKG}"); abrir_app(); tocar(r"^Biblioteca$"); tocar(r"^Mi playlist de prueba$"); foto("tras-reiniciar")
+sh(f"am force-stop {PKG}"); abrir_app(); tocar(r"^Bibliot"); tocar(r"^Mi playlist de prueba$"); foto("tras-reiniciar")
 comprobar("Al cerrar y abrir la app, la portada sigue", hay(r"^Cambiar portada$"))
 
 # ===== 3. se conserva al cambiarle el nombre =====

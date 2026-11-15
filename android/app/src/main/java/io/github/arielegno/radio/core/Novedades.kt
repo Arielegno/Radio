@@ -3,6 +3,9 @@ package io.github.arielegno.radio.core
 /** Historial de cambios (se muestra en Ajustes › Acerca de › Novedades). Lo más nuevo arriba. */
 object Novedades {
     val LISTA: List<Pair<String, List<String>>> = listOf(
+        "2.3.2" to listOf(
+            "Biblioteca: el botón «Mezclar» de artistas, álbumes y playlists ya no se parte letra por letra en pantallas angostas.",
+        ),
         "2.3.1" to listOf(
             "Playlists con portada propia: abre la playlist y toca su portada (o «Poner portada») para elegir una foto de la galería.",
             "La portada se conserva si le cambias el nombre a la playlist, y con «Quitar portada» vuelve a usar la carátula de la primera canción.",

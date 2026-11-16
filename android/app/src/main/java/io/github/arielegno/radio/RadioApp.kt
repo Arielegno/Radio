@@ -27,6 +27,7 @@ class RadioApp : Application() {
         biblioteca = Biblioteca(this)
         stats = Datos.cargarStats(this)
         radio = Radio(this)
+        Prueba.iniciar(this)   // solo hace algo en la versión de prueba
     }
 
     // Cuando Android avisa que queda poca memoria, se sueltan las portadas en memoria y la voz si no está hablando

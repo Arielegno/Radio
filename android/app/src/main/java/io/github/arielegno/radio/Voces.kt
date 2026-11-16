@@ -35,10 +35,10 @@ class VozLuna(private val ctx: Context) {
     // Va antes de «tts» porque crear() lo usa al iniciar.
     private val progreso: UtteranceProgressListener = run {
         object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) { if (utteranceId != "calentar") hablandoTts = true }
-            override fun onDone(utteranceId: String?) { hablandoTts = false; utteranceId?.let { pendientes.remove(it)?.invoke(true) } }
+            override fun onStart(utteranceId: String?) { if (utteranceId != "calentar") hablandoTts = true; Prueba.log("voz del teléfono: empieza $utteranceId") }
+            override fun onDone(utteranceId: String?) { hablandoTts = false; Prueba.log("voz del teléfono: termina $utteranceId"); utteranceId?.let { pendientes.remove(it)?.invoke(true) } }
             @Deprecated("Requerido por la clase base") override fun onError(utteranceId: String?) { hablandoTts = false; utteranceId?.let { pendientes.remove(it)?.invoke(false) } }
-            override fun onError(utteranceId: String?, errorCode: Int) { hablandoTts = false; utteranceId?.let { pendientes.remove(it)?.invoke(false) } }
+            override fun onError(utteranceId: String?, errorCode: Int) { hablandoTts = false; Prueba.log("voz del teléfono: error $errorCode"); utteranceId?.let { pendientes.remove(it)?.invoke(false) } }
             override fun onStop(utteranceId: String?, interrupted: Boolean) { hablandoTts = false; utteranceId?.let { pendientes.remove(it)?.invoke(false) } }
         }
     }
@@ -192,7 +192,8 @@ class VozLuna(private val ctx: Context) {
             VozPropia.callar()
             // si la voz propia falla (por ejemplo, se borró), se usa la del teléfono
         }
-        if (!preparar()) return false
+        if (!preparar()) { Prueba.log("voz del teléfono: no está lista"); return false }
+        Prueba.log("voz del teléfono: motor=${try { tts.defaultEngine } catch (e: Exception) { "?" }} voces=${try { tts.voices?.count { it.locale.language == "es" } } catch (e: Exception) { -1 }}")
         // Si el motor de voz se traba, la radio no se queda esperando: se corta y sigue la música
         val limite = 15_000L + texto.length * 110L
         val r = withTimeoutOrNull(limite) { hablar(texto) }

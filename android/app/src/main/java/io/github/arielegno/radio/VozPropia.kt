@@ -160,7 +160,7 @@ object VozPropia {
             .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
             .setAudioFormat(AudioFormat.Builder().setSampleRate(sr).setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
             .setBufferSizeInBytes(maxOf(min, sr * 4)).setTransferMode(AudioTrack.MODE_STREAM).build()
-            .also { it.setVolume(volumen.coerceIn(0f, 1f)) }
+            .also { it.setVolume(volumen.coerceIn(0f, 1f)); Prueba.log("pista de voz: ${sr} Hz · volumen ${"%.2f".format(java.util.Locale.US, volumen)}") }
     }
 
     /** Hace sonar audio ya generado (una o varias voces seguidas) y espera a que termine. */
@@ -178,6 +178,7 @@ object VozPropia {
                     val c = fx.cola(); if (c.isNotEmpty()) x = x + c
                     // entre un locutor y otro, una pausa corta y natural
                     if (n < piezas.lastIndex) x = x + FloatArray(pz.sr / 4)
+                    Prueba.grabar("preparado-$n-${efecto.ifEmpty { "sin" }}", pz.sr, listOf(x))
                     p.play()
                     var i = 0
                     while (i < x.size && !parar) { val w = p.write(x, i, minOf(8192, x.size - i), AudioTrack.WRITE_BLOCKING); if (w <= 0) break; i += w }
@@ -211,15 +212,16 @@ object VozPropia {
                 val generadas = java.util.concurrent.atomic.AtomicLong(0)
                 val listo = java.util.concurrent.atomic.AtomicBoolean(false)
                 var escritos = 0L
+                val grabado = if (Prueba.activa) java.util.Collections.synchronizedList(mutableListOf<FloatArray>()) else null
                 val reproductor = Thread {
                     try {
                         while (!parar && !listo.get() && generadas.get() < sr * 1.5) Thread.sleep(20)
                         p.play()
                         while (!parar) {
                             val c = cola.poll(200, java.util.concurrent.TimeUnit.MILLISECONDS) ?: if (listo.get() && cola.isEmpty()) break else continue
-                            val o = fx.procesar(c); p.write(o, 0, o.size, AudioTrack.WRITE_BLOCKING); escritos += o.size
+                            val o = fx.procesar(c); grabado?.add(o); p.write(o, 0, o.size, AudioTrack.WRITE_BLOCKING); escritos += o.size
                         }
-                        if (!parar) { val cola2 = fx.cola(); if (cola2.isNotEmpty()) { p.write(cola2, 0, cola2.size, AudioTrack.WRITE_BLOCKING); escritos += cola2.size } }
+                        if (!parar) { val cola2 = fx.cola(); if (cola2.isNotEmpty()) { grabado?.add(cola2); p.write(cola2, 0, cola2.size, AudioTrack.WRITE_BLOCKING); escritos += cola2.size } }
                     } catch (e: Throwable) {}
                 }
                 reproductor.start()
@@ -233,6 +235,7 @@ object VozPropia {
                     }
                 } finally { listo.set(true) }
                 reproductor.join()
+                grabado?.let { Prueba.grabar("${v.id}-${efecto.ifEmpty { "sin" }}-vel${(velocidad * 100).toInt()}${if (parar) "-cortada" else ""}", sr, it.toList()) }
                 if (!parar) {
                     val fin = System.currentTimeMillis() + escritos * 1000L / sr + 1500
                     while (!parar && p.playbackHeadPosition < escritos && System.currentTimeMillis() < fin) Thread.sleep(40)

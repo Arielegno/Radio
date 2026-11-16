@@ -82,6 +82,7 @@ class Radio(private val ctx: Context) {
         try {
             for (i in 10 downTo 0) { player.volume = nivel + (1f - nivel) * i / 10f; delay(40) }   // baja en medio segundo
             if (activa && !retenida && !pausaPedida) player.play()
+            Prueba.log("música bajita · ${estadoPrueba()}")
             bloque()
         } finally {
             encima = false
@@ -354,8 +355,9 @@ class Radio(private val ctx: Context) {
         textoLuna = try { voz.paraMostrar(texto) } catch (e: Exception) { texto }
         anteriores += texto; while (anteriores.size > 6) anteriores.removeAt(0)
         lunaHablando = true; pausaPedida = false
+        Prueba.log("Luna empieza · ${estadoPrueba()} · motor=${p.str("motorVoz", "")} · «${texto.take(80)}»")
         try { if (!(if (listo != null) voz.decirPreparado(listo) else voz.decir(texto)) && !pausaPedida) mensaje = "Luna no pudo hablar: revisa la voz del teléfono en Ajustes." }
-        finally { lunaHablando = false }
+        finally { lunaHablando = false; Prueba.log("Luna termina · ${estadoPrueba()}") }
     }
 
     fun ajustes(): LunaAjustes {
@@ -462,6 +464,9 @@ class Radio(private val ctx: Context) {
         if (a == null) { hablar("Hola, soy ${p.str("host", "Luna")}. Agrega canciones y te acompaño en el camino."); return }
         hablar(escribir(a, b))
     }
+    /** Para la versión de prueba: Luna dice un texto tal cual. */
+    suspend fun probarTexto(t: String) = hablar(t)
+    fun estadoPrueba(): String = "musica=${if (player.isPlaying) "sonando" else "parada"} volumen=${"%.2f".format(java.util.Locale.US, player.volume)} luna=${if (lunaHablando) "hablando" else "callada"}"
     suspend fun probarVoz() { hablar("Hola, soy ${p.str("host", "Luna")}. ¿Me escuchas bien?") }
 
     private fun fundir() {

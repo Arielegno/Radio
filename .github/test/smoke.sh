@@ -6,10 +6,14 @@ OUT=shots
 mkdir -p $OUT
 F=.github/test
 
-shot() { sleep "${2:-3}"; adb exec-out screencap -p > "$OUT/$1.png"; }
+shot() {
+  sleep "${2:-3}"
+  timeout 30 adb shell screencap -p /sdcard/s.png && timeout 30 adb pull /sdcard/s.png "$OUT/$1.png" >/dev/null
+  echo "CAPTURA $1: $?" >> $OUT/steps.txt
+}
 ui() {
   for i in 1 2 3 4; do
-    adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 && adb pull /sdcard/ui.xml /tmp/ui.xml >/dev/null 2>&1 && return 0
+    timeout 40 adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 && timeout 20 adb pull /sdcard/ui.xml /tmp/ui.xml >/dev/null 2>&1 && return 0
     sleep 2
   done
   return 1
@@ -22,6 +26,7 @@ tap() {   # tap "texto o descripción" [parcial]
 }
 
 adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell wm size >> $OUT/steps.txt
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 0
 adb logcat -c
@@ -76,7 +81,7 @@ adb shell input swipe 200 1100 800 1250 700
 shot 08_lapiz 2
 tap "Listo"
 sleep 1
-adb shell "run-as $PKG cat files/annot/t1.json" > $OUT/anotaciones.json
+timeout 20 adb shell "run-as $PKG cat files/annot/t1.json" > $OUT/anotaciones.json
 
 # Texto fluido y negrita guía
 tap "Texto"
@@ -122,7 +127,7 @@ shot 16_texto_compartido 6
 adb shell input keyevent 4
 shot 17_biblioteca_final 3
 
-adb logcat -d > $OUT/logcat.txt
+timeout 60 adb logcat -d > $OUT/logcat.txt
 grep -n -A 30 "FATAL EXCEPTION" $OUT/logcat.txt > $OUT/crashes.txt || echo "Sin cierres inesperados" > $OUT/crashes.txt
-adb logcat -d -s AndroidRuntime:E > $OUT/errores.txt
+timeout 60 adb logcat -d -s AndroidRuntime:E > $OUT/errores.txt
 exit 0

@@ -1,0 +1,35 @@
+Physical size: 1080x2400
+CAPTURA 00_inicio: 124
+CAPTURA 01_biblioteca: 1
+NO ENCONTRADO: Seguir leyendo
+CAPTURA 02_pdf_colores: 1
+CAPTURA 03_pagina_escaneada: 1
+NO ENCONTRADO: Regla
+CAPTURA 04_regla: 1
+NO ENCONTRADO: Siguiente línea
+NO ENCONTRADO: Siguiente línea
+CAPTURA 05_regla_baja: 1
+NO ENCONTRADO: Regla
+NO ENCONTRADO: Anotar sobre el PDF
+CAPTURA 06_anotar: 1
+CAPTURA 07_resaltado: 1
+NO ENCONTRADO: Lápiz
+CAPTURA 08_lapiz: 1
+NO ENCONTRADO: Listo
+NO ENCONTRADO: Texto
+CAPTURA 09_texto_fluido: 1
+NO ENCONTRADO: Negrita guía
+CAPTURA 10_negrita_guia: 1
+NO ENCONTRADO: Negrita guía
+NO ENCONTRADO: Leer palabra por palabra
+NO ENCONTRADO: Reproducir
+CAPTURA 11_palabra_a_palabra: 1
+NO ENCONTRADO: Salir
+NO ENCONTRADO: Ajustes de lectura
+CAPTURA 12_ajustes: 1
+CAPTURA 13_horizontal_texto: 1
+NO ENCONTRADO: Página
+CAPTURA 14_horizontal_pdf: 1
+CAPTURA 15_oscuro: 1
+CAPTURA 16_texto_compartido: 1
+CAPTURA 17_biblioteca_final: 1

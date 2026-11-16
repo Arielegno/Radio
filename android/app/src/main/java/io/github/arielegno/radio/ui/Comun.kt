@@ -210,7 +210,7 @@ fun TextoQueCabe(
     var listo by remember(texto, style) { androidx.compose.runtime.mutableStateOf(false) }
     val base = if (style.fontSize.isSpecified) style.fontSize else 16.sp
     Text(texto, modifier.drawWithContent { if (listo) drawContent() }, color = color, fontWeight = fontWeight, maxLines = 1, softWrap = false,
-        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        overflow = if (escala <= minimo) androidx.compose.ui.text.style.TextOverflow.Ellipsis else androidx.compose.ui.text.style.TextOverflow.Clip,
         style = style.copy(fontSize = base * escala, lineHeight = if (style.lineHeight.isSpecified) style.lineHeight * escala else style.lineHeight),
         onTextLayout = { r -> if (r.didOverflowWidth && escala > minimo) escala = (escala - 0.06f).coerceAtLeast(minimo) else listo = true })
 }

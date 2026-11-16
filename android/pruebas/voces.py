@@ -214,7 +214,9 @@ sh("input keyevent 127")
 # ===== 10. Borrar una voz en uso =====
 log("\n— Borrar una voz —")
 orden("motor", v="propia:daniela"); pestana("Ajustes"); time.sleep(1)
-if not hay(r"^Voces de la app", 2): tocar(r"^Voz$")
+if not hay(r"^Voces de la app", 2):
+    T.deslizar(5, arriba=False); b = buscar_bajando(r"^Voz$", 5)
+    if b: pulsar(b)
 b = buscar_bajando(r"^Borrar$")
 if b: pulsar(b); time.sleep(2)
 foto("voz-borrada")

@@ -3,6 +3,11 @@ package io.github.arielegno.radio.core
 /** Historial de cambios (se muestra en Ajustes › Acerca de › Novedades). Lo más nuevo arriba. */
 object Novedades {
     val LISTA: List<Pair<String, List<String>>> = listOf(
+        "2.3.4" to listOf(
+            "Si pausas desde la notificación, la pantalla bloqueada, los audífonos o el carro mientras Luna habla, Luna se calla y la música ya no vuelve a sonar sola cuando ella termina.",
+            "Lo mismo con el temporizador para dormir: si se cumple mientras Luna habla, la radio queda apagada.",
+            "Los nombres de las pestañas de abajo («Biblioteca», «Resumen») ahora se achican de verdad para verse completos en pantallas angostas.",
+        ),
         "2.3.3" to listOf(
             "Voz: el efecto «Locutor FM» ya no suena como ruido con la voz Daniela.",
             "Textos que se partían a media palabra: «Bibliotec/a», los nombres de las pestañas de abajo, «ÁLBUMES · 4» en la página del artista y «intervencion/es» en Ajustes. Ahora se achican un poco si no caben.",

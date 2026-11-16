@@ -165,8 +165,11 @@ class Radio(private val ctx: Context) {
         if (on) { reanudarTras = sonando || lunaHablando || enPausaLuna || (!fuenteSpotify && player.isPlaying); if (reanudarTras) { pausar(); mensaje = "Pausé la radio mientras ves el video." } }
         else if (reanudarTras) { reanudarTras = false; seguir() }
     }
-    fun pausar() { if (lunaHablando) voz.callar(); if (fuenteSpotify) { sp("/me/player/pause", "PUT") { sonando = false }; return }; if (player.isPlaying) player.pause() }
-    fun seguir() { if (fuenteSpotify) { if (!activa) iniciarSpotify() else sp("/me/player/play", "PUT") { sonando = true }; return }; if (!activa) iniciar() else if (!player.isPlaying) player.play() }
+    /** Pausa que llega desde afuera de la app (notificación, audífonos, carro): si Luna habla, se calla y no se reanuda sola. */
+    fun pausaDeFuera() { if (lunaHablando || enPausaLuna) { pausaPedida = true; voz.callar() } }
+    fun playDeFuera() { pausaPedida = false }
+    fun pausar() { if (lunaHablando || enPausaLuna) pausaPedida = true; if (lunaHablando) voz.callar(); if (fuenteSpotify) { sp("/me/player/pause", "PUT") { sonando = false }; return }; if (player.isPlaying) player.pause() }
+    fun seguir() { pausaPedida = false; if (fuenteSpotify) { if (!activa) iniciarSpotify() else sp("/me/player/play", "PUT") { sonando = true }; return }; if (!activa) iniciar() else if (!player.isPlaying) player.play() }
     fun siguienteCancion() { pausaPedida = false; voz.callar(); if (fuenteSpotify) { sp("/me/player/next", "POST"); return }; if (player.hasNextMediaItem()) { player.seekToNextMediaItem(); player.play() } else mensaje = "No hay más canciones en la lista." }
     fun anteriorCancion() { pausaPedida = false; voz.callar(); if (fuenteSpotify) { sp("/me/player/previous", "POST"); return }; if (player.currentPosition > 4000 || !player.hasPreviousMediaItem()) player.seekTo(0) else player.seekToPreviousMediaItem(); player.play() }
     fun irA(ms: Long) { if (fuenteSpotify) { sp("/me/player/seek?position_ms=${ms.coerceAtLeast(0)}", "PUT") { posMs = ms }; return }; player.seekTo(ms.coerceAtLeast(0)) }

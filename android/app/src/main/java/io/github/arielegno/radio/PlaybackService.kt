@@ -26,7 +26,17 @@ class PlaybackService : MediaSessionService() {
         super.onCreate()
         val abrir = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        session = MediaSession.Builder(this, Reproductor.get()).setSessionActivity(abrir).build()
+        // La notificación, la pantalla bloqueada, los audífonos y el carro pasan por aquí: así una pausa
+        // mientras Luna habla también la calla y la música no vuelve sola cuando ella termina.
+        val conLuna = object : androidx.media3.common.ForwardingPlayer(Reproductor.get()) {
+            override fun pause() { RadioApp.radio.pausaDeFuera(); super.pause() }
+            override fun play() { RadioApp.radio.playDeFuera(); super.play() }
+            override fun setPlayWhenReady(playWhenReady: Boolean) {
+                if (playWhenReady) RadioApp.radio.playDeFuera() else RadioApp.radio.pausaDeFuera()
+                super.setPlayWhenReady(playWhenReady)
+            }
+        }
+        session = MediaSession.Builder(this, conLuna).setSessionActivity(abrir).build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session

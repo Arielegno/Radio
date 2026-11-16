@@ -90,8 +90,9 @@ def esperar_registro(patron, espera=60):
     return None
 def prefs():
     x = runas("cat shared_prefs/radio.xml"); d = {}
-    for m in re.finditer(r'<(string|boolean|int) name="([^"]+)"(?: value="([^"]*)")?\s*/?>(?:(.*?)</string>)?', x, re.S):
-        d[m.group(2)] = html.unescape(m.group(4)) if m.group(1) == "string" else m.group(3)
+    try: raiz = ET.fromstring(x[x.find("<map"):])
+    except Exception: return d
+    for e in raiz: d[e.get("name")] = (e.text or "") if e.tag == "string" else e.get("value")
     return d
 def preparar_app(apk, semilla, extra_prefs):
     adb("wait-for-device", t=300)

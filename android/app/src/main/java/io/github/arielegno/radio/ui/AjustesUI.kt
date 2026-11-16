@@ -1,6 +1,10 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package io.github.arielegno.radio.ui
 
 import android.content.Intent
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.text.style.TextOverflow
 import android.net.Uri
 import android.speech.tts.Voice
 import androidx.activity.compose.BackHandler
@@ -188,14 +192,14 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
                             Text(c.titulo, fontWeight = FontWeight.SemiBold)
-                            Text(c.sub, style = MaterialTheme.typography.bodySmall, color = LocalExtra.current.tenue, maxLines = 1)
+                            Text(c.sub, style = MaterialTheme.typography.bodySmall, color = LocalExtra.current.tenue, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = LocalExtra.current.tenue)
                     }
                     if (i < CATEGORIAS.size - 1) HorizontalDivider(color = LocalExtra.current.borde, modifier = Modifier.padding(start = 58.dp))
                 }
             }
-            Text("Radio de ruta para Android · versión 2.3.2", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
+            Text("Radio de ruta para Android · versión 2.3.3", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 14.dp).align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(24.dp))
             return@Column
@@ -209,7 +213,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
         when (cat) {
             "musica" -> {
                 Grupo("De dónde sale la música") {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         listOf(false to "Mi biblioteca", true to "Spotify").forEach { (sp, n) -> Elegible(n, r.fuenteSpotify == sp) { r.ponerFuente(sp) } }
                     }
                     if (r.fuenteSpotify) {
@@ -292,7 +296,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
             "ia" -> {
                 Grupo("Quién escribe lo que dice Luna") {
                     var prov by remember { mutableStateOf(p.str("proveedor", "gemini")) }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         listOf("gemini" to "Gemini (gratis)", "claude" to "Claude (de pago)").forEach { (k, n) -> Elegible(n, prov == k) { prov = k; p.set("proveedor", k) } }
                     }
                     Ayuda("Las claves se guardan solo en este celular y no salen en la copia de ajustes. Sin clave, Luna usa frases sencillas.")
@@ -357,7 +361,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     Deslizador("volVoz", "Volumen de la voz", 100, 10, 100)
                     Interruptor("hablarEncima", "Hablar encima de la música (la canción sigue bajita, como en la radio)", true)
                     Deslizador("nivelEncima", "Volumen de la música mientras habla", 18, 5, 60)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 6.dp)) {
                         Boton("Probar voz") { scope.launchSafe { r.probarVoz() } }
                         Boton("Probar a Luna") { scope.launchSafe { r.probarLuna() } }
                     }
@@ -374,7 +378,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                             if (VozPropia.descargando == v.id) {
                                 androidx.compose.material3.LinearProgressIndicator(progress = { VozPropia.progreso }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
                                 Text(if (VozPropia.progreso < .85f) "Descargando… ${(VozPropia.progreso / .85f * 100).toInt()} %" else "Preparando la voz…", color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall)
-                            } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                            } else androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 6.dp)) {
                                 if (!lista) Boton("Descargar") { RadioApp.scope.launchSafe { aviso = VozPropia.descargar(v); versionVoz++ } }
                                 else {
                                     if (!enUso) Boton("Usar") { p.set("motorVoz", VozPropia.PREFIJO + v.id); r.voz.cambiarMotor(VozPropia.PREFIJO + v.id); versionVoz++ }
@@ -402,7 +406,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                 }
                 Grupo("Otras voces gratis (apps aparte)") {
                     Ayuda("Instala «SherpaTTS» (voces Piper y Kokoro, código abierto) o «RHVoice», descarga una voz en español y elígela arriba como motor de voz.")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Boton("SherpaTTS") { abrir(ctx, "https://search.f-droid.org/?q=SherpaTTS&lang=es") }
                         Boton("RHVoice") { abrir(ctx, "https://rhvoice.org/") }
                     }
@@ -443,7 +447,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
             }
             "apariencia" -> {
                 Grupo("Tema") {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         listOf("system" to "Automático", "dark" to "Oscuro", "light" to "Claro").forEach { (k, n) -> Elegible(n, tema == k) { cambiarTema(k) } }
                     }
                 }
@@ -491,7 +495,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
             "datos" -> {
                 Grupo("Copia de ajustes") {
                     Ayuda("Guarda tus ajustes, favoritas, playlists y estadísticas en un archivo, sin tus claves ni tus audios (para los audios usa «Guardar copia de mi música» en Biblioteca). También puedes importar el archivo que exporta la página web (radio_ruta_config.txt).")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Boton("Exportar copia") { exportar.launch("radio-de-ruta-ajustes.json") }
                         Boton("Importar copia") { importar.launch(arrayOf("application/json", "text/*", "*/*")) }
                     }
@@ -543,7 +547,7 @@ fun AjustesPantalla(tema: String, cambiarTema: (String) -> Unit, verRecorrido: (
                     TextButton(onClick = { io.github.arielegno.radio.Almacen.vaciar(); version++; aviso = "Datos guardados borrados: se volverán a generar cuando hagan falta." }) { Text("Borrar datos guardados") }
                 }
                 Grupo("Radio de ruta para Android") {
-                Text("Versión 2.3.2 · por Arielegno", fontWeight = FontWeight.SemiBold)
+                Text("Versión 2.3.3 · por Arielegno", fontWeight = FontWeight.SemiBold)
                 Ayuda("No manipules la app mientras conduces: configúrala antes de arrancar.")
                 TextButton(onClick = { abrir(ctx, "https://arielegno.github.io/Radio/legal.html") }) { Text("Aviso legal y privacidad") }
                 Ayuda("Usa Media3 (Apache 2.0), Jetpack Compose (Apache 2.0), sherpa-onnx (Apache 2.0) con voces Piper, Apache Commons Compress (Apache 2.0), Leaflet (BSD-2) y datos de OpenStreetMap (ODbL), Open-Meteo, Wikipedia (CC BY-SA), MusicBrainz (CC0), iTunes Search, Spotify, Google Gemini y Anthropic Claude.")
@@ -579,7 +583,7 @@ private fun abrir(ctx: android.content.Context, url: String) {
 private fun Ayuda(t: String) = Text(t, color = LocalExtra.current.tenue, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 4.dp))
 
 @Composable
-private fun Boton(t: String, onClick: () -> Unit) = FilledTonalButton(onClick = onClick, shape = RoundedCornerShape(14.dp)) { Text(t) }
+private fun Boton(t: String, onClick: () -> Unit) = FilledTonalButton(onClick = onClick, shape = RoundedCornerShape(14.dp)) { Text(t, maxLines = 1, softWrap = false) }
 
 @Composable
 private fun Elegible(t: String, on: Boolean, onClick: () -> Unit) =
@@ -637,10 +641,11 @@ private fun Numero(k: String, t: String, d: Int, min: Int, max: Int, paso: Int =
     val p = RadioApp.prefs
     var v by remember(k) { mutableIntStateOf(p.int(k, d).coerceIn(min, max)) }
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(t, Modifier.weight(1f))
-        TextButton(onClick = { v = (v - paso).coerceAtLeast(min); p.set(k, v) }, enabled = v > min) { Text("−", fontSize = 20.sp) }
-        Text("$v", fontWeight = FontWeight.Bold, color = Amarillo, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center)
-        TextButton(onClick = { v = (v + paso).coerceAtMost(max); p.set(k, v) }, enabled = v < max) { Text("+", fontSize = 20.sp) }
+        // botones angostos para que el texto tenga lugar y no se parta a media palabra («intervencion / es»)
+        Text(t, Modifier.weight(1f).padding(end = 4.dp))
+        TextButton(onClick = { v = (v - paso).coerceAtLeast(min); p.set(k, v) }, enabled = v > min, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp), modifier = Modifier.widthIn(min = 36.dp)) { Text("−", fontSize = 20.sp) }
+        Text("$v", fontWeight = FontWeight.Bold, color = Amarillo, modifier = Modifier.width(34.dp), textAlign = TextAlign.Center, maxLines = 1)
+        TextButton(onClick = { v = (v + paso).coerceAtMost(max); p.set(k, v) }, enabled = v < max, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp), modifier = Modifier.widthIn(min = 36.dp)) { Text("+", fontSize = 20.sp) }
     }
 }
 

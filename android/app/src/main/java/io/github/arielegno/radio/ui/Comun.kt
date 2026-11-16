@@ -38,6 +38,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.drawWithContent
 import io.github.arielegno.radio.Red
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -193,3 +196,21 @@ fun Etiqueta(t: String, modifier: Modifier = Modifier) =
 @Composable
 fun Titulo(t: String, modifier: Modifier = Modifier) =
     Text(t, style = MaterialTheme.typography.headlineSmall, modifier = modifier.padding(bottom = 10.dp))
+
+/**
+ * Texto de una sola línea que se achica un poco si no cabe (en vez de partirse a la mitad de una palabra,
+ * como «Bibliotec / a»). Si ni achicado cabe, termina en «…».
+ */
+@Composable
+fun TextoQueCabe(
+    texto: String, modifier: Modifier = Modifier, style: androidx.compose.ui.text.TextStyle = androidx.compose.material3.LocalTextStyle.current,
+    color: Color = Color.Unspecified, fontWeight: androidx.compose.ui.text.font.FontWeight? = null, minimo: Float = 0.7f,
+) {
+    var escala by remember(texto, style) { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    var listo by remember(texto, style) { androidx.compose.runtime.mutableStateOf(false) }
+    val base = if (style.fontSize.isSpecified) style.fontSize else 16.sp
+    Text(texto, modifier.drawWithContent { if (listo) drawContent() }, color = color, fontWeight = fontWeight, maxLines = 1, softWrap = false,
+        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        style = style.copy(fontSize = base * escala, lineHeight = if (style.lineHeight.isSpecified) style.lineHeight * escala else style.lineHeight),
+        onTextLayout = { r -> if (r.didOverflowWidth && escala > minimo) escala = (escala - 0.06f).coerceAtLeast(minimo) else listo = true })
+}

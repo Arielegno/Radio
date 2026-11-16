@@ -63,11 +63,22 @@ def comprobar(nombre, ok, detalle=""):
 def abrir_app():
     sh(f"monkey -p {PKG} -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1"); time.sleep(6)
     if hay(r"^Saltar$", 4): tocar(r"^Saltar$")
-def pestana(n): return tocar("^" + n[:7])
+def pestana(n):
+    """Toca una pestaña de abajo (la coincidencia más baja de la pantalla)."""
+    l = todos("^" + n[:6])
+    if not l: return False
+    pulsar(max(l, key=lambda b: b[1])); return True
+def iniciar_radio():
+    """Toca «Iniciar radio» en la portada (el botón de play del teléfono solo sirve cuando ya sonó algo)."""
+    pestana("Radio"); time.sleep(1); deslizar(3, arriba=False)
+    b = buscar_bajando(r"^Iniciar radio$", 4)
+    if b: pulsar(b); time.sleep(3); return True
+    return False
 def orden(o, k="", v=""):
     """Le manda una orden al control remoto de la versión de prueba (cambiar un ajuste, que Luna diga algo…)."""
     b = base64.b64encode(str(v).encode()).decode()
-    sh(f"am broadcast -a {PKG}.PRUEBA -p {PKG} --es orden {o} --es k '{k}' --es b64 {b} >/dev/null"); time.sleep(.6)
+    valor = f"--es b64 {b}" if b else "--ez vacio true"
+    sh(f"am broadcast -a {PKG}.PRUEBA -p {PKG} --es orden {o} --es k '{k or '-'}' {valor} >/dev/null"); time.sleep(.6)
 def registro_limpiar(): adb("logcat", "-c")
 def registro(): return [l.split("RadioPrueba: ", 1)[1] for l in adb("logcat", "-d", "-s", "RadioPrueba:I").stdout.splitlines() if "RadioPrueba: " in l]
 def esperar_registro(patron, espera=60):

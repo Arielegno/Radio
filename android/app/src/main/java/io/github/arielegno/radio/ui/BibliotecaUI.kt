@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package io.github.arielegno.radio.ui
 
 import android.net.Uri
@@ -212,7 +214,7 @@ fun BibliotecaPantalla(pedirAgregar: Boolean = false, alAtender: () -> Unit = {}
     } else LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), state = listaBib) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
-                Text("Biblioteca", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
+                TextoQueCabe("Biblioteca", Modifier.weight(1f), style = MaterialTheme.typography.headlineLarge, minimo = 0.6f)
                 IconButton(onClick = { r.iniciar(null, mezclarEsta = true) }, enabled = b.pistas.isNotEmpty()) { Icon(Icons.Filled.Shuffle, "Mezclar toda tu música") }
                 IconButton(onClick = { agregar = true }) { Icon(Icons.Filled.LibraryAdd, "Agregar música y copias") }
                 Box {
@@ -580,7 +582,8 @@ private fun CabeceraAlbum(album: String, canciones: List<Track>, portada: Track?
     // Opcional y solo para este álbum: que la guía lo complete/ordene, o ver qué canciones del disco te faltan
     var faltan by remember(album) { mutableStateOf(Guia.faltantesGuardados().firstOrNull { normNombre(it.album) == normNombre(album) }) }
     var buscando by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // los dos botones bajan de renglón si no caben (antes el segundo quedaba cortado: «¿Q…»)
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedButton(enabled = !Guia.trabajando, onClick = { aviso = "Completando el álbum…"; RadioApp.scope.launchSafe { aviso = Guia.completarAlbum(canciones) } }) {
             Icon(Icons.Filled.AutoFixHigh, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Completar este álbum")
         }
@@ -934,7 +937,7 @@ private fun SeccionAlbumes(canciones: List<Track>, abrir: (Carpeta) -> Unit) {
     }
     if (albumes.isEmpty()) return
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp)) {
-        Text("ÁLBUMES · ${albumes.size}", style = MaterialTheme.typography.labelLarge, color = LocalExtra.current.tenue, letterSpacing = 1.5.sp, modifier = Modifier.weight(1f))
+        TextoQueCabe("ÁLBUMES · ${albumes.size}", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 1.sp), color = LocalExtra.current.tenue, minimo = 0.75f)
         listOf("new" to "Nuevo", "old" to "Viejo", "az" to "A-Z").forEach { (k, n) ->
             TextButton(onClick = { orden = k; p.set("albSort", k) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) {
                 Text(n, color = if (orden == k) Amarillo else LocalExtra.current.tenue, fontWeight = if (orden == k) FontWeight.Bold else FontWeight.Normal)

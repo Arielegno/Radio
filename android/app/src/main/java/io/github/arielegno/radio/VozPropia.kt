@@ -275,7 +275,9 @@ private class Efecto(private val tipo: String, private val sr: Int) {
         fun p(x: Double): Double { val y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2; x2 = x1; x1 = x; y2 = y1; y1 = y; return y }
     }
     private fun norm(b0: Double, b1: Double, b2: Double, a0: Double, a1: Double, a2: Double) = Biquad(b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0)
-    private fun w(f: Double) = 2 * Math.PI * f / sr
+    // la frecuencia nunca pasa de la mitad de lo que admite la voz (con 22 050 Hz, un filtro a 12 000 Hz
+    // se volvía inestable y «Locutor FM» sonaba como ruido)
+    private fun w(f: Double) = 2 * Math.PI * f.coerceAtMost(sr * 0.45) / sr
     private fun pasaAltos(f: Double, q: Double = .707): Biquad { val w = w(f); val a = Math.sin(w) / (2 * q); val c = Math.cos(w); return norm((1 + c) / 2, -(1 + c), (1 + c) / 2, 1 + a, -2 * c, 1 - a) }
     private fun pasaBajos(f: Double, q: Double = .707): Biquad { val w = w(f); val a = Math.sin(w) / (2 * q); val c = Math.cos(w); return norm((1 - c) / 2, 1 - c, (1 - c) / 2, 1 + a, -2 * c, 1 - a) }
     private fun pico(f: Double, q: Double, db: Double): Biquad { val A = Math.pow(10.0, db / 40); val w = w(f); val a = Math.sin(w) / (2 * q); val c = Math.cos(w); return norm(1 + a * A, -2 * c, 1 - a * A, 1 + a / A, -2 * c, 1 - a / A) }

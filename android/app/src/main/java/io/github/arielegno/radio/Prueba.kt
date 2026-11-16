@@ -55,7 +55,7 @@ object Prueba {
         val p = RadioApp.prefs; val radio = RadioApp.radio
         val o = i.getStringExtra("orden") ?: return
         val k = i.getStringExtra("k") ?: ""
-        val v = i.getStringExtra("b64")?.let { String(Base64.decode(it, Base64.DEFAULT), Charsets.UTF_8) } ?: i.getStringExtra("v") ?: ""
+        val v = if (i.getBooleanExtra("vacio", false)) "" else i.getStringExtra("b64")?.let { String(Base64.decode(it, Base64.DEFAULT), Charsets.UTF_8) } ?: i.getStringExtra("v") ?: ""
         when (o) {
             "texto" -> p.set(k, v)
             "bool" -> p.set(k, v.toBoolean())

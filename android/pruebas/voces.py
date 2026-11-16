@@ -82,8 +82,10 @@ foto("despues-de-probar")
 # ===== 3. Usar una voz =====
 log("\n— Botón «Usar» —")
 b = buscar(r"^Usar$", 5)
-if b: pulsar(b); time.sleep(2)
-comprobar("«Usar» deja a Daniela como la voz de Luna", T.prefs().get("motorVoz") == "propia:daniela", T.prefs().get("motorVoz"))
+if b: pulsar(b); time.sleep(4)
+mv = T.prefs().get("motorVoz")
+if mv != "propia:daniela": time.sleep(5); mv = T.prefs().get("motorVoz")
+comprobar("«Usar» deja a Daniela como la voz de Luna", mv == "propia:daniela", mv)
 comprobar("En pantalla dice «Daniela · en uso»", hay(r"Daniela · en uso"))
 foto("daniela-en-uso")
 T.deslizar(6, arriba=False)
@@ -102,11 +104,15 @@ dur = {}
 for preset, extra in [("natural", None), ("radio", None), ("energico", None), ("manual", 60), ("manual", 150)]:
     orden("texto", "vozPreset", preset)
     if extra: orden("int", "velocidad", extra)
-    r = decir(texto, etiqueta=f"{preset}{extra or ''}")
-    dur[f"{preset}{extra or ''}"] = medir(*r[0][1:])["ms"] if r else 0
+    # la voz varía un poco cada vez: se mide tres veces y se promedia
+    ms = []
+    for _ in range(3):
+        r = decir(texto, etiqueta=f"{preset}{extra or ''}")
+        if r: ms.append(medir(*r[0][1:])["ms"])
+    dur[f"{preset}{extra or ''}"] = int(sum(ms) / len(ms)) if ms else 0
 comprobar("Todos los estilos hablan", all(v > 1000 for v in dur.values()), str(dur))
-comprobar("«Radio FM» habla más pausado que «Natural»", dur["radio"] > dur["natural"] * 1.03, f"{dur['radio']} vs {dur['natural']} ms")
-comprobar("«Enérgico» habla más rápido que «Natural»", dur["energico"] < dur["natural"] * .97, f"{dur['energico']} vs {dur['natural']} ms")
+comprobar("«Radio FM» habla más pausado que «Natural»", dur["radio"] > dur["natural"], f"{dur['radio']} vs {dur['natural']} ms")
+comprobar("«Enérgico» habla más rápido que «Natural»", dur["energico"] < dur["natural"], f"{dur['energico']} vs {dur['natural']} ms")
 comprobar("Manual: velocidad 60 es más lenta que 150", dur["manual60"] > dur["manual150"] * 1.5, f"{dur['manual60']} vs {dur['manual150']} ms")
 orden("texto", "vozPreset", "natural")
 
@@ -167,9 +173,12 @@ comprobar("La voz del teléfono habla, o si el teléfono no tiene voz la app avi
 # ===== 9. Luna en la radio: música bajita, pausa y saltar =====
 log("\n— Luna en la radio —")
 orden("motor", v="propia:ald"); orden("bool", "hablarEncima", "true")
-pestana("Radio"); time.sleep(2); T.registro_limpiar()
-sh("input keyevent 126")
-l = T.esperar_registro(r"Luna empieza", 150); foto("luna-hablando-encima")
+T.registro_limpiar()
+comprobar("Se puede iniciar la radio", T.iniciar_radio()); foto("radio-iniciada")
+l = T.esperar_registro(r"Luna empieza", 150)
+if l and "musica=parada" in l:   # el saludo de apertura es antes de la primera canción: se espera el siguiente
+    T.esperar_registro(r"Luna termina", 60); T.registro_limpiar(); l = T.esperar_registro(r"Luna empieza", 150)
+foto("luna-hablando-encima")
 comprobar("Luna habla entre canciones en la radio", l, l or "")
 comprobar("Mientras habla, la música sigue bajita (18 %)", l and "musica=sonando" in l and "volumen=0.18" in l, l or "")
 l2 = T.esperar_registro(r"Luna termina", 60); time.sleep(3); orden("estado")

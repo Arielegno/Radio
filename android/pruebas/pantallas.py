@@ -15,7 +15,10 @@ def recorrer(nombre, bajar=3):
     deslizar(bajar + 2, arriba=False)
 # Radio
 pestana("Radio"); recorrer("radio", 2)
-sh("input keyevent 126"); time.sleep(5); foto("radio-sonando"); sh("input keyevent 127")
+if T.iniciar_radio():
+    time.sleep(4); recorrer("radio-sonando", 2)
+    if tocar(r"^Modo carro$", 3): time.sleep(2); foto("modo-carro"); atras()
+    sh("input keyevent 127")
 # Biblioteca: cada vista y un artista, un álbum y una playlist por dentro
 pestana("Biblioteca")
 for v in ["Artistas", "Álbumes", "Años", "Géneros", "Playlists", "Canciones"]:
@@ -35,10 +38,9 @@ cats = ["Tu música", "Luna, tu locutora", "Inteligencia artificial", "Modos y f
 pestana("Ajustes"); recorrer("ajustes", 2)
 for c in cats:
     pestana("Ajustes"); time.sleep(1)
-    for _ in range(2):
-        if hay("^" + re.escape(c) + "$", 2): break
-        atras()
-    b = T.buscar_bajando("^" + re.escape(c) + "$", 5)
+    if not hay(r"^Tu música$|^Acerca de$|^Voz$", 2): atras()
+    deslizar(4, arriba=False)
+    b = T.buscar_bajando("^" + re.escape(c) + "$", 6)
     if not b: log("no encontré " + c); continue
     T.pulsar(b); time.sleep(1.5); recorrer("ajustes-" + re.sub(r"[^a-z]", "", c.lower())[:14], 4); atras()
 # textos cortados que reporta Android (terminan en «…»)

@@ -121,7 +121,7 @@ fun App(tema: String, cambiarTema: (String) -> Unit) {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f), tonalElevation = 0.dp) {
                     PESTANAS.forEach { t ->
                         NavigationBarItem(selected = pestana == t.id, onClick = { if (t.id == "revista") destinoRevista = ""; pestana = t.id },
-                            icon = { Icon(t.icono, null) }, label = { Text(t.nombre, maxLines = 1) },
+                            icon = { Icon(t.icono, null) }, label = { TextoQueCabe(t.nombre, style = MaterialTheme.typography.labelMedium, minimo = 0.75f) },
                             colors = NavigationBarItemDefaults.colors(indicatorColor = Amarillo, selectedIconColor = Tinta))
                     }
                 }

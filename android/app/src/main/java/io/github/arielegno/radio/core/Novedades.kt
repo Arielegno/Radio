@@ -3,6 +3,13 @@ package io.github.arielegno.radio.core
 /** Historial de cambios (se muestra en Ajustes › Acerca de › Novedades). Lo más nuevo arriba. */
 object Novedades {
     val LISTA: List<Pair<String, List<String>>> = listOf(
+        "2.3.3" to listOf(
+            "Voz: el efecto «Locutor FM» ya no suena como ruido con la voz Daniela.",
+            "Textos que se partían a media palabra: «Bibliotec/a», los nombres de las pestañas de abajo, «ÁLBUMES · 4» en la página del artista y «intervencion/es» en Ajustes. Ahora se achican un poco si no caben.",
+            "Ajustes: los botones («Borrar», «Probar a Luna»…) ya no se parten letra por letra; si no caben, bajan al siguiente renglón. Las descripciones de cada sección se ven completas.",
+            "Álbum: los botones «Completar este álbum» y «¿Qué falta?» se ven completos.",
+            "Revista: los nombres muy largos en «Personas para seguir» ya no se salen de su tarjeta.",
+        ),
         "2.3.2" to listOf(
             "Biblioteca: el botón «Mezclar» de artistas, álbumes y playlists ya no se parte letra por letra en pantallas angostas.",
         ),

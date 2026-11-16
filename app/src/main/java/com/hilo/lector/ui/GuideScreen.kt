@@ -1,0 +1,106 @@
+package com.hilo.lector.ui
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.hilo.lector.HiloViewModel
+import com.hilo.lector.Screen
+
+private val SECTIONS = listOf(
+    "Dos formas de leer" to listOf(
+        "Página: el PDF tal como es, con su formato, imágenes y tablas. Los colores y la regla se pintan encima de cada línea.",
+        "Texto: el libro como párrafos de corrido, con interlineado compacto. Sirve para EPUB, textos pegados y PDF cuando el formato estorba.",
+        "Cambia entre las dos con el botón Página / Texto arriba.",
+    ),
+    "Ayudas de lectura" to listOf(
+        "Colores: cada línea pasa de un color a otro y la siguiente empieza en ese mismo color. El ojo encuentra el inicio de la línea sin saltársela.",
+        "Regla: oscurece todo menos la línea que lees. Tócala para moverla o usa las flechas redondas.",
+        "Negrita guía (modo Texto): resalta el inicio de cada palabra.",
+        "Palabra a palabra (botón ▶): el texto aparece en un solo punto, a tu velocidad. Empieza donde está la regla.",
+        "Prueba una ayuda a la vez. A mucha gente le sirve una sola, no todas juntas.",
+    ),
+    "Si pierdes el hilo entre líneas" to listOf(
+        "En Ajustes (Aa) baja el Interlineado a Compacto y el Espacio entre párrafos.",
+        "Sube un poco el Tamaño y los Márgenes para que las líneas sean más cortas.",
+        "Gira el celular: en horizontal ves más texto por línea en el modo Página.",
+    ),
+    "Trabajar sobre el PDF" to listOf(
+        "Toca el pincel arriba para anotar.",
+        "Resaltar: arrastra sobre el texto y el resaltado se ajusta a las líneas, como al seleccionar.",
+        "Lápiz para escribir o subrayar, Borrar para quitar trazos y Nota para dejar un comentario en un punto.",
+        "Todo se guarda solo. Con Guardar PDF creas una copia con tus anotaciones para enviarla o abrirla en otra app.",
+        "Pellizca con dos dedos para hacer zoom. Toca el número de página para saltar a otra.",
+    ),
+    "Agregar libros" to listOf(
+        "Agregar → Archivo: PDF, EPUB o TXT.",
+        "Agregar → Fotos de páginas: elige varias en orden. Se unen en un PDF y Hilo reconoce su texto sin internet.",
+        "Agregar → Pegar texto: para artículos, apuntes o texto copiado de un PDF. Las líneas cortadas se unen solas.",
+        "Desde otra app: Compartir → Hilo, o Abrir con → Hilo.",
+        "Los libros con DRM (Kindle, Google Play Libros) no se pueden abrir.",
+    ),
+    "Temporizador" to listOf(
+        "Toca el reloj y elige 10, 15, 25 o 45 minutos. Cuando suene, descansa 5 minutos. Bloques cortos rinden más que una sesión larga que se abandona.",
+    ),
+    "Dónde se guarda todo" to listOf(
+        "Tus libros, tu avance y tus anotaciones se guardan solo en este celular. Si desinstalas Hilo se borran: guarda tus archivos originales.",
+    ),
+)
+
+@Composable
+fun GuideScreen(vm: HiloViewModel) {
+    val c = LocalHilo.current
+    BackHandler { vm.screen = Screen.Library }
+    Box(Modifier.fillMaxSize().background(c.bg).windowInsetsPadding(WindowInsets.safeDrawing), contentAlignment = Alignment.TopCenter) {
+        Column(Modifier.widthIn(max = 720.dp).fillMaxSize()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
+                IconButton(onClick = { vm.screen = Screen.Library }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Volver", tint = c.ink) }
+                Text("Cómo usar Hilo", style = MaterialTheme.typography.titleLarge, color = c.ink)
+            }
+            Column(
+                Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                SECTIONS.forEach { (title, items) ->
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(title, color = c.accent, fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        items.forEach { line ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("•", color = c.muted, fontSize = 15.sp)
+                                Text(line, color = c.ink, fontSize = 15.sp, lineHeight = 21.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -367,20 +367,17 @@ private fun AnnotBar(
         Modifier.fillMaxWidth().background(c.surface).padding(horizontal = 8.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            ToolButton(Icons.Rounded.PanTool, "Mover", tool == Tool.NONE) { onTool(Tool.NONE) }
-            ToolButton(Icons.Rounded.BorderColor, "Resaltar", tool == Tool.HIGHLIGHT) { onTool(Tool.HIGHLIGHT) }
-            ToolButton(Icons.Rounded.Edit, "Lápiz", tool == Tool.PEN) { onTool(Tool.PEN) }
-            ToolButton(Icons.Rounded.AutoFixNormal, "Borrar", tool == Tool.ERASER) { onTool(Tool.ERASER) }
-            ToolButton(Icons.Rounded.PushPin, "Nota", tool == Tool.NOTE) { onTool(Tool.NOTE) }
-            Spacer(Modifier.width(6.dp))
-            ToolButton(Icons.AutoMirrored.Rounded.Undo, "Deshacer", false, enabled = canUndo, onClick = onUndo)
-            ToolButton(Icons.Rounded.Save, "Guardar PDF", false, onClick = onSave)
-            ToolButton(Icons.Rounded.Close, "Listo", false, onClick = onClose)
+        // Todas las herramientas caben a lo ancho, sin desplazar
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            val m = Modifier.weight(1f)
+            ToolButton(Icons.Rounded.PanTool, "Mover", tool == Tool.NONE, m) { onTool(Tool.NONE) }
+            ToolButton(Icons.Rounded.BorderColor, "Resaltar", tool == Tool.HIGHLIGHT, m) { onTool(Tool.HIGHLIGHT) }
+            ToolButton(Icons.Rounded.Edit, "Lápiz", tool == Tool.PEN, m) { onTool(Tool.PEN) }
+            ToolButton(Icons.Rounded.AutoFixNormal, "Borrar", tool == Tool.ERASER, m) { onTool(Tool.ERASER) }
+            ToolButton(Icons.Rounded.PushPin, "Nota", tool == Tool.NOTE, m) { onTool(Tool.NOTE) }
+            ToolButton(Icons.AutoMirrored.Rounded.Undo, "Deshacer", false, m, enabled = canUndo, onClick = onUndo)
+            ToolButton(Icons.Rounded.Save, "Guardar", false, m, onClick = onSave)
+            ToolButton(Icons.Rounded.Close, "Listo", false, m, onClick = onClose)
         }
         if (tool == Tool.HIGHLIGHT || tool == Tool.PEN) {
             Row(
@@ -420,16 +417,19 @@ private fun AnnotBar(
 }
 
 @Composable
-private fun ToolButton(icon: ImageVector, label: String, on: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+private fun ToolButton(
+    icon: ImageVector, label: String, on: Boolean, modifier: Modifier = Modifier,
+    enabled: Boolean = true, onClick: () -> Unit,
+) {
     val c = LocalHilo.current
     Column(
-        Modifier.clip(RoundedCornerShape(12.dp))
+        modifier.clip(RoundedCornerShape(12.dp))
             .background(if (on) c.band else Color.Transparent)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 2.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(icon, null, tint = if (!enabled) c.muted.copy(alpha = 0.4f) else if (on) c.accent else c.ink, modifier = Modifier.size(22.dp))
-        Text(label, fontSize = 11.sp, color = if (enabled) c.ink else c.muted.copy(alpha = 0.5f))
+        Text(label, fontSize = 10.sp, maxLines = 1, color = if (enabled) c.ink else c.muted.copy(alpha = 0.5f))
     }
 }

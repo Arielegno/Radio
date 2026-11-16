@@ -76,7 +76,7 @@ import kotlin.math.roundToInt
 private enum class Shelf(val label: String) { ALL("Todos"), READING("Leyendo"), NEW("Sin empezar"), DONE("Terminados") }
 
 private fun Book.shelf(): Shelf = when {
-    done || progress >= 0.98f -> Shelf.DONE
+    done -> Shelf.DONE
     updated > 0 && progress > 0f -> Shelf.READING
     else -> Shelf.NEW
 }

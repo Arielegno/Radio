@@ -252,7 +252,13 @@ class PdfEngine(private val ctx: Context, private val file: File, bookId: String
         val out = ArrayList<String>(pageCount)
         for (p in 0 until pageCount) {
             progress(p, pageCount)
-            out.add(lines(p, allowOcr).joinToString("\n") { it.text })
+            val ls = lines(p, allowOcr)
+            // Las líneas con letra bastante más grande que el resto son títulos
+            val hs = ls.map { it.b - it.t }.sorted()
+            val med = if (hs.isEmpty()) 0f else hs[hs.size / 2]
+            out.add(ls.joinToString("\n") { l ->
+                if (ls.size > 3 && med > 0f && (l.b - l.t) > med * 1.35f && l.text.length < 90) "# " + l.text else l.text
+            })
         }
         return out
     }

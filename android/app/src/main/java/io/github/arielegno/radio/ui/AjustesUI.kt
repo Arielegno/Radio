@@ -621,8 +621,10 @@ private fun Opciones(k: String, t: String, ops: Map<String, String>, d: String, 
     var abierto by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { abierto = true }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            // la opción elegida usa como mucho la mitad del ancho: así el nombre del ajuste no se parte en una palabra por renglón
             Text(t, Modifier.weight(1f).padding(end = 10.dp))
-            Text(ops[v] ?: v.ifEmpty { "—" }, color = Amarillo, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(ops[v] ?: v.ifEmpty { "—" }, Modifier.weight(1f, fill = false), color = Amarillo, fontWeight = FontWeight.SemiBold, maxLines = 2,
+                overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End)
         }
         DropdownMenu(expanded = abierto, onDismissRequest = { abierto = false }) {
             ops.forEach { (k2, n) ->

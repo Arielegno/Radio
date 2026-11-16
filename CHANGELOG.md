@@ -5,6 +5,7 @@ Lo más nuevo arriba. También se ve dentro de la app en Ajustes › Acerca de �
 ## 2.3.4
 - Si pausas desde la notificación, la pantalla bloqueada, los audífonos o el carro mientras Luna habla, Luna se calla y la música ya no vuelve a sonar sola cuando ella termina.
 - Lo mismo con el temporizador para dormir: si se cumple mientras Luna habla, la radio queda apagada.
+- Ajustes: los nombres de las opciones («Tamaño de las portadas», «Estilo de voz»…) ya no quedan apretados en una palabra por renglón.
 - Los nombres de las pestañas de abajo («Biblioteca», «Resumen») ahora se achican de verdad para verse completos en pantallas angostas.
 
 ## 2.3.3

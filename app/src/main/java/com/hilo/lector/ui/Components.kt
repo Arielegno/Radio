@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -175,15 +177,39 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
         ) {
             Text("Ajustes de lectura", style = MaterialTheme.typography.titleLarge, color = c.ink)
 
-            // Vista previa con el interlineado y colores actuales
+            val mode = readMode(s.colorMode)
+            // Vista previa con el interlineado, el modo y los colores actuales
             Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.bg)
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(mode.paper)
+                    .border(1.dp, c.line, RoundedCornerShape(14.dp))
                     .padding(horizontal = s.margin.coerceAtMost(24).dp, vertical = 12.dp)
             ) {
                 FlowParagraph(
                     text = "Así se ve tu texto. Cada línea cambia de color y la siguiente empieza donde terminó la anterior, para que la vista no se pierda.",
-                    s = s, rulerLine = null, rulerOn = false, onLayout = {}, onTap = {},
+                    s = s, mode = mode, rulerLine = null, rulerOn = false, onLayout = {}, onTap = { _, _ -> },
                 )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Label("Modo de color", mode.name)
+                ModeSwatches(s.colorMode) { i ->
+                    vm.settings.update {
+                        val m = readMode(i)
+                        it.copy(colorMode = i, lastDayMode = if (m.dark) it.lastDayMode else i, lastNightMode = if (m.dark) i else it.lastNightMode)
+                    }
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Label("Pasar páginas")
+                ChoiceRow(listOf("Hacia abajo", "Horizontal"), s.pageMode) { i -> vm.settings.update { it.copy(pageMode = i) } }
+            }
+            if (s.pageMode == 1) {
+                SwitchRow("Dos páginas con el celular acostado", "Solo en PDF, como un libro abierto.", s.twoPages) { on ->
+                    vm.settings.update { it.copy(twoPages = on) }
+                }
+            }
+            SwitchRow("Tocar los bordes para pasar", "Borde derecho: siguiente. Borde izquierdo: anterior. Centro: mostrar u ocultar menús.", s.tapTurn) { on ->
+                vm.settings.update { it.copy(tapTurn = on) }
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -214,9 +240,6 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             SliderRow("Intensidad del color", "${(s.intensity * 100).roundToInt()}%", s.intensity, 0.4f..1f, 11) { v ->
                 vm.settings.update { it.copy(intensity = (v * 20).roundToInt() / 20f) }
             }
-            SwitchRow("Páginas oscuras en PDF", "Invierte el papel blanco para leer de noche.", s.darkPages) { on ->
-                vm.settings.update { it.copy(darkPages = on) }
-            }
             SwitchRow("Reconocer texto en escaneados", "Para que los colores y la regla funcionen en fotos y PDF escaneados.", s.ocr) { on ->
                 vm.settings.update { it.copy(ocr = on) }
             }
@@ -224,11 +247,30 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
                 vm.settings.update { it.copy(wpm = (v / 20).roundToInt() * 20) }
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Label("Tema")
+                Label("Tema de los menús")
                 ChoiceRow(listOf("Sistema", "Claro", "Oscuro"), s.theme) { i -> vm.settings.update { it.copy(theme = i) } }
             }
             SwitchRow("Mantener pantalla encendida", "Mientras estás leyendo.", s.keepOn) { on ->
                 vm.settings.update { it.copy(keepOn = on) }
+            }
+            Label("Toques y pantalla")
+            SwitchRow("Pantalla completa", "Oculta la barra de estado y la de navegación al leer.", s.fullScreen) { on ->
+                vm.settings.update { it.copy(fullScreen = on) }
+            }
+            SwitchRow("Día y noche con un toque", "Toca la esquina superior izquierda para cambiar de modo.", s.cornerDayNight) { on ->
+                vm.settings.update { it.copy(cornerDayNight = on) }
+            }
+            SwitchRow("Marcador con un toque", "Toca la esquina superior derecha para marcar la página.", s.cornerBookmark) { on ->
+                vm.settings.update { it.copy(cornerBookmark = on) }
+            }
+            SwitchRow("Brillo deslizando", "Desliza arriba o abajo por el borde izquierdo.", s.brightnessSwipe) { on ->
+                vm.settings.update { it.copy(brightnessSwipe = on) }
+            }
+            SwitchRow("Abrir el último libro al iniciar", "Sigue donde te quedaste apenas abres Hilo.", s.openLast) { on ->
+                vm.settings.update { it.copy(openLast = on) }
+            }
+            SliderRow("Velocidad de la voz", "%.1f×".format(s.ttsRate), s.ttsRate, 0.5f..2f, 14) { v ->
+                vm.settings.update { it.copy(ttsRate = (v * 10).roundToInt() / 10f) }
             }
             OutlinedButton(onClick = { vm.settings.reset() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Restablecer ajustes", color = c.ink)
@@ -370,5 +412,36 @@ fun GeneratedCover(title: String, initialSize: Int) {
             .padding(10.dp),
     ) {
         Text(initial, fontSize = initialSize.sp, fontFamily = Fonts.display, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.9f))
+    }
+}
+
+/** Muestras de los modos de color: papel con unas líneas de texto encima. */
+@Composable
+fun ModeSwatches(selected: Int, onSelect: (Int) -> Unit) {
+    val c = LocalHilo.current
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        READ_MODES.forEachIndexed { i, m ->
+            val on = i == selected
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(74.dp).clickable { onSelect(i) }) {
+                Box(
+                    Modifier.size(width = 64.dp, height = 80.dp).clip(RoundedCornerShape(10.dp)).background(m.paper)
+                        .border(if (on) 3.dp else 1.dp, if (on) c.accent else c.line, RoundedCornerShape(10.dp))
+                        .padding(10.dp),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(1f, 0.85f, 1f, 0.6f).forEach { f ->
+                            Box(Modifier.fillMaxWidth(f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(m.ink))
+                        }
+                    }
+                }
+                Text(
+                    m.name, fontSize = 11.sp, color = c.ink, textAlign = TextAlign.Center, maxLines = 2, lineHeight = 13.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
     }
 }

@@ -1,6 +1,13 @@
 package com.hilo.lector.ui
 
 import android.graphics.Bitmap
+import android.content.res.Configuration
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
+import com.hilo.lector.text.TextTools
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -104,12 +111,6 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-/** Une a la pantalla de lectura con la vista activa (regla y palabra a palabra). */
-class ReaderBridge {
-    var move: (suspend (Int) -> Unit)? = null
-    var words: (suspend () -> List<String>)? = null
-}
-
 private class PinchAnchor(val zoom0: Float, val fx: Float, val cx: Float, val idx: Int, val off: Int, val cy: Float)
 
 /** Pellizco con dos dedos. Se detecta antes que el desplazamiento para que no se mezclen. */
@@ -132,6 +133,7 @@ private fun Modifier.pinch(onStart: (Offset) -> Unit, onZoom: (Float) -> Unit): 
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PdfView(
     vm: HiloViewModel,
@@ -139,6 +141,7 @@ fun PdfView(
     engine: PdfEngine,
     annots: AnnotStore,
     s: ReaderSettings,
+    mode: ReadMode,
     tool: Tool,
     penColor: Color,
     hlColor: Color,
@@ -150,37 +153,54 @@ fun PdfView(
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val count = engine.pageCount
+    val paged = s.pageMode == 1
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val per = if (paged && s.twoPages && landscape) 2 else 1
+    val itemCount = (count + per - 1) / per
+
     val listState = rememberLazyListState(book.pos.coerceIn(0, max(0, count - 1)), book.posOffset)
+    val pagerState = rememberPagerState(initialPage = (book.pos / per).coerceIn(0, max(0, itemCount - 1))) { itemCount }
     var zoom by rememberSaveable(book.id) { mutableFloatStateOf(1f) }
+    var pz by remember { mutableFloatStateOf(1f) }        // zoom al pasar páginas
+    var pan by remember { mutableStateOf(Offset.Zero) }
     val hScroll = rememberScrollState()
     var anchor by remember { mutableStateOf<PinchAnchor?>(null) }
     var ruler by remember(book.id) { mutableStateOf<Pair<Int, Int>?>(null) }
     var newNote by remember { mutableStateOf<Triple<Int, Float, Float>?>(null) }
     var editNote by remember { mutableStateOf<PdfNote?>(null) }
-    var goTo by remember { mutableStateOf(false) }
 
-    val pal = if (s.darkPages) DarkHilo else LightHilo
-    val style = remember(s.colors, s.darkPages, s.palette, s.intensity) {
+    val style = remember(s.colors, s.colorMode, s.palette, s.intensity) {
         PageStyle(
-            colors = s.colors, dark = s.darkPages,
-            palette = pal.palette(s.palette).map { it.toArgb() },
-            ink = pal.ink.toArgb(), intensity = s.intensity,
+            colors = s.colors, dark = mode.dark,
+            palette = mode.palette(s.palette).map { it.toArgb() },
+            ink = mode.ink.toArgb(), intensity = s.intensity,
+            paper = mode.paper.toArgb(), identity = s.colorMode == 0,
         )
     }
-    val paper = if (s.darkPages) Color.Black else Color.White
+    val paper = mode.paper
     val needLines = s.colors || s.ruler || tool == Tool.HIGHLIGHT
 
+    fun currentPage(): Int =
+        if (paged) (pagerState.currentPage * per).coerceIn(0, max(0, count - 1)) else listState.firstVisibleItemIndex
+
+    // Mantener la página al cambiar entre desplazar y pasar páginas
+    LaunchedEffect(paged, per) {
+        val p = book.pos.coerceIn(0, max(0, count - 1))
+        if (paged) pagerState.scrollToPage(p / per) else listState.scrollToItem(p)
+    }
+
     // Guardar avance y contar páginas
-    LaunchedEffect(engine) {
-        var maxSeen = listState.firstVisibleItemIndex
-        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+    LaunchedEffect(engine, paged, per) {
+        var maxSeen = currentPage()
+        snapshotFlow { currentPage() to (if (paged) 0 else listState.firstVisibleItemScrollOffset) }
             .collectLatest { (i, o) ->
                 if (i > maxSeen) {
                     if (i - maxSeen <= 3) Stats.add(ctx, pages = i - maxSeen)
                     maxSeen = i
                 }
                 delay(700)
-                val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: i
+                val last = if (paged) min(count - 1, i + per - 1)
+                else listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: i
                 val prog = if (count <= 1) 1f else ((i + 1).toFloat() / count).coerceIn(0.001f, 1f)
                 vm.repo.update(book.id) {
                     it.copy(
@@ -190,26 +210,57 @@ fun PdfView(
                 }
             }
     }
+    // Al pasar de página, el zoom vuelve a ajustarse
+    LaunchedEffect(pagerState.currentPage) { pz = 1f; pan = Offset.Zero }
 
     // Poner la regla en la primera línea visible al encenderla
     LaunchedEffect(s.ruler) {
         if (s.ruler && ruler == null) {
-            val p = listState.firstVisibleItemIndex
+            val p = currentPage()
             if (engine.lines(p, s.ocr).isNotEmpty()) ruler = p to 0
         }
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(if (paged) paper else c.bg)) {
         val pad = 8.dp
         val vw = maxWidth
+        val vh = maxHeight
         val pageW: Dp = (vw - pad * 2) * zoom
         val pagePx = with(density) { pageW.toPx() }
         val padPx = with(density) { pad.toPx() }
         val viewPx = with(density) { vw.toPx() }
+        val viewHPx = with(density) { vh.toPx() }
         val renderW = ((pagePx / 128f).roundToInt().coerceAtLeast(2) * 128).coerceAtMost(2000)
         fun contentPx(z: Float) = with(density) { ((vw - pad * 2) * z + pad * 2).toPx() }
 
+        suspend fun seek(p: Int) {
+            val q = p.coerceIn(0, max(0, count - 1))
+            if (paged) pagerState.scrollToPage(q / per) else listState.scrollToItem(q)
+        }
+
+        suspend fun turn(d: Int) {
+            if (paged) {
+                val t = (pagerState.currentPage + d).coerceIn(0, max(0, itemCount - 1))
+                pagerState.animateScrollToPage(t)
+            } else {
+                listState.animateScrollBy(d * viewHPx * 0.85f)
+            }
+        }
+
+        fun tapAt(frac: Float) {
+            when {
+                s.tapTurn && frac < 0.28f -> scope.launch { turn(-1) }
+                s.tapTurn && frac > 0.72f -> scope.launch { turn(1) }
+                else -> onTapPlain()
+            }
+        }
+
         suspend fun ensureVisible(p: Int, ln: LineBox) {
+            if (paged) {
+                val target = p / per
+                if (pagerState.currentPage != target) pagerState.animateScrollToPage(target)
+                return
+            }
             var item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == p }
             if (item == null) {
                 listState.scrollToItem(p)
@@ -230,7 +281,7 @@ fun PdfView(
 
         suspend fun move(d: Int) {
             val cur = ruler
-            var p = cur?.first ?: listState.firstVisibleItemIndex
+            var p = cur?.first ?: currentPage()
             var l = if (cur == null) 0 else cur.second + d
             var ls = engine.lines(p, s.ocr)
             var guard = 0
@@ -250,11 +301,28 @@ fun PdfView(
             ensureVisible(p, ls[l])
         }
 
+        val cur = currentPage()
         SideEffect {
+            bridge.position = cur
+            bridge.total = count
+            bridge.unit = "Pág."
             bridge.move = { d -> move(d) }
+            bridge.seek = { p -> seek(p) }
+            bridge.goPage = { p -> seek(p) }
+            bridge.goPara = null
+            bridge.follow = { p -> seek(p) }
+            bridge.here = {
+                val p = currentPage()
+                val first = engine.peekLines(p)?.firstOrNull { it.text.length > 3 }?.text
+                p to ("Página ${p + 1}" + (first?.let { " · " + TextTools.firstWords(it, 6) } ?: ""))
+            }
+            bridge.speakFrom = { after ->
+                val start = after?.plus(1) ?: (ruler?.first ?: currentPage())
+                (start until min(count, start + 4)).map { p -> p to engine.pageText(p, s.ocr) }.filter { it.second.isNotBlank() }
+            }
             bridge.words = {
                 val start = ruler
-                val p0 = start?.first ?: listState.firstVisibleItemIndex
+                val p0 = start?.first ?: currentPage()
                 val out = ArrayList<String>()
                 for (p in p0 until min(count, p0 + 6)) {
                     val ls = engine.lines(p, s.ocr)
@@ -265,67 +333,113 @@ fun PdfView(
             }
         }
 
-        val startPinch by rememberUpdatedState { o: Offset ->
-            anchor = PinchAnchor(
-                zoom, (hScroll.value + o.x) / contentPx(zoom), o.x,
-                listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset, o.y,
+        @Composable
+        fun page(p: Int, width: Dp, rw: Int) {
+            PdfPage(
+                engine = engine, page = p, width = width, renderW = rw, style = style, paper = paper,
+                ocr = s.ocr, needLines = needLines, rulerOn = s.ruler,
+                rulerLine = ruler?.takeIf { it.first == p }?.second,
+                tool = tool, penColor = penColor, hlColor = hlColor, annots = annots,
+                onRulerTap = { line -> ruler = p to line },
+                onTapPlain = { fx ->
+                    if (!paged) onTapPlain()
+                    else if (per == 2) tapAt(if (p % 2 == 0) fx / 2f else 0.5f + fx / 2f)
+                    else tapAt(fx)
+                },
+                onNoteAdd = { x, y -> newNote = Triple(p, x, y) },
+                onNoteOpen = { editNote = it },
             )
         }
-        LaunchedEffect(zoom) {
-            val a = anchor ?: return@LaunchedEffect
-            withFrameNanos { }
-            val ratio = zoom / a.zoom0
-            hScroll.scrollTo((a.fx * contentPx(zoom) - a.cx).roundToInt().coerceIn(0, hScroll.maxValue))
-            listState.scrollToItem(a.idx, ((a.off + a.cy) * ratio - a.cy).roundToInt().coerceAtLeast(0))
-        }
 
-        Box(
-            Modifier.fillMaxSize()
-                .pinch(onStart = { startPinch(it) }, onZoom = { f -> zoom = (zoom * f).coerceIn(1f, 4f) })
-                .horizontalScroll(hScroll, enabled = zoom > 1.01f && tool == Tool.NONE)
-        ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.width(pageW + pad * 2).fillMaxHeight(),
-                contentPadding = PaddingValues(pad),
-                verticalArrangement = Arrangement.spacedBy(pad),
-                userScrollEnabled = tool == Tool.NONE,
+        if (paged) {
+            Box(
+                Modifier.fillMaxSize()
+                    .pinch(onStart = {}, onZoom = { f ->
+                        pz = (pz * f).coerceIn(1f, 4f)
+                        if (pz <= 1.01f) pan = Offset.Zero
+                    })
+                    .pointerInput(pz > 1.01f, tool) {
+                        if (pz > 1.01f && tool == Tool.NONE) {
+                            detectDragGestures { ch, d ->
+                                ch.consume()
+                                val mx = (pz - 1f) * size.width / 2f
+                                val my = (pz - 1f) * size.height / 2f
+                                pan = Offset((pan.x + d.x).coerceIn(-mx, mx), (pan.y + d.y).coerceIn(-my, my))
+                            }
+                        }
+                    }
             ) {
-                items(count, key = { it }) { p ->
-                    PdfPage(
-                        engine = engine, page = p, width = pageW, renderW = renderW, style = style, paper = paper,
-                        ocr = s.ocr, needLines = needLines, rulerOn = s.ruler,
-                        rulerLine = ruler?.takeIf { it.first == p }?.second,
-                        tool = tool, penColor = penColor, hlColor = hlColor, annots = annots,
-                        onRulerTap = { line -> ruler = p to line },
-                        onTapPlain = onTapPlain,
-                        onNoteAdd = { x, y -> newNote = Triple(p, x, y) },
-                        onNoteOpen = { editNote = it },
-                    )
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize().graphicsLayer {
+                        scaleX = pz; scaleY = pz; translationX = pan.x; translationY = pan.y
+                    },
+                    userScrollEnabled = tool == Tool.NONE && pz <= 1.01f,
+                    beyondViewportPageCount = 1,
+                    key = { it },
+                ) { item ->
+                    Box(
+                        Modifier.fillMaxSize().pageTurn(pagerState, item).background(paper)
+                            .pointerInput(per) { detectTapGestures { o -> tapAt(o.x / size.width) } },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            for (k in 0 until per) {
+                                val p = item * per + k
+                                if (p >= count) break
+                                val a = engine.aspects.getOrElse(p) { 1.41f }.coerceAtLeast(0.05f)
+                                val w = min(((vw - pad * (per + 1)) / per).value, ((vh - pad * 2) / a).value).dp
+                                val rw = ((with(density) { w.toPx() } * pz / 128f).roundToInt().coerceAtLeast(2) * 128).coerceAtMost(2000)
+                                page(p, w, rw)
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            val startPinch by rememberUpdatedState { o: Offset ->
+                anchor = PinchAnchor(
+                    zoom, (hScroll.value + o.x) / contentPx(zoom), o.x,
+                    listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset, o.y,
+                )
+            }
+            LaunchedEffect(zoom) {
+                val a = anchor ?: return@LaunchedEffect
+                withFrameNanos { }
+                val ratio = zoom / a.zoom0
+                hScroll.scrollTo((a.fx * contentPx(zoom) - a.cx).roundToInt().coerceIn(0, hScroll.maxValue))
+                listState.scrollToItem(a.idx, ((a.off + a.cy) * ratio - a.cy).roundToInt().coerceAtLeast(0))
+            }
+            Box(
+                Modifier.fillMaxSize()
+                    .pinch(onStart = { startPinch(it) }, onZoom = { f -> zoom = (zoom * f).coerceIn(1f, 4f) })
+                    .horizontalScroll(hScroll, enabled = zoom > 1.01f && tool == Tool.NONE)
+            ) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.width(pageW + pad * 2).fillMaxHeight(),
+                    contentPadding = PaddingValues(pad),
+                    verticalArrangement = Arrangement.spacedBy(pad),
+                    userScrollEnabled = tool == Tool.NONE,
+                ) {
+                    items(count, key = { it }) { p -> page(p, pageW, renderW) }
                 }
             }
         }
 
-        // Página actual y zoom
-        Row(
-            Modifier.align(Alignment.BottomStart).padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        // Zoom
+        val zl = if (paged) pz else zoom
+        if (zl > 1.01f) {
             Text(
-                "${listState.firstVisibleItemIndex + 1} / $count",
+                "${(zl * 100).roundToInt()}%  ·  ajustar",
                 color = c.ink, fontSize = 13.sp,
-                modifier = Modifier.clip(RoundedCornerShape(50)).background(c.surface.copy(alpha = 0.92f))
-                    .clickable { goTo = true }.padding(horizontal = 12.dp, vertical = 7.dp),
+                modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
+                    .clip(RoundedCornerShape(50)).background(c.surface.copy(alpha = 0.92f))
+                    .clickable {
+                        if (paged) { pz = 1f; pan = Offset.Zero } else { anchor = null; zoom = 1f; scope.launch { hScroll.scrollTo(0) } }
+                    }
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
             )
-            if (zoom > 1.01f) {
-                Text(
-                    "${(zoom * 100).roundToInt()}%  ·  ajustar",
-                    color = c.ink, fontSize = 13.sp,
-                    modifier = Modifier.clip(RoundedCornerShape(50)).background(c.surface.copy(alpha = 0.92f))
-                        .clickable { anchor = null; zoom = 1f; scope.launch { hScroll.scrollTo(0) } }
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
-                )
-            }
         }
     }
 
@@ -344,29 +458,6 @@ fun PdfView(
             onDismiss = { editNote = null },
             onSave = { t -> annots.editNote(n.id, t.trim()); editNote = null },
             onDelete = { annots.deleteNote(n.id); editNote = null },
-        )
-    }
-    if (goTo) {
-        var txt by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { goTo = false },
-            containerColor = c.surface,
-            title = { Text("Ir a la página") },
-            text = {
-                OutlinedTextField(
-                    txt, { v -> txt = v.filter { it.isDigit() }.take(5) },
-                    placeholder = { Text("1 a $count") }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val n = txt.toIntOrNull()
-                    if (n != null) scope.launch { listState.scrollToItem((n - 1).coerceIn(0, count - 1)) }
-                    goTo = false
-                }) { Text("Ir") }
-            },
-            dismissButton = { TextButton(onClick = { goTo = false }) { Text("Cancelar") } },
         )
     }
 }
@@ -474,7 +565,7 @@ private fun PdfPage(
     hlColor: Color,
     annots: AnnotStore,
     onRulerTap: (Int) -> Unit,
-    onTapPlain: () -> Unit,
+    onTapPlain: (Float) -> Unit,
     onNoteAdd: (Float, Float) -> Unit,
     onNoteOpen: (PdfNote) -> Unit,
 ) {
@@ -542,7 +633,7 @@ private fun PdfPage(
             detectTapGestures { pos ->
                 if (rulerOn) {
                     nearestLine(currentLines, pos.x / size.width, pos.y / size.height)?.let { rulerTap(it) }
-                } else tapPlain()
+                } else tapPlain(pos.x / size.width)
             }
         }
         Tool.PEN, Tool.HIGHLIGHT -> Modifier.pointerInput(tool, penColor, hlColor) {

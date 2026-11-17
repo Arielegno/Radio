@@ -2,6 +2,31 @@ package com.hilo.lector.ui
 
 import android.app.Activity
 import android.content.Context
+import android.provider.Settings
+import android.view.WindowManager
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.BookmarkBorder
+import androidx.compose.material.icons.rounded.Bookmarks
+import androidx.compose.material.icons.rounded.RecordVoiceOver
+import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import kotlin.math.roundToInt
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -114,6 +139,7 @@ private fun rememberEngine(ctx: Context, file: File, id: String): EngineState {
 private val PEN_COLORS = listOf(Color(0xFF1B2030), Color(0xFFC8372D), Color(0xFF2457C5), Color(0xFF1E8538))
 private val HL_COLORS = listOf(Color(0xFFFFD54F), Color(0xFF9BE59F), Color(0xFFF7A8C8), Color(0xFF9CCBFF))
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReaderScreen(vm: HiloViewModel, bookId: String) {
     val c = LocalHilo.current
@@ -125,6 +151,7 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
         return
     }
     val s by vm.settings.state.collectAsStateWithLifecycle()
+    val mode = readMode(s.colorMode)
     val isPdf = book.type == "pdf"
     var flow by rememberSaveable(bookId) { mutableStateOf(!isPdf || book.flowMode) }
     var chrome by remember { mutableStateOf(true) }
@@ -133,12 +160,33 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
     var penColor by remember { mutableStateOf(PEN_COLORS[0]) }
     var hlColor by remember { mutableStateOf(HL_COLORS[0]) }
     var rsvp by remember { mutableStateOf<List<String>?>(null) }
+    var contents by remember { mutableStateOf(false) }
+    var goTo by remember { mutableStateOf(false) }
+    var brightnessHint by remember { mutableStateOf<Int?>(null) }
     val bridge = remember { ReaderBridge() }
     val scope = rememberCoroutineScope()
     val compact = LocalConfiguration.current.screenHeightDp < 500
 
     val engineState: EngineState? = if (isPdf) rememberEngine(ctx, vm.repo.fileOf(book), book.id) else null
     val annots = remember(bookId) { if (isPdf) AnnotStore(ctx.applicationContext, bookId) else null }
+
+    // Voz
+    val speaker = remember { Speaker(ctx) }
+    DisposableEffect(Unit) { onDispose { speaker.shutdown() } }
+    fun speakFrom(after: Int?) {
+        scope.launch {
+            val items = bridge.speakFrom?.invoke(after).orEmpty()
+            if (items.isEmpty()) { if (after == null) vm.toast = "No encontré texto para leer aquí."; return@launch }
+            val lastPos = items.last().first
+            val ok = speaker.speak(
+                items, s.ttsRate,
+                onItem = { pos -> scope.launch { bridge.follow?.invoke(pos) } },
+                onEnd = { speakFrom(lastPos) },
+            )
+            if (!ok) vm.toast = "La voz del celular todavía no está lista. Prueba de nuevo en un momento."
+        }
+    }
+    LaunchedEffect(flow) { speaker.stop() }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
         if (uri != null && annots != null) vm.exportPdf(book, annots.strokes.toList(), annots.notes.toList(), uri)
@@ -153,17 +201,17 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
         }
     }
 
-    // Pantalla encendida y pantalla completa al ocultar las barras
+    // Pantalla encendida, pantalla completa y brillo
     val view = LocalView.current
     DisposableEffect(s.keepOn) {
         view.keepScreenOn = s.keepOn
         onDispose { view.keepScreenOn = false }
     }
     val window = (ctx as? Activity)?.window
-    LaunchedEffect(chrome) {
+    LaunchedEffect(chrome, s.fullScreen) {
         val w = window ?: return@LaunchedEffect
         val ctl = WindowCompat.getInsetsController(w, w.decorView)
-        if (chrome) {
+        if (chrome && !s.fullScreen) {
             ctl.show(WindowInsetsCompat.Type.systemBars())
         } else {
             ctl.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -172,13 +220,26 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
     }
     DisposableEffect(Unit) {
         onDispose {
-            window?.let { WindowCompat.getInsetsController(it, it.decorView).show(WindowInsetsCompat.Type.systemBars()) }
+            window?.let {
+                WindowCompat.getInsetsController(it, it.decorView).show(WindowInsetsCompat.Type.systemBars())
+                it.attributes = it.attributes.apply { screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE }
+            }
         }
     }
 
     val toggleChrome = { if (!annotating) chrome = !chrome }
+    val here = bridge.here?.invoke()
+    val marked = here != null && book.bookmarks.any { it.flow == flow && it.pos == here.first }
+    fun toggleMark() {
+        val h = bridge.here?.invoke() ?: return
+        vm.toggleBookmark(book, flow, h.first, h.second)
+    }
+    fun dayNight() {
+        vm.settings.update { if (mode.dark) it.copy(colorMode = it.lastDayMode) else it.copy(colorMode = it.lastNightMode) }
+        vm.toast = readMode(if (mode.dark) s.lastDayMode else s.lastNightMode).name
+    }
 
-    Box(Modifier.fillMaxSize().background(c.bg).windowInsetsPadding(WindowInsets.safeDrawing)) {
+    Box(Modifier.fillMaxSize().background(if (chrome) c.bg else mode.paper).windowInsetsPadding(WindowInsets.safeDrawing)) {
         Column(Modifier.fillMaxSize()) {
             AnimatedVisibility(visible = chrome) {
                 TopBars(
@@ -203,19 +264,65 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
                 )
             }
 
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            Box(Modifier.weight(1f).fillMaxWidth().background(mode.paper)) {
                 when {
-                    !isPdf -> FlowView(vm, book, null, s, bridge, toggleChrome, null)
+                    !isPdf -> FlowView(vm, book, null, s, mode, bridge, toggleChrome, null)
                     engineState is EngineState.Ready && flow ->
-                        FlowView(vm, book, engineState.engine, s, bridge, toggleChrome) { flow = false; vm.repo.update(book.id) { it.copy(flowMode = false) } }
+                        FlowView(vm, book, engineState.engine, s, mode, bridge, toggleChrome) {
+                            flow = false; vm.repo.update(book.id) { it.copy(flowMode = false) }
+                        }
                     engineState is EngineState.Ready && annots != null ->
-                        PdfView(vm, book, engineState.engine, annots, s, tool, penColor, hlColor, bridge, toggleChrome)
+                        PdfView(vm, book, engineState.engine, annots, s, mode, tool, penColor, hlColor, bridge, toggleChrome)
                     engineState is EngineState.Failed ->
                         Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("No pude abrir este PDF. Puede estar dañado o protegido con contraseña.", color = c.ink)
+                            Text("No pude abrir este PDF. Puede estar dañado o protegido con contraseña.", color = mode.ink)
                             TextButton(onClick = { vm.closeReader() }) { Text("Volver a la biblioteca") }
                         }
                     else -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = c.accent)
+                }
+
+                if (tool == Tool.NONE) {
+                    // Esquina superior izquierda: día / noche
+                    if (s.cornerDayNight) {
+                        Box(Modifier.align(Alignment.TopStart).size(56.dp).pointerInput(Unit) { detectTapGestures { dayNight() } })
+                    }
+                    // Esquina superior derecha: marcador
+                    if (s.cornerBookmark) {
+                        Box(Modifier.align(Alignment.TopEnd).size(56.dp).pointerInput(Unit) { detectTapGestures { toggleMark() } })
+                    }
+                    // Borde izquierdo: brillo
+                    if (s.brightnessSwipe) {
+                        Box(
+                            Modifier.align(Alignment.CenterStart).padding(top = 56.dp).width(26.dp).fillMaxHeight()
+                                .pointerInput(Unit) {
+                                    detectVerticalDragGestures(
+                                        onDragEnd = { brightnessHint = null },
+                                        onDragCancel = { brightnessHint = null },
+                                    ) { ch, dy ->
+                                        ch.consume()
+                                        val w = window ?: return@detectVerticalDragGestures
+                                        var b = w.attributes.screenBrightness
+                                        if (b < 0f) b = systemBrightness(ctx)
+                                        b = (b - dy / size.height * 1.2f).coerceIn(0.02f, 1f)
+                                        w.attributes = w.attributes.apply { screenBrightness = b }
+                                        brightnessHint = (b * 100).roundToInt()
+                                    }
+                                }
+                        )
+                    }
+                }
+                if (marked) {
+                    Icon(
+                        Icons.Rounded.Bookmark, "Página con marcador", tint = c.lines[0],
+                        modifier = Modifier.align(Alignment.TopEnd).padding(end = 14.dp).size(26.dp),
+                    )
+                }
+                brightnessHint?.let {
+                    Text(
+                        "Brillo $it%", color = Color.White, fontSize = 15.sp,
+                        modifier = Modifier.align(Alignment.Center).clip(RoundedCornerShape(12.dp))
+                            .background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 16.dp, vertical = 10.dp),
+                    )
                 }
 
                 if (s.ruler && tool == Tool.NONE) {
@@ -241,7 +348,57 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
                     onClose = { annotating = false; tool = Tool.NONE },
                 )
             }
+            AnimatedVisibility(visible = chrome && !annotating) {
+                PageBar(
+                    bridge = bridge, marked = marked, speaking = speaker.speaking,
+                    onContents = { contents = true },
+                    onMark = { toggleMark() },
+                    onSpeak = { if (speaker.speaking) speaker.stop() else speakFrom(null) },
+                    onGoTo = { goTo = true },
+                    onSeek = { p -> scope.launch { bridge.seek?.invoke(p) } },
+                )
+            }
         }
+    }
+
+    if (contents) {
+        ContentsSheet(
+            vm = vm, book = book, flow = flow, isPdf = isPdf,
+            engine = (engineState as? EngineState.Ready)?.engine, annots = annots,
+            onDismiss = { contents = false },
+            onGo = { targetFlow, pos ->
+                contents = false
+                if (targetFlow == flow) {
+                    scope.launch { if (flow) bridge.goPara?.invoke(pos) else bridge.goPage?.invoke(pos) }
+                } else {
+                    vm.repo.update(book.id) { if (targetFlow) it.copy(flowPos = pos, flowOffset = 0, flowMode = true) else it.copy(pos = pos, posOffset = 0, flowMode = false) }
+                    flow = targetFlow
+                }
+            },
+        )
+    }
+
+    if (goTo) {
+        var txt by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { goTo = false },
+            containerColor = c.surface,
+            title = { Text(if (bridge.unit == "Pág.") "Ir a la página" else "Ir al párrafo") },
+            text = {
+                OutlinedTextField(
+                    txt, { v -> txt = v.filter { it.isDigit() }.take(6) },
+                    placeholder = { Text("1 a ${bridge.total}") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    txt.toIntOrNull()?.let { n -> scope.launch { bridge.seek?.invoke(n - 1) } }
+                    goTo = false
+                }) { Text("Ir") }
+            },
+            dismissButton = { TextButton(onClick = { goTo = false }) { Text("Cancelar") } },
+        )
     }
 
     rsvp?.let { words ->
@@ -249,85 +406,141 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
     }
 }
 
+private fun systemBrightness(ctx: Context): Float = try {
+    Settings.System.getInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f
+} catch (e: Exception) {
+    0.5f
+}
+
+/** Barra inferior: índice, marcador, posición con deslizador y lectura en voz alta. */
 @Composable
-private fun TopBars(
-    book: Book,
-    isPdf: Boolean,
-    flow: Boolean,
-    compact: Boolean,
-    annotating: Boolean,
-    vm: HiloViewModel,
-    onBack: () -> Unit,
-    onFlow: (Boolean) -> Unit,
-    onAnnotate: () -> Unit,
-    onRsvp: () -> Unit,
+private fun PageBar(
+    bridge: ReaderBridge,
+    marked: Boolean,
+    speaking: Boolean,
+    onContents: () -> Unit,
+    onMark: () -> Unit,
+    onSpeak: () -> Unit,
+    onGoTo: () -> Unit,
+    onSeek: (Int) -> Unit,
 ) {
     val c = LocalHilo.current
-    val s by vm.settings.state.collectAsStateWithLifecycle()
-    val t = vm.timer
-
-    val actions: @Composable () -> Unit = {
-        IconButton(onClick = { vm.sheet = "timer" }) {
-            if (t.running) {
-                Text(
-                    formatClock(t.remaining), fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                    color = if (t.isBreak) c.lines[3] else c.accent,
-                )
-            } else Icon(Icons.Rounded.Timer, "Temporizador", tint = c.ink)
-        }
-        IconButton(onClick = { vm.sheet = "settings" }) { Icon(Icons.Rounded.TextFields, "Ajustes de lectura", tint = c.ink) }
-        if (isPdf && !flow) {
-            IconButton(onClick = onAnnotate) {
-                Icon(Icons.Rounded.Brush, "Anotar sobre el PDF", tint = if (annotating) c.accent else c.ink)
+    val total = bridge.total.coerceAtLeast(1)
+    var drag by remember { mutableStateOf<Float?>(null) }
+    val shown = drag?.roundToInt() ?: bridge.position
+    Column(Modifier.fillMaxWidth().background(c.bg).padding(horizontal = 6.dp).padding(top = 2.dp, bottom = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onContents) { Icon(Icons.Rounded.Bookmarks, "Contenido y marcadores", tint = c.ink) }
+            IconButton(onClick = onMark) {
+                Icon(if (marked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, if (marked) "Quitar marcador" else "Agregar marcador", tint = if (marked) c.lines[0] else c.ink)
+            }
+            Text(
+                "${bridge.unit} ${shown + 1} de $total",
+                color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(onClick = onGoTo).padding(vertical = 6.dp),
+            )
+            IconButton(onClick = onSpeak) {
+                Icon(if (speaking) Icons.Rounded.Stop else Icons.Rounded.RecordVoiceOver, if (speaking) "Detener la voz" else "Escuchar", tint = if (speaking) c.accent else c.ink)
             }
         }
-        Box(
-            Modifier.padding(start = 4.dp, end = 4.dp).size(40.dp).clip(CircleShape).background(c.accent).clickable(onClick = onRsvp),
-            contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Rounded.PlayArrow, "Leer palabra por palabra", tint = c.accentInk) }
-    }
-
-    val chips: @Composable () -> Unit = {
-        AidChip("Colores", s.colors) { vm.settings.update { it.copy(colors = !it.colors) } }
-        if (flow) AidChip("Negrita guía", s.bionic) { vm.settings.update { it.copy(bionic = !it.bionic) } }
-        AidChip("Regla", s.ruler) {
-            vm.settings.update { it.copy(ruler = !it.ruler) }
-            if (!s.ruler) vm.toast = "Toca una línea para enfocarla, o usa las flechas."
+        if (total > 1) {
+            Slider(
+                value = (drag ?: bridge.position.toFloat()).coerceIn(0f, (total - 1).toFloat()),
+                onValueChange = { drag = it },
+                onValueChangeFinished = { drag?.let { onSeek(it.roundToInt()) }; drag = null },
+                valueRange = 0f..(total - 1).toFloat(),
+                colors = SliderDefaults.colors(thumbColor = c.accent, activeTrackColor = c.accent, inactiveTrackColor = c.chip),
+                modifier = Modifier.padding(horizontal = 12.dp).height(28.dp),
+            )
         }
-        if (isPdf) ModeToggle(flow, onFlow)
     }
+}
 
-    Column(
-        Modifier.fillMaxWidth().background(c.bg).padding(horizontal = 6.dp).padding(top = 2.dp, bottom = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Biblioteca", tint = c.ink) }
-            Column(Modifier.weight(1f)) {
-                Text(book.title, color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (!compact) {
+/** Índice del libro, marcadores y notas. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ContentsSheet(
+    vm: HiloViewModel,
+    book: Book,
+    flow: Boolean,
+    isPdf: Boolean,
+    engine: PdfEngine?,
+    annots: AnnotStore?,
+    onDismiss: () -> Unit,
+    onGo: (flow: Boolean, pos: Int) -> Unit,
+) {
+    val c = LocalHilo.current
+    var tab by remember { mutableIntStateOf(0) }
+    val toc by produceState<List<Pair<String, Int>>?>(null, flow, book.id) {
+        value = if (isPdf && !flow) {
+            engine?.outline().orEmpty()
+        } else {
+            vm.flowParas(book, engine) { _, _ -> }
+                .mapIndexedNotNull { i, p -> if (p.startsWith("# ")) p.substring(2).take(90) to i else null }
+        }
+    }
+    val tabs = listOfNotNull("Contenido", "Marcadores", if (isPdf) "Notas" else null)
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surface) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp)) {
+                tabs.forEachIndexed { i, t ->
+                    val on = i == tab
                     Text(
-                        if (flow) "Texto fluido · ${(book.progress * 100).toInt()}%" else "Página original · ${(book.progress * 100).toInt()}%",
-                        color = c.muted, fontSize = 12.sp, maxLines = 1,
+                        t, color = if (on) c.accentInk else c.ink, fontSize = 14.sp,
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) c.accent else c.chip)
+                            .clickable { tab = i }.padding(horizontal = 14.dp, vertical = 8.dp),
                     )
                 }
             }
-            if (compact) {
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()).padding(end = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) { chips() }
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 460.dp)) {
+                when (tab) {
+                    0 -> {
+                        val list = toc
+                        if (list == null) item { Text("Buscando el índice…", color = c.muted, modifier = Modifier.padding(12.dp)) }
+                        else if (list.isEmpty()) item {
+                            Text(
+                                if (isPdf && !flow) "Este PDF no trae índice. Usa la barra de páginas o los marcadores."
+                                else "No encontré títulos en este texto.",
+                                color = c.muted, modifier = Modifier.padding(12.dp),
+                            )
+                        }
+                        else items(list.size) { i ->
+                            val (t, pos) = list[i]
+                            ContentsRow(t, if (isPdf && !flow) "pág. ${pos + 1}" else "") { onGo(flow, pos) }
+                        }
+                    }
+                    1 -> {
+                        if (book.bookmarks.isEmpty()) item {
+                            Text("Todavía no hay marcadores. Toca el marcador abajo o la esquina superior derecha de la página.", color = c.muted, modifier = Modifier.padding(12.dp))
+                        }
+                        else items(book.bookmarks.size) { i ->
+                            val b = book.bookmarks[i]
+                            ContentsRow(b.label, if (b.flow) "Texto" else "Página") { onGo(b.flow, b.pos) }
+                        }
+                    }
+                    else -> {
+                        val notes = annots?.notes?.sortedBy { it.page }.orEmpty()
+                        if (notes.isEmpty()) item { Text("Todavía no hay notas en este PDF.", color = c.muted, modifier = Modifier.padding(12.dp)) }
+                        else items(notes.size) { i ->
+                            val n = notes[i]
+                            ContentsRow(n.text, "pág. ${n.page + 1}") { onGo(false, n.page) }
+                        }
+                    }
+                }
             }
-            actions()
         }
-        if (!compact) {
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) { chips() }
-        }
+    }
+}
+
+@Composable
+private fun ContentsRow(title: String, meta: String, onClick: () -> Unit) {
+    val c = LocalHilo.current
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, color = c.ink, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (meta.isNotEmpty()) Text(meta, color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 10.dp))
     }
 }
 

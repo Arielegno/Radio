@@ -147,3 +147,24 @@ fun HiloTheme(themeMode: Int, content: @Composable () -> Unit) {
         MaterialTheme(colorScheme = scheme, typography = typo, content = content)
     }
 }
+
+/** Modo de color de la página, como en un lector de libros. */
+@Immutable
+data class ReadMode(val name: String, val paper: Color, val ink: Color, val dark: Boolean) {
+    /** Colores de línea que se leen bien sobre este papel. */
+    fun palette(p: Int): List<Color> = (if (dark) DarkHilo else LightHilo).palette(p)
+    val band: Color get() = if (dark) Color.White.copy(alpha = 0.10f) else Color(0xFF0F766E).copy(alpha = 0.12f)
+    val muted: Color get() = ink.copy(alpha = 0.6f)
+}
+
+val READ_MODES = listOf(
+    ReadMode("Día", Color.White, Color(0xFF1B2030), false),
+    ReadMode("Noche", Color(0xFF15181D), Color(0xFFC9CED6), true),
+    ReadMode("Noche contraste", Color.Black, Color.White, true),
+    ReadMode("Sepia", Color(0xFFF4ECD8), Color(0xFF5B4636), false),
+    ReadMode("Sepia contraste", Color(0xFFF4ECD8), Color(0xFF241608), false),
+    ReadMode("Crepúsculo", Color(0xFF3A3F47), Color(0xFFD6D9DE), true),
+    ReadMode("Consola", Color.Black, Color(0xFF39FF7A), true),
+)
+
+fun readMode(i: Int): ReadMode = READ_MODES.getOrElse(i) { READ_MODES[0] }

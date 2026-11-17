@@ -13,7 +13,10 @@ import android.net.Uri
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
-import com.hilo.lector.text.Epub
+import androidx.documentfile.provider.DocumentFile
+import android.content.Intent
+import androidx.core.content.FileProvider
+import com.hilo.lector.text.Formats
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,47 +31,75 @@ import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
 
+/** Un marcador: página (PDF) o párrafo (texto). */
+data class Bookmark(val flow: Boolean, val pos: Int, val label: String, val time: Long)
+
 data class Book(
     val id: String,
     val title: String,
     val author: String = "",
-    val type: String,            // pdf, epub, txt
+    val type: String,            // pdf, epub, txt, md, html, fb2, docx, odt
     val file: String,
     val added: Long,
     val updated: Long = 0,
     val progress: Float = 0f,
-    val pos: Int = 0,            // página (PDF) o párrafo (texto)
+    val pos: Int = 0,            // página (PDF)
     val posOffset: Int = 0,
-    val flowPos: Int = 0,
+    val flowPos: Int = 0,        // párrafo (texto)
     val flowOffset: Int = 0,
     val flowMode: Boolean = false,
     val done: Boolean = false,
     val pages: Int = 0,
+    val favorite: Boolean = false,
+    val toRead: Boolean = false,
+    val trashed: Boolean = false,
+    val collections: List<String> = emptyList(),
+    val srcKey: String = "",     // nombre|tamaño del archivo original, para no repetirlo
+    val bookmarks: List<Bookmark> = emptyList(),
 ) {
-    fun toJson(): JSONObject = JSONObject()
-        .put("id", id).put("title", title).put("author", author).put("type", type).put("file", file)
-        .put("added", added).put("updated", updated).put("progress", progress.toDouble())
-        .put("pos", pos).put("posOffset", posOffset).put("flowPos", flowPos).put("flowOffset", flowOffset)
-        .put("flowMode", flowMode).put("done", done).put("pages", pages)
+    fun toJson(): JSONObject {
+        val bm = JSONArray()
+        bookmarks.forEach { bm.put(JSONObject().put("flow", it.flow).put("pos", it.pos).put("label", it.label).put("time", it.time)) }
+        return JSONObject()
+            .put("id", id).put("title", title).put("author", author).put("type", type).put("file", file)
+            .put("added", added).put("updated", updated).put("progress", progress.toDouble())
+            .put("pos", pos).put("posOffset", posOffset).put("flowPos", flowPos).put("flowOffset", flowOffset)
+            .put("flowMode", flowMode).put("done", done).put("pages", pages)
+            .put("favorite", favorite).put("toRead", toRead).put("trashed", trashed)
+            .put("collections", JSONArray(collections)).put("srcKey", srcKey).put("bookmarks", bm)
+    }
 
     companion object {
-        fun from(o: JSONObject) = Book(
-            id = o.getString("id"),
-            title = o.optString("title", "Sin título"),
-            author = o.optString("author", ""),
-            type = o.optString("type", "txt"),
-            file = o.getString("file"),
-            added = o.optLong("added", 0),
-            updated = o.optLong("updated", 0),
-            progress = o.optDouble("progress", 0.0).toFloat(),
-            pos = o.optInt("pos", 0),
-            posOffset = o.optInt("posOffset", 0),
-            flowPos = o.optInt("flowPos", 0),
-            flowOffset = o.optInt("flowOffset", 0),
-            flowMode = o.optBoolean("flowMode", false),
-            done = o.optBoolean("done", false),
-            pages = o.optInt("pages", 0),
-        )
+        fun from(o: JSONObject): Book {
+            val cols = o.optJSONArray("collections")
+            val bms = o.optJSONArray("bookmarks")
+            return Book(
+                id = o.getString("id"),
+                title = o.optString("title", "Sin título"),
+                author = o.optString("author", ""),
+                type = o.optString("type", "txt"),
+                file = o.getString("file"),
+                added = o.optLong("added", 0),
+                updated = o.optLong("updated", 0),
+                progress = o.optDouble("progress", 0.0).toFloat(),
+                pos = o.optInt("pos", 0),
+                posOffset = o.optInt("posOffset", 0),
+                flowPos = o.optInt("flowPos", 0),
+                flowOffset = o.optInt("flowOffset", 0),
+                flowMode = o.optBoolean("flowMode", false),
+                done = o.optBoolean("done", false),
+                pages = o.optInt("pages", 0),
+                favorite = o.optBoolean("favorite", false),
+                toRead = o.optBoolean("toRead", false),
+                trashed = o.optBoolean("trashed", false),
+                collections = if (cols == null) emptyList() else (0 until cols.length()).map { cols.getString(it) },
+                srcKey = o.optString("srcKey", ""),
+                bookmarks = if (bms == null) emptyList() else (0 until bms.length()).map {
+                    val b = bms.getJSONObject(it)
+                    Bookmark(b.optBoolean("flow"), b.optInt("pos"), b.optString("label"), b.optLong("time"))
+                },
+            )
+        }
     }
 }
 
@@ -99,6 +130,11 @@ class LibraryRepo(private val ctx: Context) {
         _books.value = _books.value.filter { it.id != id }
         save()
     }
+
+    fun emptyTrash() { _books.value.filter { it.trashed }.forEach { remove(it.id) } }
+
+    /** Enlace para compartir el archivo con otras apps. */
+    fun shareUri(b: Book): Uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", fileOf(b))
 
     private fun newId() = "b" + System.currentTimeMillis() + "_" + (counter++)
 
@@ -139,54 +175,110 @@ class LibraryRepo(private val ctx: Context) {
         return uri.lastPathSegment?.substringAfterLast('/') ?: "archivo"
     }
 
-    private fun kindOf(uri: Uri, name: String): String {
-        val mime = ctx.contentResolver.getType(uri) ?: ""
-        val n = name.lowercase()
-        return when {
-            mime.startsWith("image/") || n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") ||
-                n.endsWith(".webp") || n.endsWith(".heic") -> "img"
-            mime == "application/pdf" || n.endsWith(".pdf") -> "pdf"
-            mime == "application/epub+zip" || n.endsWith(".epub") -> "epub"
-            else -> "txt"
-        }
+    private fun kindOf(uri: Uri, name: String): String? =
+        Formats.typeOfName(name) ?: Formats.typeOfMime(ctx.contentResolver.getType(uri) ?: "")
+
+    private fun sizeOf(uri: Uri): Long = try {
+        ctx.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c ->
+            if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else -1L
+        } ?: -1L
+    } catch (e: Exception) {
+        -1L
     }
 
     /** Copia los archivos a la app. Varias fotos juntas se convierten en un solo PDF. */
-    suspend fun importUris(uris: List<Uri>): List<Book> = withContext(Dispatchers.IO) {
+    suspend fun importUris(uris: List<Uri>, progress: (Int, Int) -> Unit = { _, _ -> }): List<Book> = withContext(Dispatchers.IO) {
         val items = uris.map { u -> val n = nameOf(u); Triple(u, n, kindOf(u, n)) }
         val out = ArrayList<Book>()
         val imgs = items.filter { it.third == "img" }
         if (imgs.isNotEmpty()) out.add(imagesToPdf(imgs.map { it.first }))
-        for ((uri, name, kind) in items) {
-            if (kind == "img") continue
-            val id = newId()
-            val ext = if (kind == "txt") "txt" else kind
-            val f = File(dir, "$id.$ext")
-            ctx.contentResolver.openInputStream(uri)?.use { inp -> f.outputStream().use { inp.copyTo(it) } }
-                ?: error("No pude abrir $name")
-            val baseTitle = name.substringBeforeLast('.').ifBlank { "Sin título" }
-            val book = when (kind) {
-                "pdf" -> {
-                    val pages = pdfInfo(f, coverFile(id))
-                    Book(id, baseTitle, type = "pdf", file = f.name, added = now(), pages = pages)
-                }
-                "epub" -> {
-                    val m = runCatching { Epub.meta(f) }.getOrNull()
-                    m?.cover?.let { saveCover(it, coverFile(id)) }
-                    Book(id, m?.title?.ifBlank { null } ?: baseTitle, m?.author.orEmpty(), "epub", f.name, now())
-                }
-                else -> Book(id, baseTitle, type = "txt", file = f.name, added = now())
-            }
-            out.add(add(book))
+        val docs = items.filter { it.third != null && it.third != "img" }
+        docs.forEachIndexed { i, (uri, name, kind) ->
+            progress(i, docs.size)
+            runCatching { importOne(uri, name, kind!!, "") }.getOrNull()?.let { out.add(it) }
         }
+        if (out.isEmpty() && items.isNotEmpty() && items.all { it.third == null }) error("Formato no compatible")
         out
     }
+
+    private fun importOne(uri: Uri, name: String, kind: String, srcKey: String): Book {
+        val id = newId()
+        val f = File(dir, "$id.$kind")
+        ctx.contentResolver.openInputStream(uri)?.use { inp -> f.outputStream().use { inp.copyTo(it) } }
+            ?: error("No pude abrir $name")
+        val key = srcKey.ifEmpty { name + "|" + f.length() }
+        val baseTitle = name.substringBeforeLast('.').replace('_', ' ').ifBlank { "Sin título" }
+        val book = if (kind == "pdf") {
+            val pages = pdfInfo(f, coverFile(id))
+            Book(id, baseTitle, type = "pdf", file = f.name, added = now(), pages = pages, srcKey = key)
+        } else {
+            val m = Formats.meta(kind, f)
+            m?.cover?.let { runCatching { saveCover(it, coverFile(id)) } }
+            Book(
+                id, m?.title?.ifBlank { null } ?: baseTitle, m?.author.orEmpty(), kind, f.name, now(), srcKey = key,
+            )
+        }
+        return add(book)
+    }
+
+    // ---------- carpetas vigiladas ----------
+
+    private val folderSp = ctx.getSharedPreferences("carpetas", Context.MODE_PRIVATE)
+
+    fun folders(): List<Uri> = folderSp.getStringSet("uris", emptySet()).orEmpty().map { Uri.parse(it) }
+
+    fun addFolder(uri: Uri) {
+        runCatching { ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+        folderSp.edit().putStringSet("uris", folderSp.getStringSet("uris", emptySet()).orEmpty() + uri.toString()).apply()
+    }
+
+    fun removeFolder(uri: Uri) {
+        runCatching { ctx.contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+        folderSp.edit().putStringSet("uris", folderSp.getStringSet("uris", emptySet()).orEmpty() - uri.toString()).apply()
+    }
+
+    fun folderName(uri: Uri): String =
+        runCatching { DocumentFile.fromTreeUri(ctx, uri)?.name }.getOrNull() ?: uri.lastPathSegment.orEmpty()
+
+    /** Busca documentos nuevos en las carpetas elegidas y los agrega a la biblioteca. */
+    suspend fun scanFolders(only: Uri? = null, progress: (Int, Int) -> Unit = { _, _ -> }): Int = withContext(Dispatchers.IO) {
+        val known = _books.value.map { it.srcKey }.toHashSet()
+        val found = ArrayList<Triple<Uri, String, String>>()
+        fun walk(d: DocumentFile, depth: Int) {
+            if (depth > 6 || found.size > 2000) return
+            for (f in d.listFiles()) {
+                if (f.isDirectory) {
+                    if (!(f.name ?: "").startsWith(".")) walk(f, depth + 1)
+                    continue
+                }
+                val name = f.name ?: continue
+                val kind = Formats.typeOfName(name) ?: continue
+                if (kind == "img") continue
+                val key = name + "|" + f.length()
+                if (key in known) continue
+                known.add(key)
+                found.add(Triple(f.uri, name + "\u0000" + key, kind))
+            }
+        }
+        for (u in (if (only != null) listOf(only) else folders())) {
+            runCatching { DocumentFile.fromTreeUri(ctx, u)?.let { walk(it, 0) } }
+        }
+        var n = 0
+        found.forEachIndexed { i, (uri, name, kind) ->
+            progress(i, found.size)
+            val (realName, key) = name.split("\u0000", limit = 2).let { it[0] to it.getOrElse(1) { "" } }
+            if (runCatching { importOne(uri, realName, kind, key) }.isSuccess) n++
+        }
+        n
+    }
+
+    private fun sizeOrZero(uri: Uri): Long = sizeOf(uri).let { if (it < 0) 0 else it }
 
     suspend fun addText(title: String, text: String): Book = withContext(Dispatchers.IO) {
         val id = newId()
         val f = File(dir, "$id.txt")
         f.writeText(text)
-        add(Book(id, title, type = "txt", file = f.name, added = now()))
+        add(Book(id, title, type = "txt", file = f.name, added = now(), srcKey = "pegado|$id"))
     }
 
     private fun now() = System.currentTimeMillis()

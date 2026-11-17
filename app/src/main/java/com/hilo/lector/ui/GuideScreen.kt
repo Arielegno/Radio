@@ -38,6 +38,22 @@ private val SECTIONS = listOf(
         "Texto: el libro como párrafos de corrido, con interlineado compacto. Sirve para EPUB, textos pegados y PDF cuando el formato estorba.",
         "Cambia entre las dos con el botón Página / Texto arriba.",
     ),
+    "Pasar páginas como en un libro" to listOf(
+        "En Ajustes (Aa) → Pasar páginas, elige Horizontal. La página se desliza sobre la siguiente, en PDF y también en EPUB, Word y los demás formatos.",
+        "Toca el borde derecho para avanzar, el izquierdo para volver y el centro para mostrar u ocultar los menús.",
+        "Con el celular acostado, un PDF puede mostrar dos páginas como un libro abierto.",
+        "Abajo está la barra de páginas: arrastra el punto o toca «Pág. 27 de 237» para saltar.",
+    ),
+    "Modos de color" to listOf(
+        "Día, Noche, Noche contraste, Sepia, Sepia contraste, Crepúsculo y Consola. Cambian el papel y la letra, también en los PDF.",
+        "Toca la esquina superior izquierda de la página para pasar de día a noche y al revés.",
+    ),
+    "Marcadores, índice y voz" to listOf(
+        "Toca la esquina superior derecha o el marcador de abajo para guardar la página.",
+        "El botón de marcadores abre el índice del libro, tus marcadores y tus notas.",
+        "El botón de la voz lee en voz alta desde donde estás y la página avanza sola.",
+        "Si activas «Brillo deslizando», sube o baja el dedo por el borde izquierdo.",
+    ),
     "Ayudas de lectura" to listOf(
         "Colores: cada línea pasa de un color a otro y la siguiente empieza en ese mismo color. El ojo encuentra el inicio de la línea sin saltársela.",
         "Regla: oscurece todo menos la línea que lees. Tócala para moverla o usa las flechas redondas.",
@@ -58,7 +74,9 @@ private val SECTIONS = listOf(
         "Pellizca con dos dedos para hacer zoom. Toca el número de página para saltar a otra.",
     ),
     "Agregar libros" to listOf(
-        "Agregar → Archivo: PDF, EPUB o TXT.",
+        "Agregar → Archivos: PDF, EPUB, Word (DOCX), ODT, FB2, HTML, Markdown o TXT.",
+        "Agregar → Buscar en una carpeta: elige, por ejemplo, Descargas. Hilo agrega lo que encuentre y revisa esa carpeta cada vez que abres la app.",
+        "En el menú ☰ de la biblioteca: Leyendo ahora, Favoritos, Por leer, Leídos, Autores, Colecciones, Formatos y Papelera.",
         "Agregar → Fotos de páginas: elige varias en orden. Se unen en un PDF y Hilo reconoce su texto sin internet.",
         "Agregar → Pegar texto: para artículos, apuntes o texto copiado de un PDF. Las líneas cortadas se unen solas.",
         "Desde otra app: Compartir → Hilo, o Abrir con → Hilo.",

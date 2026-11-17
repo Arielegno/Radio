@@ -19,9 +19,20 @@ data class ReaderSettings(
     val lineHeight: Float = 1.35f,
     val paraSpacing: Float = 0.5f,
     val margin: Int = 18,
-    val theme: Int = 0,            // 0 sistema, 1 claro, 2 oscuro
-    val darkPages: Boolean = false,
+    val theme: Int = 0,            // 0 sistema, 1 claro, 2 oscuro (menús de la app)
+    val colorMode: Int = 0,        // modo de color de la página (ver ReadModes)
+    val lastDayMode: Int = 0,
+    val lastNightMode: Int = 1,
+    val pageMode: Int = 0,         // 0 desplazar hacia abajo, 1 pasar páginas en horizontal
+    val twoPages: Boolean = false, // dos páginas de PDF con el celular en horizontal
+    val tapTurn: Boolean = true,   // tocar los bordes para pasar de página
+    val fullScreen: Boolean = false,
+    val brightnessSwipe: Boolean = false,
+    val cornerDayNight: Boolean = true,
+    val cornerBookmark: Boolean = true,
+    val openLast: Boolean = false,
     val wpm: Int = 260,
+    val ttsRate: Float = 1f,
     val timerMin: Int = 15,
     val ocr: Boolean = true,
     val keepOn: Boolean = true,
@@ -33,13 +44,17 @@ class SettingsStore(ctx: Context) {
     val state: StateFlow<ReaderSettings> = _state
     val value: ReaderSettings get() = _state.value
 
+    var lastBook: String?
+        get() = sp.getString("lastBook", null)
+        set(v) { sp.edit().putString("lastBook", v).apply() }
+
     fun update(f: (ReaderSettings) -> ReaderSettings) {
         val n = f(_state.value)
         _state.value = n
         save(n)
     }
 
-    fun reset() = update { ReaderSettings(theme = it.theme) }
+    fun reset() = update { ReaderSettings(theme = it.theme, colorMode = it.colorMode, pageMode = it.pageMode) }
 
     private fun load(): ReaderSettings {
         val d = ReaderSettings()
@@ -55,8 +70,19 @@ class SettingsStore(ctx: Context) {
             paraSpacing = sp.getFloat("paraSpacing", d.paraSpacing),
             margin = sp.getInt("margin", d.margin),
             theme = sp.getInt("theme", d.theme),
-            darkPages = sp.getBoolean("darkPages", d.darkPages),
+            colorMode = sp.getInt("colorMode", if (sp.getBoolean("darkPages", false)) 1 else d.colorMode),
+            lastDayMode = sp.getInt("lastDayMode", d.lastDayMode),
+            lastNightMode = sp.getInt("lastNightMode", d.lastNightMode),
+            pageMode = sp.getInt("pageMode", d.pageMode),
+            twoPages = sp.getBoolean("twoPages", d.twoPages),
+            tapTurn = sp.getBoolean("tapTurn", d.tapTurn),
+            fullScreen = sp.getBoolean("fullScreen", d.fullScreen),
+            brightnessSwipe = sp.getBoolean("brightnessSwipe", d.brightnessSwipe),
+            cornerDayNight = sp.getBoolean("cornerDayNight", d.cornerDayNight),
+            cornerBookmark = sp.getBoolean("cornerBookmark", d.cornerBookmark),
+            openLast = sp.getBoolean("openLast", d.openLast),
             wpm = sp.getInt("wpm", d.wpm),
+            ttsRate = sp.getFloat("ttsRate", d.ttsRate),
             timerMin = sp.getInt("timerMin", d.timerMin),
             ocr = sp.getBoolean("ocr", d.ocr),
             keepOn = sp.getBoolean("keepOn", d.keepOn),
@@ -76,8 +102,19 @@ class SettingsStore(ctx: Context) {
             .putFloat("paraSpacing", s.paraSpacing)
             .putInt("margin", s.margin)
             .putInt("theme", s.theme)
-            .putBoolean("darkPages", s.darkPages)
+            .putInt("colorMode", s.colorMode)
+            .putInt("lastDayMode", s.lastDayMode)
+            .putInt("lastNightMode", s.lastNightMode)
+            .putInt("pageMode", s.pageMode)
+            .putBoolean("twoPages", s.twoPages)
+            .putBoolean("tapTurn", s.tapTurn)
+            .putBoolean("fullScreen", s.fullScreen)
+            .putBoolean("brightnessSwipe", s.brightnessSwipe)
+            .putBoolean("cornerDayNight", s.cornerDayNight)
+            .putBoolean("cornerBookmark", s.cornerBookmark)
+            .putBoolean("openLast", s.openLast)
             .putInt("wpm", s.wpm)
+            .putFloat("ttsRate", s.ttsRate)
             .putInt("timerMin", s.timerMin)
             .putBoolean("ocr", s.ocr)
             .putBoolean("keepOn", s.keepOn)

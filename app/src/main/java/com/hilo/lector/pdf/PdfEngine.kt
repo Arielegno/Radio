@@ -21,7 +21,9 @@ import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineItem
 import com.tom_roush.pdfbox.text.PDFTextStripper
+import com.hilo.lector.text.TextTools
 import com.tom_roush.pdfbox.text.TextPosition
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -45,12 +47,16 @@ data class LineBox(val l: Float, val t: Float, val r: Float, val b: Float, val t
 /** Cómo se pinta la página: colores por línea y página oscura. */
 data class PageStyle(
     val colors: Boolean,
+    /** Papel oscuro y letra clara (noche, crepúsculo, consola). */
     val dark: Boolean,
     val palette: List<Int>,
     val ink: Int,
     val intensity: Float,
+    /** Color del papel; con blanco y tinta casi negra la página no se toca. */
+    val paper: Int = Color.WHITE,
+    val identity: Boolean = true,
 ) {
-    val key: String = "$colors|$dark|${palette.joinToString(",")}|$ink|$intensity"
+    val key: String = "$colors|$dark|${palette.joinToString(",")}|$ink|$intensity|$paper|$identity"
 }
 
 /**
@@ -247,6 +253,33 @@ class PdfEngine(private val ctx: Context, private val file: File, bookId: String
         } ?: emptyList()
     }
 
+    /** Índice del PDF (marcadores del documento): título y página. */
+    suspend fun outline(): List<Pair<String, Int>> = withContext(textThread) {
+        val out = ArrayList<Pair<String, Int>>()
+        try {
+            val d = doc()
+            val root = d.documentCatalog.documentOutline ?: return@withContext out
+            fun walk(first: PDOutlineItem?, depth: Int) {
+                var item = first
+                while (item != null && out.size < 600) {
+                    val pg = try { item.findDestinationPage(d) } catch (e: Exception) { null }
+                    val idx = if (pg != null) d.pages.indexOf(pg) else -1
+                    val title = item.title?.trim().orEmpty()
+                    if (idx >= 0 && title.isNotEmpty()) out.add(("    ".repeat(depth.coerceAtMost(3)) + title) to idx)
+                    walk(item.firstChild, depth + 1)
+                    item = item.nextSibling
+                }
+            }
+            walk(root.firstChild, 0)
+        } catch (e: Throwable) {
+        }
+        out
+    }
+
+    /** Texto de una página en párrafos, para leer en voz alta. */
+    suspend fun pageText(page: Int, allowOcr: Boolean): String =
+        TextTools.reflow(lines(page, allowOcr).joinToString("\n") { it.text }).joinToString("\n") { it.removePrefix("# ") }
+
     /** Texto de todas las páginas (para el modo de texto fluido). */
     suspend fun allPagesText(allowOcr: Boolean, progress: (Int, Int) -> Unit): List<String> {
         val out = ArrayList<String>(pageCount)
@@ -284,22 +317,27 @@ class PdfEngine(private val ctx: Context, private val file: File, bookId: String
  * En páginas oscuras se invierte la página y se usa "oscurecer".
  */
 object Coloring {
-    private val invert = ColorMatrixColorFilter(
-        ColorMatrix(
-            floatArrayOf(
-                -1f, 0f, 0f, 0f, 255f,
-                0f, -1f, 0f, 0f, 255f,
-                0f, 0f, -1f, 0f, 255f,
-                0f, 0f, 0f, 1f, 0f,
+    /** Lleva el blanco al color del papel y el negro al de la tinta (sepia, noche, consola…). */
+    private fun recolor(paper: Int, ink: Int): ColorMatrixColorFilter {
+        val pr = Color.red(paper).toFloat(); val pg = Color.green(paper).toFloat(); val pb = Color.blue(paper).toFloat()
+        val ir = Color.red(ink).toFloat(); val ig = Color.green(ink).toFloat(); val ib = Color.blue(ink).toFloat()
+        return ColorMatrixColorFilter(
+            ColorMatrix(
+                floatArrayOf(
+                    (pr - ir) / 255f, 0f, 0f, 0f, ir,
+                    0f, (pg - ig) / 255f, 0f, 0f, ig,
+                    0f, 0f, (pb - ib) / 255f, 0f, ib,
+                    0f, 0f, 0f, 1f, 0f,
+                )
             )
         )
-    )
+    }
 
     fun bake(src: Bitmap, lines: List<LineBox>, st: PageStyle): Bitmap {
         val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
         val c = Canvas(out)
         val base = Paint(Paint.FILTER_BITMAP_FLAG)
-        if (st.dark) base.colorFilter = invert
+        if (!st.identity) base.colorFilter = recolor(st.paper, st.ink)
         c.drawBitmap(src, 0f, 0f, base)
         if (st.colors && lines.isNotEmpty() && st.palette.isNotEmpty()) {
             val p = Paint(Paint.ANTI_ALIAS_FLAG)

@@ -22,7 +22,8 @@ import com.hilo.lector.pdf.InkStroke
 import com.hilo.lector.pdf.PdfEngine
 import com.hilo.lector.pdf.PdfExport
 import com.hilo.lector.pdf.PdfNote
-import com.hilo.lector.text.Epub
+import com.hilo.lector.text.Formats
+import com.hilo.lector.data.Bookmark
 import com.hilo.lector.text.TextTools
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,14 +52,60 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
     var sheet by mutableStateOf<String?>(null)   // "settings" | "timer"
     var pasteDraft by mutableStateOf<String?>(null)
 
-    fun open(b: Book) { screen = Screen.Reader(b.id) }
+    fun open(b: Book) {
+        settings.lastBook = b.id
+        screen = Screen.Reader(b.id)
+    }
+
+    private var started = false
+
+    /** Al abrir la app: busca documentos nuevos en las carpetas y abre el último libro si así lo pediste. */
+    fun onStart() {
+        if (started) return
+        started = true
+        if (settings.value.openLast) {
+            settings.lastBook?.let { id -> repo.get(id)?.takeIf { !it.trashed }?.let { screen = Screen.Reader(it.id) } }
+        }
+        if (repo.folders().isNotEmpty()) {
+            viewModelScope.launch {
+                val n = runCatching { repo.scanFolders() }.getOrDefault(0)
+                if (n > 0) toast = if (n == 1) "1 documento nuevo en tus carpetas." else "$n documentos nuevos en tus carpetas."
+            }
+        }
+    }
+
+    fun addFolder(uri: Uri) {
+        repo.addFolder(uri)
+        viewModelScope.launch {
+            busy = "Buscando documentos…"
+            val n = runCatching { repo.scanFolders(uri) { i, t -> busy = "Agregando ${i + 1} de $t…" } }.getOrDefault(0)
+            busy = null
+            toast = when (n) {
+                0 -> "No encontré documentos nuevos en esa carpeta."
+                1 -> "Agregué 1 documento."
+                else -> "Agregué $n documentos."
+            }
+        }
+    }
+
+    /** Pone o quita un marcador en la posición actual. */
+    fun toggleBookmark(book: Book, flow: Boolean, pos: Int, label: String) {
+        val has = book.bookmarks.any { it.flow == flow && it.pos == pos }
+        repo.update(book.id) { b ->
+            b.copy(
+                bookmarks = if (has) b.bookmarks.filterNot { it.flow == flow && it.pos == pos }
+                else (b.bookmarks + Bookmark(flow, pos, label, System.currentTimeMillis())).sortedBy { it.pos },
+            )
+        }
+        toast = if (has) "Marcador quitado." else "Marcador agregado."
+    }
     fun closeReader() { screen = Screen.Library }
 
     fun import(uris: List<Uri>) {
         if (uris.isEmpty()) return
         viewModelScope.launch {
             busy = if (uris.size > 1) "Agregando ${uris.size} archivos…" else "Agregando…"
-            val r = runCatching { repo.importUris(uris) }
+            val r = runCatching { repo.importUris(uris) { i, t -> if (t > 1) busy = "Agregando ${i + 1} de $t…" } }
             busy = null
             r.onSuccess { list ->
                 when {
@@ -67,7 +114,9 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
                     else -> toast = "Agregué ${list.size} libros."
                 }
             }.onFailure {
-                toast = "No pude abrir ese archivo. Si es un libro comprado, puede tener DRM."
+                toast = if (it.message == "Formato no compatible")
+                    "Ese formato todavía no se puede abrir. Hilo lee PDF, EPUB, TXT, MD, HTML, FB2, DOCX, ODT y fotos."
+                else "No pude abrir ese archivo. Si es un libro comprado, puede tener DRM."
             }
         }
     }
@@ -106,13 +155,12 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
             }
             val file = repo.fileOf(book)
             val paras = when (book.type) {
-                "epub" -> Epub.paragraphs(file)
                 "pdf" -> {
                     val e = engine ?: return@withContext emptyList()
                     val pages = e.allPagesText(settings.value.ocr, progress)
                     TextTools.reflow(TextTools.stripRepeats(pages).joinToString("\n"))
                 }
-                else -> TextTools.smartParas(file.readText())
+                else -> Formats.paragraphs(book.type, file)
             }
             if (paras.isNotEmpty()) {
                 cache.parentFile?.mkdirs()

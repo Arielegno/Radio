@@ -312,31 +312,31 @@ fun ConceptMapTab(vm: HiloViewModel, book: Book, a: Analysis) {
 
     // Simulación de fuerzas: los conceptos relacionados se atraen y el resto se separa
     LaunchedEffect(a, run) {
-        val k = 95f
-        var temp = 40f
-        repeat(260) {
+        // Fruchterman-Reingold en un espacio de 800 × 800
+        val half = 400f
+        val k = sqrt(800f * 800f / max(1, n)) * 0.45f
+        var temp = 90f
+        repeat(300) {
             val disp = Array(n) { Offset.Zero }
             for (i in 0 until n) for (j in i + 1 until n) {
                 val d = pos[i] - pos[j]
-                val dist = max(1f, d.getDistance())
-                val f = k * k / dist
-                val u = d / dist * f
+                val dist = max(2f, d.getDistance())
+                val u = d / dist * (k * k / dist)
                 disp[i] += u; disp[j] -= u
             }
             for (e in a.edges) {
                 val d = pos[e.a] - pos[e.b]
-                val dist = max(1f, d.getDistance())
-                val f = dist * dist / k * (0.5f + e.w / maxW)
-                val u = d / dist * f
+                val dist = max(2f, d.getDistance())
+                val u = d / dist * (dist * dist / k * (0.6f + 0.4f * e.w / maxW))
                 disp[e.a] -= u; disp[e.b] += u
             }
             for (i in 0 until n) {
-                val g = pos[i] * -0.04f
-                val dd = disp[i] + g
+                val dd = disp[i] - pos[i] * 0.6f
                 val len = max(1f, dd.getDistance())
-                pos[i] = pos[i] + dd / len * min(len, temp)
+                val np = pos[i] + dd / len * min(len, temp)
+                pos[i] = Offset(np.x.coerceIn(-half, half), np.y.coerceIn(-half, half))
             }
-            temp = max(1.5f, temp * 0.975f)
+            temp = max(2f, temp * 0.98f)
             withFrameNanos { }
         }
     }

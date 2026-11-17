@@ -315,7 +315,7 @@ private fun TodayCard(due: Int, streak: Int, todayCount: Int, onStart: () -> Uni
                 )
                 Text(
                     if (due == 0) "Crea tarjetas mientras lees: mantén el dedo sobre una palabra o frase."
-                    else "Unos ${max(1, ceil(minOf(due, SESSION) * 0.2).toInt())} minutos para esta ronda.",
+                    else max(1, ceil(minOf(due, SESSION) * 0.2).toInt()).let { m -> if (m == 1) "Un minuto para esta ronda." else "Unos $m minutos para esta ronda." },
                     fontSize = 13.sp, color = c.muted,
                 )
             }

@@ -150,43 +150,53 @@ adb shell input tap 540 1300
 shot 21_sin_menus 3
 
 # ---------- Estudio ----------
+# Crear una tarjeta para completar
 open_book "Libro EPUB de prueba"
 sleep 5
-adb shell input tap 540 1300
-sleep 2
 adb shell input swipe 400 900 400 900 900
 shot 23_hoja_estudio 3
 tap "sociología"
 tap "Completar"
 sleep 2
-adb shell input swipe 400 1200 400 1200 900
+# Resaltar otra oración
+open_book "Libro EPUB de prueba"
+sleep 5
+adb shell input swipe 400 1250 400 1250 900
 sleep 2
 tap "Resaltar"
 shot 24_resaltado 3
-adb shell input tap 540 1300
-sleep 2
-tap "Estudiar este documento"
-shot 25_sala_estudio 3
-tap "Resaltados"
-shot 26_resaltados 2
-tap "Tarjetas"
-tap "Repasar 1" parcial
-sleep 2
-shot 27_repaso_frente 2
-tap "Mostrar respuesta"
-shot 28_repaso_respuesta 2
-tap "Bien"
-shot 29_repaso_fin 2
-back
-back 3
-
 # Buscar en el documento
 tap "Contenido y marcadores"
 sleep 2
 tap "Buscar"
 sleep 1
-adb shell input text "conocimiento"
-shot 30_buscar 4
+adb shell input text "estandarte"
+shot 25_buscar 5
+back
+back 2
+# Sala de estudio del documento
+
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 3
+tap "Opciones de Libro EPUB de prueba"
+sleep 1
+tap "Estudiar: tarjetas y resaltados"
+shot 26_sala_estudio 3
+tap "Resaltados"
+shot 27_resaltados 2
+tap "Apuntes"
+shot 28_apuntes 2
+tap "Tarjetas"
+sleep 1
+# Repaso
+tap "Repasar 1" parcial
+sleep 2
+shot 29_repaso_frente 2
+tap "Mostrar respuesta"
+shot 30_repaso_respuesta 2
+tap "Bien"
+shot 31_repaso_fin 2
 back
 
 # ---------- Documentos del celular (como ReadEra) ----------
@@ -198,9 +208,9 @@ adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file
 sleep 4
 adb shell am force-stop $PKG
 adb shell am start -W -n $PKG/.MainActivity
-shot 31_documentos_nuevos 8
+shot 32_documentos_nuevos 8
 tap "VER"
-shot 32_nuevos 3
+shot 33_nuevos 3
 
 adb shell am force-stop $PKG
 adb shell am start -W -n $PKG/.MainActivity
@@ -208,7 +218,7 @@ sleep 3
 tap "Menú"
 sleep 2
 tap "Estudio"
-shot 33_estudio_general 3
+shot 34_estudio_general 3
 back
 
 timeout 60 adb logcat -d > $OUT/logcat.txt

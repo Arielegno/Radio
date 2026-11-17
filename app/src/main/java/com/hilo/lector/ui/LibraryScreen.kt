@@ -357,11 +357,11 @@ fun LibraryScreen(vm: HiloViewModel) {
 
             if (vm.newFound > 0) {
                 Row(
-                    Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 170.dp, bottom = 24.dp)
+                    Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 150.dp, bottom = 24.dp)
                         .clip(RoundedCornerShape(12.dp)).background(c.ink).padding(start = 16.dp, end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Documentos nuevos: ${vm.newFound}", color = c.surface, fontSize = 14.sp, modifier = Modifier.weight(1f, fill = false))
+                    Text("Nuevos: ${vm.newFound}", color = c.surface, fontSize = 14.sp, maxLines = 1)
                     TextButton(onClick = { section = Section("new"); vm.newFound = 0 }) { Text("VER", color = Color(0xFFFFC94D), fontWeight = FontWeight.Bold) }
                 }
             }

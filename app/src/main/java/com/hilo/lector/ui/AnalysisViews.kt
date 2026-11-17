@@ -135,10 +135,10 @@ private fun packBubbles(terms: List<Term>, w: Float, h: Float, minR: Float, maxR
             if (inside && out.none { b -> val dx = b.x - x; val dy = b.y - y; dx * dx + dy * dy < (b.r + r + 5) * (b.r + r + 5) }) {
                 out.add(Bubble(t, r, x, y)); placed = true; break
             }
-            a += 0.45f
-            d += 0.9f
+            a += 0.35f
+            d += 0.6f
         }
-        if (!placed && out.size > 12) break
+        if (!placed && out.size >= 45) break
     }
     return out
 }
@@ -168,7 +168,7 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
             val wPx = with(density) { maxWidth.toPx() }
             val hPx = with(density) { maxHeight.toPx() }
             val bubbles = remember(list, wPx, hPx) {
-                packBubbles(list.take(if (phrases) 22 else 40), wPx, hPx, with(density) { 24.dp.toPx() }, with(density) { 66.dp.toPx() })
+                packBubbles(list.take(if (phrases) 24 else 45), wPx, hPx, with(density) { 20.dp.toPx() }, with(density) { 54.dp.toPx() })
             }
             val tr = rememberInfiniteTransition(label = "flotar")
             val t by tr.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(7000, easing = LinearEasing)), label = "t")
@@ -197,12 +197,16 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
                         .clickable { sel = if (on) null else b.term; showWhere = false },
                     contentAlignment = Alignment.Center,
                 ) {
-                    val fs = (b.r / density.density * 0.33f).coerceIn(9f, 20f)
+                    // Letra que cabe en una sola línea dentro de la burbuja
+                    val rDp = b.r / density.density
+                    val longest = b.term.label.split(' ').maxOf { it.length }.coerceAtLeast(3)
+                    val lines = if (b.term.phrase && b.term.label.contains(' ')) 2 else 1
+                    val fs = minOf(rDp * 0.36f, rDp * 1.75f / (longest * 0.6f)).coerceIn(7f, 20f)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             b.term.label, color = Color.White, fontSize = fs.sp, fontWeight = FontWeight.Bold,
-                            maxLines = 2, textAlign = TextAlign.Center, lineHeight = (fs * 1.05f).sp,
-                            modifier = Modifier.padding(horizontal = 4.dp),
+                            maxLines = lines, softWrap = lines > 1, textAlign = TextAlign.Center, lineHeight = (fs * 1.05f).sp,
+                            overflow = TextOverflow.Clip, modifier = Modifier.padding(horizontal = 2.dp),
                         )
                         if (b.r > with(density) { 34.dp.toPx() }) Text("${b.term.count}", color = Color.White.copy(alpha = 0.85f), fontSize = (fs * 0.75f).sp)
                     }
@@ -337,6 +341,17 @@ fun ConceptMapTab(vm: HiloViewModel, book: Book, a: Analysis) {
         }
     }
 
+    /** Encaja todo el mapa en el recuadro: escala y centro según dónde quedaron los conceptos. */
+    fun fit(w: Float, h: Float): Pair<Float, Offset> {
+        if (pos.isEmpty()) return 1f to Offset.Zero
+        var minX = Float.MAX_VALUE; var maxX = -Float.MAX_VALUE; var minY = Float.MAX_VALUE; var maxY = -Float.MAX_VALUE
+        for (p in pos) { minX = min(minX, p.x); maxX = max(maxX, p.x); minY = min(minY, p.y); maxY = max(maxY, p.y) }
+        val bw = max(80f, maxX - minX)
+        val bh = max(80f, maxY - minY)
+        val sc = min((w * 0.82f) / bw, (h * 0.78f) / bh)
+        return sc to Offset((minX + maxX) / 2f, (minY + maxY) / 2f)
+    }
+
     val neighbors = sel?.let { s -> a.edges.filter { it.a == s || it.b == s }.sortedByDescending { it.w }.map { if (it.a == s) it.b else it.a } }.orEmpty()
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -355,12 +370,12 @@ fun ConceptMapTab(vm: HiloViewModel, book: Book, a: Analysis) {
                     }
                     .pointerInput(a) {
                         detectTapGestures { p ->
-                            val base = min(size.width, size.height) / 760f
+                            val (base, mid) = fit(size.width.toFloat(), size.height.toFloat())
                             val center = Offset(size.width / 2f, size.height / 2f)
                             var best: Int? = null
                             var bd = Float.MAX_VALUE
                             for (i in 0 until n) {
-                                val sp = center + pan + pos[i] * base * scale
+                                val sp = center + pan + (pos[i] - mid) * base * scale
                                 val d = (sp - p).getDistance()
                                 if (d < bd) { bd = d; best = i }
                             }
@@ -368,9 +383,9 @@ fun ConceptMapTab(vm: HiloViewModel, book: Book, a: Analysis) {
                         }
                     }
             ) {
-                val base = min(size.width, size.height) / 760f
+                val (base, mid) = fit(size.width, size.height)
                 val center = Offset(size.width / 2f, size.height / 2f)
-                fun sp(i: Int) = center + pan + pos[i] * base * scale
+                fun sp(i: Int) = center + pan + (pos[i] - mid) * base * scale
                 for (e in a.edges) {
                     val hi = sel != null && (e.a == sel || e.b == sel)
                     val alpha = if (sel == null) 0.15f + 0.45f * e.w / maxW else if (hi) 0.85f else 0.06f
@@ -381,7 +396,7 @@ fun ConceptMapTab(vm: HiloViewModel, book: Book, a: Analysis) {
                     val t = a.mapTerms[i]
                     val on = sel == i
                     val near = sel == null || on || i in neighbors
-                    val r = radius(i) * base * scale * 1.6f
+                    val r = (radius(i) * 0.9f * density * min(1.6f, max(0.7f, scale))).coerceAtMost(40f * density)
                     val col = if (t.phrase) c.accent else pal[i % pal.size]
                     drawCircle(col, r, sp(i), alpha = if (near) 1f else 0.2f)
                     if (on) drawCircle(c.ink, r + 4f, sp(i), alpha = 0.8f, style = androidx.compose.ui.graphics.drawscope.Stroke(3f))

@@ -309,6 +309,8 @@ fun ConceptMapTab(vm: HiloViewModel, book: Book, a: Analysis) {
     val maxC = a.mapTerms.maxOfOrNull { it.count }?.toFloat() ?: 1f
     val maxW = a.edges.maxOfOrNull { it.w }?.toFloat() ?: 1f
     fun radius(i: Int) = 10f + 20f * sqrt(a.mapTerms[i].count / maxC)
+    /** Radio del concepto en las unidades del mapa: así crece y se achica junto con él y nunca se encima. */
+    fun mapR(i: Int) = 1.4f * radius(i)
 
     // Simulación de fuerzas: los conceptos relacionados se atraen y el resto se separa
     LaunchedEffect(a, run) {
@@ -338,6 +340,22 @@ fun ConceptMapTab(vm: HiloViewModel, book: Book, a: Analysis) {
             }
             temp = max(2f, temp * 0.98f)
             withFrameNanos { }
+        }
+        // Separa los círculos que quedaron encimados (dejando lugar para el nombre)
+        repeat(120) {
+            var moved = false
+            for (i in 0 until n) for (j in i + 1 until n) {
+                val need = mapR(i) + mapR(j) + 22f
+                val d = pos[i] - pos[j]
+                val dist = d.getDistance()
+                if (dist < need) {
+                    val dir = if (dist < 0.5f) Offset(cos(i * 1.7f), sin(i * 1.7f)) else d / dist
+                    val push = dir * ((need - dist) / 2f)
+                    pos[i] += push; pos[j] -= push; moved = true
+                }
+            }
+            if (!moved) return@LaunchedEffect
+            if (it % 4 == 0) withFrameNanos { }
         }
     }
 
@@ -396,7 +414,7 @@ fun ConceptMapTab(vm: HiloViewModel, book: Book, a: Analysis) {
                     val t = a.mapTerms[i]
                     val on = sel == i
                     val near = sel == null || on || i in neighbors
-                    val r = (radius(i) * 0.9f * density * min(1.6f, max(0.7f, scale))).coerceAtMost(40f * density)
+                    val r = (mapR(i) * base * scale).coerceIn(5f * density, 40f * density)
                     val col = if (t.phrase) c.accent else pal[i % pal.size]
                     drawCircle(col, r, sp(i), alpha = if (near) 1f else 0.2f)
                     if (on) drawCircle(c.ink, r + 4f, sp(i), alpha = 0.8f, style = androidx.compose.ui.graphics.drawscope.Stroke(3f))

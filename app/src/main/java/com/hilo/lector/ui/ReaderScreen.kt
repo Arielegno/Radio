@@ -544,6 +544,88 @@ private fun ContentsRow(title: String, meta: String, onClick: () -> Unit) {
     }
 }
 
+@Composable
+private fun TopBars(
+    book: Book,
+    isPdf: Boolean,
+    flow: Boolean,
+    compact: Boolean,
+    annotating: Boolean,
+    vm: HiloViewModel,
+    onBack: () -> Unit,
+    onFlow: (Boolean) -> Unit,
+    onAnnotate: () -> Unit,
+    onRsvp: () -> Unit,
+) {
+    val c = LocalHilo.current
+    val s by vm.settings.state.collectAsStateWithLifecycle()
+    val t = vm.timer
+
+    val actions: @Composable () -> Unit = {
+        IconButton(onClick = { vm.sheet = "timer" }) {
+            if (t.running) {
+                Text(
+                    formatClock(t.remaining), fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    color = if (t.isBreak) c.lines[3] else c.accent,
+                )
+            } else Icon(Icons.Rounded.Timer, "Temporizador", tint = c.ink)
+        }
+        IconButton(onClick = { vm.sheet = "settings" }) { Icon(Icons.Rounded.TextFields, "Ajustes de lectura", tint = c.ink) }
+        if (isPdf && !flow) {
+            IconButton(onClick = onAnnotate) {
+                Icon(Icons.Rounded.Brush, "Anotar sobre el PDF", tint = if (annotating) c.accent else c.ink)
+            }
+        }
+        Box(
+            Modifier.padding(start = 4.dp, end = 4.dp).size(40.dp).clip(CircleShape).background(c.accent).clickable(onClick = onRsvp),
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Rounded.PlayArrow, "Leer palabra por palabra", tint = c.accentInk) }
+    }
+
+    val chips: @Composable () -> Unit = {
+        AidChip("Colores", s.colors) { vm.settings.update { it.copy(colors = !it.colors) } }
+        if (flow) AidChip("Negrita guía", s.bionic) { vm.settings.update { it.copy(bionic = !it.bionic) } }
+        AidChip("Regla", s.ruler) {
+            vm.settings.update { it.copy(ruler = !it.ruler) }
+            if (!s.ruler) vm.toast = "Toca una línea para enfocarla, o usa las flechas."
+        }
+        if (isPdf) ModeToggle(flow, onFlow)
+    }
+
+    Column(
+        Modifier.fillMaxWidth().background(c.bg).padding(horizontal = 6.dp).padding(top = 2.dp, bottom = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Biblioteca", tint = c.ink) }
+            Column(Modifier.weight(1f)) {
+                Text(book.title, color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!compact) {
+                    Text(
+                        if (flow) "Texto fluido · ${(book.progress * 100).toInt()}%" else "Página original · ${(book.progress * 100).toInt()}%",
+                        color = c.muted, fontSize = 12.sp, maxLines = 1,
+                    )
+                }
+            }
+            if (compact) {
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()).padding(end = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) { chips() }
+            }
+            actions()
+        }
+        if (!compact) {
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) { chips() }
+        }
+    }
+}
+
 /** Cambia entre la página original del PDF y el texto fluido. */
 @Composable
 private fun ModeToggle(flow: Boolean, onFlow: (Boolean) -> Unit) {

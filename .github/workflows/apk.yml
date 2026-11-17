@@ -25,6 +25,15 @@ jobs:
         with:
           name: Hilo-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Guardar el APK en la rama hilo-apk
+        run: |
+          mkdir -p /tmp/apk && cp app/build/outputs/apk/debug/app-debug.apk /tmp/apk/Hilo.apk
+          cd /tmp/apk
+          git init -q -b main
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A && git commit -q -m "Hilo.apk"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" main:hilo-apk
 
   probar:
     needs: apk

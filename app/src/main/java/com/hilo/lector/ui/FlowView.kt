@@ -64,6 +64,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
@@ -88,6 +89,7 @@ import androidx.compose.ui.unit.sp
 import com.hilo.lector.HiloViewModel
 import com.hilo.lector.data.Book
 import com.hilo.lector.data.ReaderSettings
+import com.hilo.lector.data.TextMark
 import com.hilo.lector.pdf.PdfEngine
 import com.hilo.lector.text.TextTools
 import kotlinx.coroutines.CancellationException
@@ -153,8 +155,11 @@ fun FlowParagraph(
     rulerOn: Boolean,
     onLayout: (TextLayoutResult) -> Unit,
     onTap: (line: Int?, xFrac: Float) -> Unit,
+    marks: List<IntRange> = emptyList(),
+    onLongPress: ((offset: Int) -> Unit)? = null,
 ) {
     val heading = text.startsWith("# ")
+    val longPress by rememberUpdatedState(onLongPress)
     val body = if (heading) text.substring(2) else text
     val annotated = remember(body, s.bionic, heading) { paraText(body, heading, s) }
     val palette = mode.palette(s.palette)
@@ -171,6 +176,16 @@ fun FlowParagraph(
             .padding(bottom = paraGap(heading, s))
             .drawBehind {
                 val l = layout
+                // Resaltados del estudio
+                if (l != null && marks.isNotEmpty()) {
+                    val hl = if (mode.dark) Color(0xFFFFD54F).copy(alpha = 0.28f) else Color(0xFFFFD54F).copy(alpha = 0.55f)
+                    val n = l.layoutInput.text.length
+                    for (r in marks) {
+                        val a = r.first.coerceIn(0, n)
+                        val b = (r.last + 1).coerceIn(a, n)
+                        if (b > a) drawPath(l.getPathForRange(a, b), hl)
+                    }
+                }
                 if (rulerOn && rulerLine != null && l != null && l.lineCount > 0) {
                     val rl = rulerLine.coerceIn(0, l.lineCount - 1)
                     val t = l.getLineTop(rl)
@@ -213,7 +228,12 @@ fun FlowParagraph(
                 }
             }
             .pointerInput(rulerOn) {
-                detectTapGestures { pos ->
+                detectTapGestures(
+                    onLongPress = { pos ->
+                        val l = layout
+                        if (l != null) longPress?.invoke(l.getOffsetForPosition(pos))
+                    },
+                ) { pos ->
                     val l = layout
                     tap(if (rulerOn && l != null) l.getLineForVerticalPosition(pos.y) else null, pos.x / size.width)
                 }
@@ -240,6 +260,7 @@ fun FlowView(
     bridge: ReaderBridge,
     onTapPlain: () -> Unit,
     onBackToPdf: (() -> Unit)?,
+    onStudy: (StudyRequest) -> Unit = {},
 ) {
     val c = LocalHilo.current
     var progress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
@@ -294,8 +315,28 @@ fun FlowView(
         return
     }
 
-    if (s.pageMode == 1) PagedFlow(vm, book, list, s, mode, bridge, onTapPlain)
-    else ScrollFlow(vm, book, list, s, mode, bridge, onTapPlain)
+    // Mantener el dedo sobre el texto: estudiar esa oración
+    val study: (Int, Int) -> Unit = { para, offset ->
+        val body = list[para].removePrefix("# ")
+        val (a, b) = sentenceAround(body, offset)
+        val sentence = body.substring(a, b).trim()
+        if (sentence.isNotEmpty()) {
+            onStudy(
+                StudyRequest(
+                    bookId = book.id, sentence = sentence, wordIndex = wordIndexAt(body.substring(a, b), offset - a),
+                    flow = true, pos = para, source = "párrafo ${para + 1}",
+                    onHighlight = {
+                        vm.study.addMark(
+                            TextMark(vm.study.newId(), book.id, para, a, b, sentence, 0xFFFFD54F.toInt(), System.currentTimeMillis())
+                        )
+                    },
+                )
+            )
+        }
+    }
+
+    if (s.pageMode == 1) PagedFlow(vm, book, list, s, mode, bridge, onTapPlain, study)
+    else ScrollFlow(vm, book, list, s, mode, bridge, onTapPlain, study)
 }
 
 @Composable
@@ -307,12 +348,16 @@ private fun ScrollFlow(
     mode: ReadMode,
     bridge: ReaderBridge,
     onTapPlain: () -> Unit,
+    study: (para: Int, offset: Int) -> Unit,
 ) {
     val c = LocalHilo.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState(book.flowPos.coerceIn(0, list.size - 1), book.flowOffset)
     val layouts = remember(book.id) { HashMap<Int, TextLayoutResult>() }
     var ruler by remember(book.id) { mutableStateOf<Pair<Int, Int>?>(null) }
+    val bookMarks = vm.study.marks.filter { it.bookId == book.id }
+    fun marksFor(para: Int, start: Int, end: Int): List<IntRange> = bookMarks.filter { it.para == para && it.end > start && it.start < end }
+        .map { (maxOf(it.start, start) - start) until (minOf(it.end, end) - start) }
 
     LaunchedEffect(list) {
         snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
@@ -408,6 +453,8 @@ private fun ScrollFlow(
                     rulerOn = s.ruler,
                     onLayout = { layouts[i] = it },
                     onTap = { line, fx -> if (s.ruler && line != null) ruler = i to line else tapAt(fx) },
+                    marks = marksFor(i, 0, p.removePrefix("# ").length),
+                    onLongPress = { off -> study(i, off) },
                 )
             }
             item {
@@ -487,9 +534,13 @@ private fun PagedFlow(
     mode: ReadMode,
     bridge: ReaderBridge,
     onTapPlain: () -> Unit,
+    study: (para: Int, offset: Int) -> Unit,
 ) {
     val c = LocalHilo.current
     val density = LocalDensity.current
+    val bookMarks = vm.study.marks.filter { it.bookId == book.id }
+    fun marksFor(para: Int, start: Int, end: Int): List<IntRange> = bookMarks.filter { it.para == para && it.end > start && it.start < end }
+        .map { (maxOf(it.start, start) - start) until (minOf(it.end, end) - start) }
     val scope = rememberCoroutineScope()
     val layouts = remember(book.id) { HashMap<Int, TextLayoutResult>() }
     var ruler by remember(book.id) { mutableStateOf<PagedRuler?>(null) }
@@ -627,6 +678,8 @@ private fun PagedFlow(
                             rulerOn = s.ruler,
                             onLayout = { layouts[pi * 1000 + k] = it },
                             onTap = { line, fx -> if (s.ruler && line != null) ruler = PagedRuler(pi, k, line) else tapAt(fx) },
+                            marks = marksFor(ch.para, ch.start, ch.end),
+                            onLongPress = { off -> study(ch.para, ch.start + off) },
                         )
                     }
                 }

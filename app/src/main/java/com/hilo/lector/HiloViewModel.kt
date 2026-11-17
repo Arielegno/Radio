@@ -18,6 +18,7 @@ import androidx.lifecycle.viewModelScope
 import com.hilo.lector.data.Book
 import com.hilo.lector.data.LibraryRepo
 import com.hilo.lector.data.SettingsStore
+import com.hilo.lector.data.StudyStore
 import com.hilo.lector.pdf.InkStroke
 import com.hilo.lector.pdf.PdfEngine
 import com.hilo.lector.pdf.PdfExport
@@ -37,6 +38,8 @@ sealed interface Screen {
     data object Library : Screen
     data class Reader(val id: String) : Screen
     data object Guide : Screen
+    /** Estudio: de un documento, o de todos si [bookId] es null. */
+    data class Study(val bookId: String?) : Screen
 }
 
 class HiloViewModel(app: Application) : AndroidViewModel(app) {
@@ -44,6 +47,43 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
     val repo = LibraryRepo(app)
     val settings = SettingsStore(app)
     val timer = FocusTimer(app, viewModelScope)
+    val study = StudyStore(app)
+
+    /** Documentos nuevos encontrados en el celular en la última revisión (para el aviso "Ver"). */
+    var newFound by mutableStateOf(0)
+    private var studyFrom: Screen = Screen.Library
+
+    fun openStudy(bookId: String?) {
+        studyFrom = screen
+        screen = Screen.Study(bookId)
+    }
+
+    fun closeStudy() {
+        screen = (studyFrom as? Screen.Reader)?.takeIf { r -> repo.get(r.id) != null } ?: Screen.Library
+    }
+
+    /** Abre el documento justo donde está el texto de una tarjeta o un resaltado. */
+    fun openAt(bookId: String, flow: Boolean, pos: Int) {
+        val b = repo.get(bookId) ?: return
+        if (pos >= 0) {
+            repo.update(bookId) {
+                if (flow || it.type != "pdf") it.copy(flowPos = pos, flowOffset = 0, flowMode = it.type == "pdf")
+                else it.copy(pos = pos, posOffset = 0, flowMode = false)
+            }
+        }
+        open(b)
+    }
+
+    /** Revisa el celular en busca de documentos nuevos. */
+    fun scanDevice(quiet: Boolean) {
+        if (!repo.hasDeviceAccess()) return
+        viewModelScope.launch {
+            if (!quiet) busy = "Buscando documentos en el celular…"
+            val n = runCatching { repo.scanDevice() }.getOrDefault(0)
+            busy = null
+            if (n > 0) newFound = n else if (!quiet) toast = "No hay documentos nuevos."
+        }
+    }
 
     var screen by mutableStateOf<Screen>(Screen.Library)
     /** Mensaje de trabajo en curso ("Abriendo…"); null si no hay nada. */
@@ -54,6 +94,7 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
 
     fun open(b: Book) {
         settings.lastBook = b.id
+        if (b.isNew) repo.update(b.id) { it.copy(isNew = false) }
         screen = Screen.Reader(b.id)
     }
 
@@ -66,6 +107,7 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
         if (settings.value.openLast) {
             settings.lastBook?.let { id -> repo.get(id)?.takeIf { !it.trashed }?.let { screen = Screen.Reader(it.id) } }
         }
+        scanDevice(quiet = true)
         if (repo.folders().isNotEmpty()) {
             viewModelScope.launch {
                 val n = runCatching { repo.scanFolders() }.getOrDefault(0)

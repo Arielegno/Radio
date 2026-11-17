@@ -15,6 +15,13 @@ import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import androidx.documentfile.provider.DocumentFile
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Environment
+import android.provider.MediaStore
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import androidx.core.content.FileProvider
 import com.hilo.lector.text.Formats
 import kotlinx.coroutines.Dispatchers
@@ -56,7 +63,12 @@ data class Book(
     val collections: List<String> = emptyList(),
     val srcKey: String = "",     // nombre|tamaño del archivo original, para no repetirlo
     val bookmarks: List<Bookmark> = emptyList(),
+    /** Encontrado al revisar el celular y todavía no abierto. */
+    val isNew: Boolean = false,
 ) {
+    /** Documento que se lee desde su lugar en el celular, sin copiarlo. */
+    val linked: Boolean get() = file.startsWith("/")
+
     fun toJson(): JSONObject {
         val bm = JSONArray()
         bookmarks.forEach { bm.put(JSONObject().put("flow", it.flow).put("pos", it.pos).put("label", it.label).put("time", it.time)) }
@@ -67,6 +79,7 @@ data class Book(
             .put("flowMode", flowMode).put("done", done).put("pages", pages)
             .put("favorite", favorite).put("toRead", toRead).put("trashed", trashed)
             .put("collections", JSONArray(collections)).put("srcKey", srcKey).put("bookmarks", bm)
+            .put("isNew", isNew)
     }
 
     companion object {
@@ -98,6 +111,7 @@ data class Book(
                     val b = bms.getJSONObject(it)
                     Bookmark(b.optBoolean("flow"), b.optInt("pos"), b.optString("label"), b.optLong("time"))
                 },
+                isNew = o.optBoolean("isNew", false),
             )
         }
     }
@@ -111,7 +125,7 @@ class LibraryRepo(private val ctx: Context) {
     val books: StateFlow<List<Book>> = _books
     private var counter = 0
 
-    fun fileOf(b: Book) = File(dir, b.file)
+    fun fileOf(b: Book) = if (b.linked) File(b.file) else File(dir, b.file)
     fun coverOf(b: Book) = File(coverDir, b.id + ".jpg")
     fun get(id: String) = _books.value.firstOrNull { it.id == id }
 
@@ -122,7 +136,8 @@ class LibraryRepo(private val ctx: Context) {
 
     fun remove(id: String) {
         val b = get(id) ?: return
-        fileOf(b).delete()
+        if (!b.linked) fileOf(b).delete()   // los documentos del celular no se borran, solo salen de Hilo
+        else ignoreSp.edit().putStringSet("keys", ignoreSp.getStringSet("keys", emptySet()).orEmpty() + b.srcKey).apply()
         coverOf(b).delete()
         File(ctx.filesDir, "annot/$id.json").delete()
         File(ctx.filesDir, "lines/$id").deleteRecursively()
@@ -219,6 +234,86 @@ class LibraryRepo(private val ctx: Context) {
             )
         }
         return add(book)
+    }
+
+    // ---------- documentos del celular (como ReadEra) ----------
+
+    /** Documentos del celular que quitaste de Hilo: no se vuelven a agregar solos. */
+    private val ignoreSp = ctx.getSharedPreferences("ignorados", Context.MODE_PRIVATE)
+
+    fun hasDeviceAccess(): Boolean =
+        if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager()
+        else ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+
+    private val scanLock = Mutex()
+
+    /**
+     * Busca PDF, EPUB, Word y otros documentos en todo el celular y los agrega sin copiarlos.
+     * Devuelve cuántos documentos nuevos encontró.
+     */
+    suspend fun scanDevice(): Int = scanLock.withLock {
+        withContext(Dispatchers.IO) {
+            if (!hasDeviceAccess()) return@withContext 0
+            val known = HashSet<String>()
+            _books.value.forEach { known.add(it.srcKey); known.add(it.file) }
+            known.addAll(ignoreSp.getStringSet("keys", emptySet()).orEmpty())
+            val exts = listOf("pdf", "epub", "docx", "odt", "fb2", "md", "markdown", "txt", "html", "htm")
+            val col = MediaStore.Files.FileColumns.DATA
+            val sel = exts.joinToString(" OR ") { "$col LIKE ?" }
+            val args = exts.map { "%.$it" }.toTypedArray()
+            val own = ctx.filesDir.parentFile?.path ?: ctx.filesDir.path
+            val found = ArrayList<Book>()
+            try {
+                ctx.contentResolver.query(
+                    MediaStore.Files.getContentUri("external"),
+                    arrayOf(col, MediaStore.Files.FileColumns.SIZE), sel, args, null,
+                )?.use { c ->
+                    while (c.moveToNext()) {
+                        val path = c.getString(0) ?: continue
+                        val size = c.getLong(1)
+                        if (path.contains("/Android/data/") || path.contains("/Android/obb/") || path.startsWith(own)) continue
+                        if (path.split('/').any { it.startsWith(".") }) continue
+                        val name = path.substringAfterLast('/')
+                        val kind = Formats.typeOfName(name) ?: continue
+                        if (kind == "img") continue
+                        if ((kind == "txt" || kind == "html") && size < 2048) continue
+                        val key = "dev|$path"
+                        if (key in known || path in known) continue
+                        val f = File(path)
+                        if (!f.canRead() || f.length() == 0L) continue
+                        known.add(key)
+                        found.add(
+                            Book(
+                                newId(), name.substringBeforeLast('.').replace('_', ' '), type = kind, file = path,
+                                added = now(), srcKey = key, isNew = true,
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                return@withContext 0
+            }
+            if (found.isEmpty()) return@withContext 0
+            _books.value = found + _books.value
+            save()
+            // Portadas, páginas, títulos y autores, de a poco
+            for (b in found) {
+                runCatching {
+                    val f = File(b.file)
+                    if (b.type == "pdf") {
+                        val pages = pdfInfo(f, coverFile(b.id))
+                        update(b.id) { it.copy(pages = pages) }
+                    } else {
+                        val m = Formats.meta(b.type, f)
+                        m?.cover?.let { runCatching { saveCover(it, coverFile(b.id)) } }
+                        if (m != null && (m.title.isNotBlank() || m.author.isNotBlank())) {
+                            update(b.id) { it.copy(title = m.title.ifBlank { it.title }, author = m.author.ifBlank { it.author }) }
+                        }
+                    }
+                }
+            }
+            found.size
+        }
     }
 
     // ---------- carpetas vigiladas ----------

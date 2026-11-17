@@ -2,6 +2,10 @@ package com.hilo.lector.ui
 
 import android.app.Activity
 import android.content.Context
+import androidx.compose.foundation.horizontalScroll
+import kotlinx.coroutines.delay
+import androidx.compose.material.icons.rounded.School
+import com.hilo.lector.FocusTimer
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.displayCutout
@@ -171,6 +175,7 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
     var contents by remember { mutableStateOf(false) }
     var goTo by remember { mutableStateOf(false) }
     var brightnessHint by remember { mutableStateOf<Int?>(null) }
+    var studyReq by remember { mutableStateOf<StudyRequest?>(null) }
     val bridge = remember { ReaderBridge() }
     val scope = rememberCoroutineScope()
     val compact = LocalConfiguration.current.screenHeightDp < 500
@@ -190,6 +195,7 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
                 items, s.ttsRate,
                 onItem = { pos -> scope.launch { bridge.follow?.invoke(pos) } },
                 onEnd = { speakFrom(lastPos) },
+                lang = vm.study.langs[book.id].orEmpty(),
             )
             if (!ok) vm.toast = "La voz del celular todavía no está lista. Prueba de nuevo en un momento."
         }
@@ -283,13 +289,15 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
                 Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout))
             ) {
                 when {
-                    !isPdf -> FlowView(vm, book, null, s, mode, bridge, toggleChrome, null)
+                    !isPdf -> FlowView(vm, book, null, s, mode, bridge, toggleChrome, null, onStudy = { studyReq = it })
                     engineState is EngineState.Ready && flow ->
-                        FlowView(vm, book, engineState.engine, s, mode, bridge, toggleChrome) {
-                            flow = false; vm.repo.update(book.id) { it.copy(flowMode = false) }
-                        }
+                        FlowView(
+                            vm, book, engineState.engine, s, mode, bridge, toggleChrome,
+                            onBackToPdf = { flow = false; vm.repo.update(book.id) { it.copy(flowMode = false) } },
+                            onStudy = { studyReq = it },
+                        )
                     engineState is EngineState.Ready && annots != null ->
-                        PdfView(vm, book, engineState.engine, annots, s, mode, tool, penColor, hlColor, bridge, toggleChrome)
+                        PdfView(vm, book, engineState.engine, annots, s, mode, tool, penColor, hlColor, bridge, toggleChrome, onStudy = { studyReq = it })
                     engineState is EngineState.Failed ->
                         Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("No pude abrir este PDF. Puede estar dañado o protegido con contraseña.", color = mode.ink)
@@ -376,6 +384,8 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
                     onContents = { contents = true },
                     onMark = { toggleMark() },
                     onSpeak = { if (speaker.speaking) speaker.stop() else speakFrom(null) },
+                    timer = vm.timer,
+                    onTimer = { vm.sheet = "timer" },
                     onGoTo = { goTo = true },
                     onSeek = { p -> scope.launch { bridge.seek?.invoke(p) } },
                 )
@@ -423,9 +433,22 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
         )
     }
 
+    studyReq?.let { r -> StudySheet(vm, r) { studyReq = null } }
+
     rsvp?.let { words ->
         RsvpOverlay(words, s, onSpeed = { v -> vm.settings.update { it.copy(wpm = v) } }, onClose = { rsvp = null })
     }
+}
+
+private val ARTICLE = Regex("^\\s*(art[íi]culo|art\\.)\\s*\\d+", RegexOption.IGNORE_CASE)
+
+private fun norm(t: String): String =
+    java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "").lowercase()
+
+private fun snippet(t: String, i: Int, len: Int): String {
+    val a = (i - 45).coerceAtLeast(0)
+    val b = (i + len + 70).coerceAtMost(t.length)
+    return (if (a > 0) "…" else "") + t.substring(a.coerceAtMost(t.length), b).trim() + (if (b < t.length) "…" else "")
 }
 
 private fun systemBrightness(ctx: Context): Float = try {
@@ -443,6 +466,8 @@ private fun PageBar(
     onContents: () -> Unit,
     onMark: () -> Unit,
     onSpeak: () -> Unit,
+    timer: FocusTimer,
+    onTimer: () -> Unit,
     onGoTo: () -> Unit,
     onSeek: (Int) -> Unit,
 ) {
@@ -461,6 +486,12 @@ private fun PageBar(
                 color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(onClick = onGoTo).padding(vertical = 6.dp),
             )
+            IconButton(onClick = onTimer) {
+                if (timer.running) Text(
+                    formatClock(timer.remaining), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    color = if (timer.isBreak) c.lines[3] else c.accent,
+                ) else Icon(Icons.Rounded.Timer, "Temporizador", tint = c.ink)
+            }
             IconButton(onClick = onSpeak) {
                 Icon(if (speaking) Icons.Rounded.Stop else Icons.Rounded.RecordVoiceOver, if (speaking) "Detener la voz" else "Escuchar", tint = if (speaking) c.accent else c.ink)
             }
@@ -502,10 +533,63 @@ private fun ContentsSheet(
                 .mapIndexedNotNull { i, p -> if (p.startsWith("# ")) p.substring(2).take(90) to i else null }
         }
     }
-    val tabs = listOfNotNull("Contenido", "Marcadores", if (isPdf) "Notas" else null)
+    val tabs = listOfNotNull("Contenido", "Buscar", "Artículos", "Marcadores", if (isPdf) "Notas" else null)
+    val pdfPages = isPdf && !flow && engine != null
+
+    // Buscar en el documento (sin importar tildes ni mayúsculas)
+    var query by remember { mutableStateOf("") }
+    var searchInfo by remember { mutableStateOf("") }
+    val results by produceState<List<Triple<String, Int, String>>>(emptyList(), query, flow) {
+        val q = norm(query.trim())
+        if (q.length < 2) { value = emptyList(); searchInfo = ""; return@produceState }
+        delay(350)
+        val out = ArrayList<Triple<String, Int, String>>()
+        if (pdfPages && engine != null) {
+            for (p in 0 until engine.pageCount) {
+                if (p % 10 == 0) { searchInfo = "Buscando… pág. ${p + 1} de ${engine.pageCount}"; value = out.toList() }
+                val t = engine.lines(p, false).joinToString(" ") { it.text }
+                val n = norm(t)
+                var i = n.indexOf(q)
+                var k = 0
+                while (i >= 0 && k < 3) { out.add(Triple(snippet(t, i, q.length), p, "pág. ${p + 1}")); i = n.indexOf(q, i + q.length); k++ }
+                if (out.size >= 200) break
+            }
+        } else {
+            vm.flowParas(book, engine) { _, _ -> }.forEachIndexed { i, para ->
+                val t = para.removePrefix("# ")
+                val j = norm(t).indexOf(q)
+                if (j >= 0 && out.size < 200) out.add(Triple(snippet(t, j, q.length), i, "párr. ${i + 1}"))
+            }
+        }
+        searchInfo = if (out.isEmpty()) "Sin resultados." else "${out.size}${if (out.size >= 200) "+" else ""} resultados"
+        value = out
+    }
+
+    // Artículos (leyes, códigos, reglamentos)
+    val showArticles = tabs.getOrNull(tab) == "Artículos"
+    val articles by produceState<List<Pair<String, Int>>?>(null, showArticles, flow) {
+        if (!showArticles) return@produceState
+        val out = ArrayList<Pair<String, Int>>()
+        if (pdfPages && engine != null) {
+            for (p in 0 until engine.pageCount) {
+                engine.lines(p, false).forEach { ln -> if (ARTICLE.containsMatchIn(ln.text)) out.add(ln.text.take(90) to p) }
+                if (out.size > 2000) break
+            }
+        } else {
+            vm.flowParas(book, engine) { _, _ -> }.forEachIndexed { i, para ->
+                val t = para.removePrefix("# ")
+                if (ARTICLE.containsMatchIn(t)) out.add(t.take(90) to i)
+            }
+        }
+        value = out
+    }
+
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surface) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp).horizontalScroll(rememberScrollState()),
+            ) {
                 tabs.forEachIndexed { i, t ->
                     val on = i == tab
                     Text(
@@ -516,8 +600,32 @@ private fun ContentsSheet(
                 }
             }
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 460.dp)) {
-                when (tab) {
-                    0 -> {
+                when (tabs.getOrNull(tab)) {
+                    "Buscar" -> {
+                        item {
+                            OutlinedTextField(
+                                query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("Palabra, concepto o artículo…") },
+                            )
+                            if (searchInfo.isNotEmpty()) Text(searchInfo, color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(6.dp))
+                        }
+                        items(results.size) { i ->
+                            val (snip, pos, meta) = results[i]
+                            ContentsRow(snip, meta) { onGo(flow || !isPdf, pos) }
+                        }
+                    }
+                    "Artículos" -> {
+                        val list = articles
+                        if (list == null) item { Text("Buscando artículos…", color = c.muted, modifier = Modifier.padding(12.dp)) }
+                        else if (list.isEmpty()) item {
+                            Text("No encontré artículos (Artículo 1, Art. 2…). Sirve para leyes, códigos y reglamentos.", color = c.muted, modifier = Modifier.padding(12.dp))
+                        }
+                        else items(list.size) { i ->
+                            val (t, pos) = list[i]
+                            ContentsRow(t, if (pdfPages) "pág. ${pos + 1}" else "") { onGo(flow || !isPdf, pos) }
+                        }
+                    }
+                    "Contenido" -> {
                         val list = toc
                         if (list == null) item { Text("Buscando el índice…", color = c.muted, modifier = Modifier.padding(12.dp)) }
                         else if (list.isEmpty()) item {
@@ -532,7 +640,7 @@ private fun ContentsSheet(
                             ContentsRow(t, if (isPdf && !flow) "pág. ${pos + 1}" else "") { onGo(flow, pos) }
                         }
                     }
-                    1 -> {
+                    "Marcadores" -> {
                         if (book.bookmarks.isEmpty()) item {
                             Text("Todavía no hay marcadores. Toca el marcador abajo o la esquina superior derecha de la página.", color = c.muted, modifier = Modifier.padding(12.dp))
                         }
@@ -585,13 +693,12 @@ private fun TopBars(
     val t = vm.timer
 
     val actions: @Composable () -> Unit = {
-        IconButton(onClick = { vm.sheet = "timer" }) {
-            if (t.running) {
-                Text(
-                    formatClock(t.remaining), fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                    color = if (t.isBreak) c.lines[3] else c.accent,
-                )
-            } else Icon(Icons.Rounded.Timer, "Temporizador", tint = c.ink)
+        IconButton(onClick = { vm.openStudy(book.id) }) {
+            val due = vm.study.due(book.id).size
+            Box {
+                Icon(Icons.Rounded.School, "Estudiar este documento", tint = c.ink)
+                if (due > 0) Box(Modifier.align(Alignment.TopEnd).size(8.dp).clip(CircleShape).background(c.lines[0]))
+            }
         }
         IconButton(onClick = { vm.sheet = "settings" }) { Icon(Icons.Rounded.TextFields, "Ajustes de lectura", tint = c.ink) }
         if (isPdf && !flow) {

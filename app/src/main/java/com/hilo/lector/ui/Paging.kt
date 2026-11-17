@@ -103,8 +103,9 @@ class Speaker(ctx: Context) : TextToSpeech.OnInitListener {
     val available get() = ready
 
     /** Lee los bloques en orden. [onItem] avisa qué bloque empieza; [onEnd] cuando termina todo. */
-    fun speak(items: List<Pair<Int, String>>, rate: Float, onItem: (Int) -> Unit, onEnd: () -> Unit): Boolean {
+    fun speak(items: List<Pair<Int, String>>, rate: Float, onItem: (Int) -> Unit, onEnd: () -> Unit, lang: String = ""): Boolean {
         if (!ready) return false
+        setLang(lang)
         this.onItem = onItem
         this.onEnd = onEnd
         tts.setSpeechRate(rate)
@@ -119,6 +120,21 @@ class Speaker(ctx: Context) : TextToSpeech.OnInitListener {
         }
         speaking = !first
         return !first
+    }
+
+    private fun setLang(lang: String) {
+        runCatching {
+            val r = tts.setLanguage(if (lang.isBlank()) Locale("es") else Locale.forLanguageTag(lang))
+            if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) tts.language = Locale.getDefault()
+        }
+    }
+
+    /** Dice una palabra o frase (tarjetas de idiomas). */
+    fun say(text: String, lang: String) {
+        if (!ready) return
+        setLang(lang)
+        tts.setSpeechRate(0.9f)
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "say")
     }
 
     fun stop() {

@@ -111,6 +111,8 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+private const val HL_YELLOW = 0xFFFFD54F.toInt()
+
 private class PinchAnchor(val zoom0: Float, val fx: Float, val cx: Float, val idx: Int, val off: Int, val cy: Float)
 
 /** Pellizco con dos dedos. Se detecta antes que el desplazamiento para que no se mezclen. */
@@ -147,10 +149,46 @@ fun PdfView(
     hlColor: Color,
     bridge: ReaderBridge,
     onTapPlain: () -> Unit,
+    onStudy: (StudyRequest) -> Unit = {},
 ) {
     val c = LocalHilo.current
     val ctx = LocalContext.current
     val density = LocalDensity.current
+
+    /** Mantener el dedo sobre una línea: estudiar la oración que la contiene. */
+    fun studyLine(p: Int, li: Int, x: Float) {
+        val ls = engine.peekLines(p) ?: return
+        val ln = ls.getOrNull(li) ?: return
+        val from = (li - 3).coerceAtLeast(0)
+        val to = (li + 3).coerceAtMost(ls.size - 1)
+        val sb = StringBuilder()
+        var at = 0
+        for (k in from..to) {
+            val t = ls[k].text
+            if (sb.isNotEmpty()) {
+                if (sb.endsWith("-") && t.firstOrNull()?.isLowerCase() == true) sb.setLength(sb.length - 1) else sb.append(' ')
+            }
+            if (k == li) at = sb.length + ((x - ln.l) / (ln.r - ln.l).coerceAtLeast(0.001f) * t.length).toInt().coerceIn(0, t.length)
+            sb.append(t)
+        }
+        val text = sb.toString()
+        val (a, b) = sentenceAround(text, at)
+        val sentence = text.substring(a, b).trim()
+        if (sentence.isEmpty()) return
+        onStudy(
+            StudyRequest(
+                bookId = book.id, sentence = sentence, wordIndex = wordIndexAt(text.substring(a, b), at - a),
+                flow = false, pos = p, source = "pág. ${p + 1}",
+                onHighlight = {
+                    val cy = (ln.t + ln.b) / 2
+                    val asp = engine.aspects.getOrElse(p) { 1.41f }
+                    annots.addStroke(
+                        InkStroke(annots.newId(), p, true, HL_YELLOW, (ln.b - ln.t) * asp * 1.05f, floatArrayOf(ln.l, cy, ln.r, cy), ln.text)
+                    )
+                },
+            )
+        )
+    }
     val scope = rememberCoroutineScope()
     val count = engine.pageCount
     val paged = s.pageMode == 1
@@ -348,6 +386,7 @@ fun PdfView(
                 },
                 onNoteAdd = { x, y -> newNote = Triple(p, x, y) },
                 onNoteOpen = { editNote = it },
+                onLongLine = { li, x -> studyLine(p, li, x) },
             )
         }
 
@@ -498,7 +537,7 @@ private fun nearestLine(lines: List<LineBox>, x: Float, y: Float): Int? =
  * Resaltador inteligente: si arrastras sobre texto, el resaltado se ajusta a las líneas
  * (como seleccionar texto). Si no hay texto debajo, queda a mano alzada.
  */
-private fun snapHighlight(pts: List<Offset>, lines: List<LineBox>, aspect: Float): List<Pair<FloatArray, Float>>? {
+private fun snapHighlight(pts: List<Offset>, lines: List<LineBox>, aspect: Float): List<Triple<FloatArray, Float, String>>? {
     if (lines.isEmpty() || pts.isEmpty()) return null
     val a = pts.first()
     val b = pts.last()
@@ -525,7 +564,13 @@ private fun snapHighlight(pts: List<Offset>, lines: List<LineBox>, aspect: Float
         }
         if (x1 - x0 < 0.008f) return@mapIndexedNotNull null
         val cy = (ln.t + ln.b) / 2
-        floatArrayOf(x0, cy, x1, cy) to (ln.b - ln.t) * aspect * 1.05f
+        // Parte aproximada del texto de la línea que quedó resaltada
+        val w = (ln.r - ln.l).coerceAtLeast(0.0001f)
+        val a0 = (((x0 - ln.l) / w) * ln.text.length).roundToInt().coerceIn(0, ln.text.length)
+        val a1 = (((x1 - ln.l) / w) * ln.text.length).roundToInt().coerceIn(a0, ln.text.length)
+        var t0 = a0; while (t0 > 0 && ln.text[t0 - 1] != ' ') t0--
+        var t1 = a1; while (t1 < ln.text.length && ln.text[t1] != ' ') t1++
+        Triple(floatArrayOf(x0, cy, x1, cy), (ln.b - ln.t) * aspect * 1.05f, ln.text.substring(t0, t1).trim())
     }.ifEmpty { null }
 }
 
@@ -568,7 +613,9 @@ private fun PdfPage(
     onTapPlain: (Float) -> Unit,
     onNoteAdd: (Float, Float) -> Unit,
     onNoteOpen: (PdfNote) -> Unit,
+    onLongLine: (line: Int, x: Float) -> Unit = { _, _ -> },
 ) {
+    val longLine by rememberUpdatedState(onLongLine)
     val c = LocalHilo.current
     val aspect = engine.aspects.getOrElse(page) { 1.41f }.takeIf { it > 0.05f } ?: 1.41f
 
@@ -616,7 +663,7 @@ private fun PdfPage(
         if (tool == Tool.HIGHLIGHT) {
             val snapped = snapHighlight(pts, currentLines, aspect)
             if (snapped != null) {
-                snapped.forEach { (p, w) -> annots.addStroke(InkStroke(annots.newId(), page, true, hlColor.toArgb(), w, p)) }
+                snapped.forEach { (p, w, t) -> annots.addStroke(InkStroke(annots.newId(), page, true, hlColor.toArgb(), w, p, t)) }
                 return
             }
         }
@@ -630,7 +677,12 @@ private fun PdfPage(
 
     val gestures = when (tool) {
         Tool.NONE -> Modifier.pointerInput(rulerOn) {
-            detectTapGestures { pos ->
+            detectTapGestures(
+                onLongPress = { pos ->
+                    val x = pos.x / size.width
+                    nearestLine(currentLines, x, pos.y / size.height)?.let { longLine(it, x) }
+                },
+            ) { pos ->
                 if (rulerOn) {
                     nearestLine(currentLines, pos.x / size.width, pos.y / size.height)?.let { rulerTap(it) }
                 } else tapPlain(pos.x / size.width)

@@ -30,6 +30,8 @@ class InkStroke(
     val color: Int,
     val width: Float,
     val pts: FloatArray,
+    /** Texto resaltado (cuando el resaltado se ajustó a una línea). */
+    val text: String = "",
 )
 
 data class PdfNote(val id: Long, val page: Int, val x: Float, val y: Float, val text: String)
@@ -99,6 +101,7 @@ class AnnotStore(ctx: Context, bookId: String) {
                     InkStroke(
                         s.getLong("id"), s.getInt("page"), s.optBoolean("hl"), s.getInt("color"),
                         s.getDouble("w").toFloat(), FloatArray(p.length()) { p.getDouble(it).toFloat() },
+                        s.optString("t", ""),
                     )
                 )
             }
@@ -115,7 +118,7 @@ class AnnotStore(ctx: Context, bookId: String) {
         for (s in strokes) {
             val p = JSONArray()
             s.pts.forEach { p.put(it.toDouble()) }
-            sa.put(JSONObject().put("id", s.id).put("page", s.page).put("hl", s.highlight).put("color", s.color).put("w", s.width.toDouble()).put("p", p))
+            sa.put(JSONObject().put("id", s.id).put("page", s.page).put("hl", s.highlight).put("color", s.color).put("w", s.width.toDouble()).put("p", p).put("t", s.text))
         }
         val na = JSONArray()
         for (n in notes) na.put(JSONObject().put("id", n.id).put("page", n.page).put("x", n.x.toDouble()).put("y", n.y.toDouble()).put("text", n.text))

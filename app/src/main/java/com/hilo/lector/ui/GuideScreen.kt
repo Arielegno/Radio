@@ -38,6 +38,16 @@ private val SECTIONS = listOf(
         "Texto: el libro como párrafos de corrido, con interlineado compacto. Sirve para EPUB, textos pegados y PDF cuando el formato estorba.",
         "Cambia entre las dos con el botón Página / Texto arriba.",
     ),
+    "Estudiar con tus documentos" to listOf(
+        "Mientras lees, mantén el dedo sobre una palabra o frase. Se abre una hoja con esa oración: toca las palabras clave.",
+        "Completar: crea una tarjeta que oculta esas palabras. Ideal para definiciones, autores, fechas y artículos de una ley.",
+        "Vocabulario: para idiomas. Escribe el significado; la tarjeta guarda la oración donde la viste y la puede leer en voz alta.",
+        "Pregunta: escribe tu propia pregunta, por ejemplo «¿Qué es la socialización primaria?».",
+        "Resaltar: marca la oración. Tus resaltados quedan en la sala de estudio del documento y puedes compartirlos como resumen.",
+        "El botón del birrete (arriba) abre la sala de estudio: tarjetas, resaltados y apuntes de ese documento.",
+        "Repasa cada día con rondas cortas de 15 (o solo 5). Si respondes bien, la tarjeta tarda más en volver; si fallas, vuelve pronto.",
+        "En Contenido → Buscar encuentras cualquier palabra; en Artículos, los artículos de leyes y códigos.",
+    ),
     "Pasar páginas como en un libro" to listOf(
         "En Ajustes (Aa) → Pasar páginas, elige Horizontal. La página se desliza sobre la siguiente, en PDF y también en EPUB, Word y los demás formatos.",
         "Toca el borde derecho para avanzar, el izquierdo para volver y el centro para mostrar u ocultar los menús.",
@@ -74,6 +84,7 @@ private val SECTIONS = listOf(
         "Pellizca con dos dedos para hacer zoom. Toca el número de página para saltar a otra.",
     ),
     "Agregar libros" to listOf(
+        "Como ReadEra: toca Permitir en la biblioteca y Hilo encuentra solo los PDF, EPUB y Word de tu celular, sin copiarlos. Avisa cuando hay documentos nuevos.",
         "Agregar → Archivos: PDF, EPUB, Word (DOCX), ODT, FB2, HTML, Markdown o TXT.",
         "Agregar → Buscar en una carpeta: elige, por ejemplo, Descargas. Hilo agrega lo que encuentre y revisa esa carpeta cada vez que abres la app.",
         "En el menú ☰ de la biblioteca: Leyendo ahora, Favoritos, Por leer, Leídos, Autores, Colecciones, Formatos y Papelera.",

@@ -146,8 +146,11 @@ class PdfEngine(private val ctx: Context, private val file: File, bookId: String
             if (o.isNotEmpty()) res = o
             settled = true
         }
-        lineCache[page] = res
-        if (settled) runCatching { f.writeText(encode(res)) }
+        // Una página escaneada que todavía no se reconoció no se guarda: así se reconoce cuando haga falta
+        if (settled) {
+            lineCache[page] = res
+            runCatching { f.writeText(encode(res)) }
+        }
         return res
     }
 

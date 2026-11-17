@@ -40,6 +40,7 @@ import com.hilo.lector.ui.LocalHilo
 import com.hilo.lector.ui.PasteDialog
 import com.hilo.lector.ui.ReaderScreen
 import com.hilo.lector.ui.SettingsSheet
+import com.hilo.lector.ui.StudyScreen
 import com.hilo.lector.ui.TimerSheet
 
 class MainActivity : ComponentActivity() {
@@ -95,6 +96,7 @@ fun HiloRoot(vm: HiloViewModel) {
             Screen.Library -> LibraryScreen(vm)
             is Screen.Reader -> ReaderScreen(vm, sc.id)
             Screen.Guide -> GuideScreen(vm)
+            is Screen.Study -> StudyScreen(vm, sc.bookId)
         }
 
         vm.busy?.let { msg ->

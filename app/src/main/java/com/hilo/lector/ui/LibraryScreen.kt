@@ -1,6 +1,13 @@
 package com.hilo.lector.ui
 
 import android.content.Intent
+import android.Manifest
+import android.os.Build
+import android.provider.Settings
+import androidx.compose.material.icons.rounded.FiberNew
+import androidx.compose.material.icons.rounded.School
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -111,6 +118,7 @@ private data class Section(val kind: String, val value: String = "") {
         "collection" -> value
         "format" -> Formats.label(value)
         "trash" -> "Papelera"
+        "new" -> "Nuevos"
         else -> "Libros y documentos"
     }
 }
@@ -121,6 +129,7 @@ private fun Book.inSection(sec: Section): Boolean = when (sec.kind) {
     "trash" -> trashed
     else -> !trashed && when (sec.kind) {
         "reading" -> reading()
+        "new" -> isNew
         "fav" -> favorite
         "toread" -> toRead
         "read" -> done
@@ -168,6 +177,30 @@ fun LibraryScreen(vm: HiloViewModel) {
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { vm.onStart() }
+
+    // Acceso a los documentos del celular (como ReadEra)
+    var access by remember { mutableStateOf(vm.repo.hasDeviceAccess()) }
+    var hideAccess by rememberSaveable { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        val now = vm.repo.hasDeviceAccess()
+        if (now && !access) vm.scanDevice(quiet = false)
+        access = now
+    }
+    val askLegacy = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        access = ok
+        if (ok) vm.scanDevice(quiet = false)
+    }
+    fun askAccess() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            val i = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:" + ctx.packageName))
+            runCatching { ctx.startActivity(i) }.onFailure {
+                runCatching { ctx.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)) }
+            }
+        } else {
+            askLegacy.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+    }
+    val dueToday = vm.study.due().size
     BackHandler(enabled = drawer.isOpen || section.kind != "all" || searching) {
         when {
             drawer.isOpen -> scope.launch { drawer.close() }
@@ -206,6 +239,12 @@ fun LibraryScreen(vm: HiloViewModel) {
                 books = books, section = section,
                 onSection = { section = it; scope.launch { drawer.close() } },
                 onFolders = { foldersOpen = true; scope.launch { drawer.close() } },
+                onStudy = { scope.launch { drawer.close() }; vm.openStudy(null) },
+                onScan = {
+                    scope.launch { drawer.close() }
+                    if (vm.repo.hasDeviceAccess()) vm.scanDevice(quiet = false) else askAccess()
+                },
+                due = dueToday,
                 onTimer = { vm.sheet = "timer"; scope.launch { drawer.close() } },
                 onSettings = { vm.sheet = "settings"; scope.launch { drawer.close() } },
                 onGuide = { vm.screen = Screen.Guide },
@@ -250,7 +289,38 @@ fun LibraryScreen(vm: HiloViewModel) {
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
+                        if (!access && !hideAccess && section.kind == "all") {
+                            Column(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text("Encuentra tus documentos solo", style = MaterialTheme.typography.titleLarge.copy(fontSize = 17.sp), color = c.ink)
+                                Text(
+                                    "Como ReadEra, Hilo puede buscar los PDF, EPUB y Word que ya tienes en el celular y mostrarlos aquí sin copiarlos. Android te pedirá permitir el acceso a los archivos.",
+                                    color = c.muted, fontSize = 14.sp,
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    TextButton(onClick = { askAccess() }) { Text("Permitir", fontWeight = FontWeight.Bold) }
+                                    TextButton(onClick = { hideAccess = true }) { Text("Ahora no", color = c.muted) }
+                                }
+                            }
+                        }
                         if (current != null) ContinueCard(vm, current)
+                        if (dueToday > 0 && section.kind == "all" && q.isEmpty()) {
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.band)
+                                    .clickable { vm.openStudy(null) }.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Rounded.School, null, tint = c.accent)
+                                Text(
+                                    "Para repasar hoy: $dueToday ${if (dueToday == 1) "tarjeta" else "tarjetas"}",
+                                    color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f).padding(start = 12.dp),
+                                )
+                                Text("Repasar", color = c.accent, fontWeight = FontWeight.Bold)
+                            }
+                        }
                         if (section.kind == "trash" && list.isNotEmpty()) {
                             TextButton(onClick = { confirmEmpty = true }) { Text("Vaciar papelera", color = c.lines[0]) }
                         }
@@ -285,6 +355,16 @@ fun LibraryScreen(vm: HiloViewModel) {
                 }
             }
 
+            if (vm.newFound > 0) {
+                Row(
+                    Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 170.dp, bottom = 24.dp)
+                        .clip(RoundedCornerShape(12.dp)).background(c.ink).padding(start = 16.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Documentos nuevos: ${vm.newFound}", color = c.surface, fontSize = 14.sp, modifier = Modifier.weight(1f, fill = false))
+                    TextButton(onClick = { section = Section("new"); vm.newFound = 0 }) { Text("VER", color = Color(0xFFFFC94D), fontWeight = FontWeight.Bold) }
+                }
+            }
             Box(Modifier.align(Alignment.BottomEnd).padding(20.dp)) {
                 ExtendedFloatingActionButton(
                     onClick = { addMenu = true },
@@ -310,6 +390,11 @@ fun LibraryScreen(vm: HiloViewModel) {
                         text = { Text("Pegar texto") },
                         leadingIcon = { Icon(Icons.Rounded.ContentPaste, null) },
                         onClick = { addMenu = false; vm.pasteDraft = "" },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Buscar en todo el celular") },
+                        leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                        onClick = { addMenu = false; if (vm.repo.hasDeviceAccess()) vm.scanDevice(quiet = false) else askAccess() },
                     )
                     DropdownMenuItem(
                         text = { Text("Buscar en una carpeta") },
@@ -338,6 +423,7 @@ fun LibraryScreen(vm: HiloViewModel) {
                             MenuLine("Borrar para siempre", danger = true) { menuFor = null; deleteFor = b }
                         } else {
                             MenuLine("Abrir") { menuFor = null; vm.open(b) }
+                            MenuLine("Estudiar: tarjetas y resaltados") { menuFor = null; vm.openStudy(b.id) }
                             MenuLine(if (b.favorite) "Quitar de favoritos" else "Agregar a favoritos") {
                                 menuFor = null; vm.repo.update(b.id) { it.copy(favorite = !it.favorite) }
                             }
@@ -436,9 +522,14 @@ fun LibraryScreen(vm: HiloViewModel) {
             onDismissRequest = { deleteFor = null },
             containerColor = c.surface,
             title = { Text("¿Borrar «${b.title}» para siempre?") },
-            text = { Text("Se borran el archivo, tu avance, tus marcadores y tus anotaciones de este celular. El archivo original que agregaste no se toca.") },
+            text = {
+                Text(
+                    if (b.linked) "Sale de Hilo con su avance, marcadores, tarjetas y anotaciones. El archivo sigue en tu celular."
+                    else "Se borran la copia, tu avance, tus marcadores, tarjetas y anotaciones. El archivo original que agregaste no se toca."
+                )
+            },
             confirmButton = {
-                TextButton(onClick = { vm.repo.remove(b.id); deleteFor = null; vm.toast = "Libro borrado." }) {
+                TextButton(onClick = { vm.study.removeBook(b.id); vm.repo.remove(b.id); deleteFor = null; vm.toast = "Libro borrado." }) {
                     Text("Borrar", color = c.lines[0])
                 }
             },
@@ -453,7 +544,10 @@ fun LibraryScreen(vm: HiloViewModel) {
             title = { Text("¿Vaciar la papelera?") },
             text = { Text("Se borran para siempre los libros de la papelera, con su avance y anotaciones.") },
             confirmButton = {
-                TextButton(onClick = { vm.repo.emptyTrash(); confirmEmpty = false; vm.toast = "Papelera vacía." }) {
+                TextButton(onClick = {
+                    books.filter { it.trashed }.forEach { vm.study.removeBook(it.id) }
+                    vm.repo.emptyTrash(); confirmEmpty = false; vm.toast = "Papelera vacía."
+                }) {
                     Text("Vaciar", color = c.lines[0])
                 }
             },
@@ -497,6 +591,9 @@ private fun LibraryDrawer(
     section: Section,
     onSection: (Section) -> Unit,
     onFolders: () -> Unit,
+    onStudy: () -> Unit,
+    onScan: () -> Unit,
+    due: Int,
     onTimer: () -> Unit,
     onSettings: () -> Unit,
     onGuide: () -> Unit,
@@ -531,6 +628,9 @@ private fun LibraryDrawer(
                     Text("$count", color = c.muted, fontSize = 13.sp)
                 }
             }
+            line(Icons.Rounded.School, "Estudio", due, false, onStudy)
+            val newCount = live.count { it.isNew }
+            if (newCount > 0) line(Icons.Rounded.FiberNew, "Nuevos", newCount, section.kind == "new") { onSection(Section("new")) }
             line(Icons.Rounded.AutoStories, "Leyendo ahora", live.count { it.reading() }, section.kind == "reading") { onSection(Section("reading")) }
             line(Icons.Rounded.LibraryBooks, "Libros y documentos", live.size, section.kind == "all") { onSection(Section("all")) }
             line(Icons.Rounded.Star, "Favoritos", live.count { it.favorite }, section.kind == "fav") { onSection(Section("fav")) }
@@ -559,6 +659,7 @@ private fun LibraryDrawer(
                 sub(Formats.label(t), l.size, section.kind == "format" && section.value == t) { onSection(Section("format", t)) }
             }
             line(Icons.Rounded.Folder, "Carpetas", null, false, onFolders)
+            line(Icons.Rounded.Search, "Buscar en el celular", null, false, onScan)
             line(Icons.Rounded.Delete, "Papelera", books.count { it.trashed }, section.kind == "trash") { onSection(Section("trash")) }
 
             HorizontalDivider(Modifier.padding(vertical = 10.dp), color = c.line)
@@ -640,6 +741,12 @@ private fun BookCard(vm: HiloViewModel, b: Book, onOpen: () -> Unit, onMenu: () 
             Text(
                 "Terminado", color = c.accentInk, fontSize = 10.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.align(Alignment.TopStart).padding(7.dp).clip(RoundedCornerShape(50)).background(c.accent).padding(horizontal = 7.dp, vertical = 3.dp),
+            )
+        }
+        if (b.isNew && !b.done) {
+            Text(
+                "Nuevo", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.TopStart).padding(7.dp).clip(RoundedCornerShape(50)).background(c.lines[3]).padding(horizontal = 7.dp, vertical = 3.dp),
             )
         }
         if (b.favorite) {

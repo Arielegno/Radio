@@ -6,6 +6,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.Translate
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -154,6 +158,54 @@ fun wordIndexAt(s: String, rel: Int): Int {
 }
 
 private fun core(w: String) = w.trim { !it.isLetterOrDigit() }
+
+/**
+ * Busca una palabra o concepto fuera de Hilo: diccionario, Wikipedia o traductor.
+ * Usa el idioma del documento (español si no elegiste otro).
+ */
+fun lookup(ctx: Context, term: String, where: String, lang: String) {
+    val q = term.trim().trim { !it.isLetterOrDigit() && it != ' ' }
+    if (q.isEmpty()) return
+    val l = lang.ifBlank { "es" }
+    val enc = Uri.encode(q)
+    val url = when (where) {
+        "dic" -> when (l) {
+            "es" -> "https://dle.rae.es/$enc"
+            "en" -> "https://dictionary.cambridge.org/dictionary/english/$enc"
+            else -> "https://$l.wiktionary.org/wiki/${Uri.encode(q.lowercase())}"
+        }
+        "wiki" -> "https://$l.wikipedia.org/w/index.php?search=$enc"
+        else -> "https://translate.google.com/?sl=${if (l == "es") "auto" else l}&tl=${if (l == "es") "en" else "es"}&text=$enc&op=translate"
+    }
+    runCatching {
+        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+}
+
+/** Botones para buscar un término en el diccionario, Wikipedia o el traductor. */
+@Composable
+fun LookupRow(term: String, lang: String) {
+    val c = LocalHilo.current
+    val ctx = LocalContext.current
+    if (term.isBlank()) return
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Buscar «${term.take(40)}»", color = c.muted, fontSize = 12.sp)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { lookup(ctx, term, "dic", lang) }) {
+                Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = c.accent, modifier = Modifier.size(18.dp))
+                Text("  Diccionario", color = c.ink)
+            }
+            OutlinedButton(onClick = { lookup(ctx, term, "wiki", lang) }) {
+                Icon(Icons.Rounded.Public, null, tint = c.accent, modifier = Modifier.size(18.dp))
+                Text("  Wikipedia", color = c.ink)
+            }
+            OutlinedButton(onClick = { lookup(ctx, term, "tr", lang) }) {
+                Icon(Icons.Rounded.Translate, null, tint = c.accent, modifier = Modifier.size(18.dp))
+                Text("  Traducir", color = c.ink)
+            }
+        }
+    }
+}
 
 private fun shareText(ctx: Context, title: String, text: String) {
     runCatching {
@@ -826,6 +878,8 @@ fun StudySheet(vm: HiloViewModel, req: StudyRequest, onDismiss: () -> Unit) {
                     )
                 }
             }
+
+            LookupRow(term = answer.ifBlank { words.getOrNull(req.wordIndex)?.let { core(it) }.orEmpty() }, lang = lang)
 
             when (mode) {
                 "vocab" -> {

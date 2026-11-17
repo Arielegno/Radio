@@ -234,6 +234,7 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
                         onCard(StudyCard(0, book.id, "qa", "¿Qué es «${term.label}»?", s?.text.orEmpty(), source = s?.let { "párrafo ${it.para + 1}" }.orEmpty(), sourcePos = s?.para ?: -1, sourceFlow = true, due = today()))
                     }) { Text("Tarjeta", color = c.ink) }
                 }
+                LookupRow(term.label, vm.study.langs[book.id].orEmpty())
                 if (showWhere) {
                     a.sentencesWith(term.key, 8).forEach { s ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -416,6 +417,7 @@ fun ConceptMapTab(vm: HiloViewModel, book: Book, a: Analysis) {
                         }
                     }
                 }
+                LookupRow(t.label, vm.study.langs[book.id].orEmpty())
                 val other = neighbors.firstOrNull()
                 val sents = (if (other != null) a.sentences.filter { t.key in it.keys && a.mapTerms[other].key in it.keys } else emptyList())
                     .ifEmpty { a.sentencesWith(t.key) }.take(3)
@@ -473,7 +475,12 @@ fun GlossaryTab(vm: HiloViewModel, book: Book, a: Analysis) {
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text(g.term, color = c.accent, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(g.term, color = c.accent, fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f))
+                    val ctx = androidx.compose.ui.platform.LocalContext.current
+                    TextButton(onClick = { lookup(ctx, g.term, "dic", vm.study.langs[book.id].orEmpty()) }) { Text("Diccionario", fontSize = 12.sp) }
+                    TextButton(onClick = { lookup(ctx, g.term, "wiki", vm.study.langs[book.id].orEmpty()) }) { Text("Wikipedia", fontSize = 12.sp) }
+                }
                 Text(g.definition, color = c.ink, fontSize = 15.sp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(if (g.para >= 0) "párrafo ${g.para + 1}" else "", color = c.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))

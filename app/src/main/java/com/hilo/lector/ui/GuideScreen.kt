@@ -43,6 +43,7 @@ private val SECTIONS = listOf(
         "Completar: crea una tarjeta que oculta esas palabras. Ideal para definiciones, autores, fechas y artículos de una ley.",
         "Vocabulario: para idiomas. Escribe el significado; la tarjeta guarda la oración donde la viste y la puede leer en voz alta.",
         "Pregunta: escribe tu propia pregunta, por ejemplo «¿Qué es la socialización primaria?».",
+        "Diccionario, Wikipedia y Traducir: busca la palabra que tocaste (o las que elegiste) en la RAE, en Wikipedia o en el traductor, en el idioma del documento.",
         "Resaltar: marca la oración. Tus resaltados quedan en la sala de estudio del documento y puedes compartirlos como resumen.",
         "El botón del birrete (arriba) abre la sala de estudio: tarjetas, resaltados y apuntes de ese documento.",
         "Repasa cada día con rondas cortas de 15 (o solo 5). Si respondes bien, la tarjeta tarda más en volver; si fallas, vuelve pronto.",

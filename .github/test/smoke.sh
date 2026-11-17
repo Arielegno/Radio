@@ -18,7 +18,14 @@ ui() {
   done
   return 1
 }
+tapxy() { adb shell input tap $1 $2; echo "TAP XY: $1 $2" >> $OUT/steps.txt; sleep 1; }
+frames() {  # cuántos cuadros dibuja la app en 3 s sin tocar nada (debería ser casi 0)
+  adb shell dumpsys gfxinfo $PKG reset >/dev/null
+  sleep 3
+  echo "CUADROS EN REPOSO ($1): $(adb shell dumpsys gfxinfo $PKG | grep 'Total frames rendered' | head -1)" >> $OUT/steps.txt
+}
 tap() {   # tap "texto o descripción" [parcial]
+  rm -f /tmp/ui.xml
   ui
   local xy; xy=$(python3 $F/find.py /tmp/ui.xml "$1" $2)
   if [ -n "$xy" ]; then adb shell input tap $xy; echo "TAP OK: $1" >> $OUT/steps.txt
@@ -209,19 +216,23 @@ tap "Estudiar: tarjetas y resaltados"
 sleep 2
 tap "Guía"
 shot 40_guia 5
-tap "Practicar" parcial
-shot 41_practicar 2
-tap "Ver respuesta"
-shot 42_practicar_respuesta 2
-back
-tap "Palabras"
-shot 43_nube_palabras 4
-tap "Quitar social" parcial
-shot 44_nube_depurada 5
-tap "Glosario"
-shot 45_glosario 3
-tap "Mapa"
+frames guia
+tapxy 334 705
+shot 43_nube_palabras 5
+frames palabras
+adb shell input swipe 540 2000 540 900 400
+sleep 2
+shot 44_lista_palabras 2
+adb shell input swipe 540 900 540 2000 400
+sleep 1
+tapxy 589 705
+shot 45_glosario 4
+frames glosario
+tapxy 810 705
 shot 46_mapa 8
+frames mapa
+adb shell input tap 540 1500
+shot 47_mapa_toque 2
 back
 back
 

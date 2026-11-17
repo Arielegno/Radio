@@ -398,7 +398,8 @@ private fun ScrollFlow(
             state = listState,
             modifier = Modifier.widthIn(max = 760.dp).fillMaxSize()
                 .pointerInput(Unit) { detectTapGestures { o -> tapAt(o.x / size.width) } },
-            contentPadding = PaddingValues(horizontal = s.margin.dp, vertical = 18.dp),
+            // Espacio arriba y abajo para que las barras no tapen el inicio ni el final
+            contentPadding = PaddingValues(start = s.margin.dp, end = s.margin.dp, top = 112.dp, bottom = 120.dp),
         ) {
             itemsIndexed(list, key = { i, _ -> i }) { i, p ->
                 FlowParagraph(

@@ -2,6 +2,14 @@ package com.hilo.lector.ui
 
 import android.app.Activity
 import android.content.Context
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
+import androidx.compose.foundation.layout.union
+import androidx.compose.ui.zIndex
 import android.provider.Settings
 import android.view.WindowManager
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -139,7 +147,7 @@ private fun rememberEngine(ctx: Context, file: File, id: String): EngineState {
 private val PEN_COLORS = listOf(Color(0xFF1B2030), Color(0xFFC8372D), Color(0xFF2457C5), Color(0xFF1E8538))
 private val HL_COLORS = listOf(Color(0xFFFFD54F), Color(0xFF9BE59F), Color(0xFFF7A8C8), Color(0xFF9CCBFF))
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ReaderScreen(vm: HiloViewModel, bookId: String) {
     val c = LocalHilo.current
@@ -239,8 +247,14 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
         vm.toast = readMode(if (mode.dark) s.lastDayMode else s.lastNightMode).name
     }
 
-    Box(Modifier.fillMaxSize().background(if (chrome) c.bg else mode.paper).windowInsetsPadding(WindowInsets.safeDrawing)) {
-        Column(Modifier.fillMaxSize()) {
+    val noInsets = WindowInsets(0, 0, 0, 0)
+    Box(Modifier.fillMaxSize().background(mode.paper)) {
+        // Las barras flotan sobre la página: mostrarlas u ocultarlas no cambia el tamaño del texto
+        Column(
+            Modifier.align(Alignment.TopCenter).fillMaxWidth().zIndex(2f)
+                .background(if (chrome) c.bg else Color.Transparent)
+                .windowInsetsPadding(if (chrome) WindowInsets.statusBarsIgnoringVisibility.union(WindowInsets.displayCutout) else noInsets)
+        ) {
             AnimatedVisibility(visible = chrome) {
                 TopBars(
                     book = book, isPdf = isPdf, flow = flow, compact = compact, annotating = annotating,
@@ -264,7 +278,10 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
                 )
             }
 
-            Box(Modifier.weight(1f).fillMaxWidth().background(mode.paper)) {
+        }
+            Box(
+                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout))
+            ) {
                 when {
                     !isPdf -> FlowView(vm, book, null, s, mode, bridge, toggleChrome, null)
                     engineState is EngineState.Ready && flow ->
@@ -327,13 +344,18 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
 
                 if (s.ruler && tool == Tool.NONE) {
                     RulerButtons(
-                        Modifier.align(Alignment.BottomEnd).padding(14.dp),
+                        Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = if (chrome || annotating) 130.dp else 14.dp),
                         onUp = { scope.launch { bridge.move?.invoke(-1) } },
                         onDown = { scope.launch { bridge.move?.invoke(1) } },
                     )
                 }
             }
 
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().zIndex(2f)
+                .background(if (chrome || annotating) c.bg else Color.Transparent)
+                .windowInsetsPadding(if (chrome || annotating) WindowInsets.navigationBarsIgnoringVisibility else noInsets)
+        ) {
             AnimatedVisibility(visible = annotating && !flow && isPdf) {
                 AnnotBar(
                     tool = tool, penColor = penColor, hlColor = hlColor,
@@ -443,8 +465,9 @@ private fun PageBar(
                 Icon(if (speaking) Icons.Rounded.Stop else Icons.Rounded.RecordVoiceOver, if (speaking) "Detener la voz" else "Escuchar", tint = if (speaking) c.accent else c.ink)
             }
         }
-        if (total > 1) {
-            Slider(
+        // Siempre ocupa el mismo alto, para que el texto no se vuelva a dividir en páginas
+        Box(Modifier.height(28.dp).fillMaxWidth()) {
+            if (total > 1) Slider(
                 value = (drag ?: bridge.position.toFloat()).coerceIn(0f, (total - 1).toFloat()),
                 onValueChange = { drag = it },
                 onValueChangeFinished = { drag?.let { onSeek(it.roundToInt()) }; drag = null },

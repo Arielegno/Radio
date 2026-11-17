@@ -30,6 +30,7 @@ put() {   # put archivo-local destino-en-la-app
 }
 back() { adb shell input keyevent 4; sleep "${1:-2}"; }
 swipe_left() { adb shell input swipe 950 1300 120 1300 350; }
+open_book() { adb shell am force-stop $PKG; adb shell am start -W -n $PKG/.MainActivity; sleep 3; tap "$1"; }
 
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell wm size >> $OUT/steps.txt
@@ -116,43 +117,45 @@ shot 12_dos_paginas 8
 adb shell settings put system user_rotation 0
 sleep 3
 
-# Volver a la biblioteca y abrir los otros formatos
-back 3
-tap "Libro EPUB de prueba"
+# Abrir los otros formatos (en páginas horizontales, modo Día)
+open_book "Libro EPUB de prueba"
 shot 13_epub 8
+swipe_left
+shot 14_epub_pagina_2 3
 tap "Contenido y marcadores"
-shot 14_indice_epub 3
+shot 15_indice_epub 3
 back
-back 3
-tap "Documento Word de prueba"
-shot 15_word 8
-back 3
-tap "Apuntes en Markdown"
-shot 16_markdown 8
-back 3
-tap "Libro FB2 de prueba"
-shot 17_fb2 8
-back 3
+open_book "Documento Word de prueba"
+shot 16_word 8
+open_book "Apuntes en Markdown"
+shot 17_markdown 8
+open_book "Libro FB2 de prueba"
+shot 18_fb2 8
 
-# Vertical otra vez con regla en texto
-tap "Libro EPUB de prueba"
+# Desplazar hacia abajo con la regla
+open_book "Libro EPUB de prueba"
 sleep 4
 tap "Ajustes de lectura"
 sleep 2
 tap "Hacia abajo"
 back 3
 tap "Regla"
-shot 18_epub_vertical_regla 4
+shot 19_epub_vertical_regla 4
 tap "Siguiente línea"
-shot 19_regla_baja 3
+shot 20_regla_baja 3
 tap "Regla"
-back 3
 
+# Ocultar menús tocando el centro
+adb shell input tap 540 1300
+shot 21_sin_menus 3
+
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 3
 tap "Menú"
 sleep 2
 tap "Formatos"
-shot 20_formatos 2
-back
+shot 22_formatos 2
 
 timeout 60 adb logcat -d > $OUT/logcat.txt
 grep -n -A 40 "FATAL EXCEPTION" $OUT/logcat.txt > $OUT/crashes.txt || echo "Sin cierres inesperados" > $OUT/crashes.txt

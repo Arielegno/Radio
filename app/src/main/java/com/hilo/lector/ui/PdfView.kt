@@ -418,7 +418,7 @@ fun PdfView(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.width(pageW + pad * 2).fillMaxHeight(),
-                    contentPadding = PaddingValues(pad),
+                    contentPadding = PaddingValues(start = pad, end = pad, top = 104.dp, bottom = 120.dp),
                     verticalArrangement = Arrangement.spacedBy(pad),
                     userScrollEnabled = tool == Tool.NONE,
                 ) {

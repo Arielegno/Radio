@@ -89,6 +89,11 @@ import com.hilo.lector.data.STUDY_LANGS
 import com.hilo.lector.data.Srs
 import com.hilo.lector.data.StudyCard
 import com.hilo.lector.data.today
+import com.hilo.lector.text.Analysis
+import com.hilo.lector.text.Question
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.CancellationException
 import com.hilo.lector.pdf.AnnotStore
 import kotlin.math.ceil
 import kotlin.math.max
@@ -96,6 +101,8 @@ import kotlin.math.roundToInt
 
 /** Sesiones cortas: mejor 15 tarjetas hoy que 100 que no terminas. */
 private const val SESSION = 15
+
+private val TABS = listOf("Guía", "Palabras", "Glosario", "Mapa", "Tarjetas", "Resaltados", "Apuntes")
 
 private fun kindLabel(k: String) = when (k) {
     "vocab" -> "Vocabulario"
@@ -170,6 +177,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
     var vocabOnly by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<StudyCard?>(null) }
+    var quiz by remember { mutableStateOf<Pair<String, List<Question>>?>(null) }
     val study = vm.study
     val speaker = remember { Speaker(ctx) }
     DisposableEffect(Unit) { onDispose { speaker.shutdown() } }
@@ -177,12 +185,30 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
     BackHandler {
         when {
             review != null -> review = null
+            quiz != null -> quiz = null
             deck != bookId || vocabOnly -> { deck = bookId; vocabOnly = false }
             else -> vm.closeStudy()
         }
     }
 
     val current = deck?.let { id -> books.firstOrNull { it.id == id } }
+
+    // Análisis del documento para la guía, las palabras, el glosario y el mapa
+    var anProg by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var anError by remember(current?.id) { mutableStateOf(false) }
+    val removedNow = current?.let { study.removedFor(it.id) }
+    val analysis by produceState<Analysis?>(null, current?.id, removedNow, tab < 4) {
+        val b = current ?: return@produceState
+        if (tab >= 4) return@produceState
+        try {
+            val a = vm.analysis(b) { p, n -> anProg = p to n }
+            if (a.totalWords == 0) anError = true else value = a
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (e: Exception) {
+            anError = true
+        }
+    }
     val due = study.due(deck).filter { !vocabOnly || it.kind == "vocab" }
 
     fun startReview(n: Int) {
@@ -246,8 +272,8 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                     items(vocab, key = { it.id }) { card -> CardRow(card, speaker) { editing = card } }
                 } else if (current != null) {
                     item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("Tarjetas", "Resaltados", "Apuntes").forEachIndexed { i, t ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                            TABS.forEachIndexed { i, t ->
                                 val on = i == tab
                                 Text(
                                     t, color = if (on) c.accentInk else c.ink, fontSize = 14.sp,
@@ -257,18 +283,36 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                             }
                         }
                     }
+                    if (tab < 4) {
+                        val an = analysis
+                        when {
+                            anError -> item {
+                                Text("No encontré texto para analizar en este documento. Si es un PDF escaneado, activa «Reconocer texto en escaneados» en Ajustes.", color = c.muted)
+                            }
+                            an == null -> item {
+                                Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    CircularProgressIndicator(color = c.accent)
+                                    Text(anProg?.let { (p, n) -> "Leyendo el documento… página ${p + 1} de $n" } ?: "Analizando el texto…", color = c.muted)
+                                }
+                            }
+                            tab == 0 -> item { GuideTab(vm, current, an) { t, qs -> quiz = t to qs } }
+                            tab == 1 -> item { WordsTab(vm, current, an) { editing = it } }
+                            tab == 2 -> item { GlossaryTab(vm, current, an) }
+                            else -> item { ConceptMapTab(vm, current, an) }
+                        }
+                    }
                     when (tab) {
-                        0 -> {
+                        4 -> {
                             item { NewCardButtons(onNew = { k -> editing = StudyCard(0, current.id, k, "", "", lang = study.langs[current.id].orEmpty(), due = today()) }) }
                             item { LangRow(study.langs[current.id].orEmpty()) { study.setLang(current.id, it) } }
                             val cards = study.cardsOf(current.id).sortedBy { it.due }
                             if (cards.isEmpty()) item { EmptyStudyHint() }
                             items(cards, key = { it.id }) { card -> CardRow(card, speaker) { editing = card } }
                         }
-                        1 -> item { MarksTab(vm, current, onCard = { text, flow, pos, src ->
+                        5 -> item { MarksTab(vm, current, onCard = { text, flow, pos, src ->
                             editing = StudyCard(0, current.id, "qa", "", text, source = src, sourcePos = pos, sourceFlow = flow, due = today())
                         }) }
-                        else -> item { NotesTab(vm, current) }
+                        6 -> item { NotesTab(vm, current) }
                     }
                 }
             }
@@ -288,6 +332,8 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
             onDelete = if (card.id != 0L) ({ study.delete(card.id); editing = null }) else null,
         )
     }
+
+    quiz?.let { (t, qs) -> current?.let { b -> QuizOverlay(vm, b, t, qs) { quiz = null } } }
 
     review?.let { list ->
         ReviewSession(

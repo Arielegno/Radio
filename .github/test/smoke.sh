@@ -199,6 +199,32 @@ tap "Bien"
 shot 31_repaso_fin 2
 back
 
+# ---------- Guía, palabras, glosario y mapa ----------
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 3
+tap "Opciones de Libro EPUB de prueba"
+sleep 1
+tap "Estudiar: tarjetas y resaltados"
+sleep 2
+tap "Guía"
+shot 40_guia 5
+tap "Practicar" parcial
+shot 41_practicar 2
+tap "Ver respuesta"
+shot 42_practicar_respuesta 2
+back
+tap "Palabras"
+shot 43_nube_palabras 4
+tap "Quitar social" parcial
+shot 44_nube_depurada 5
+tap "Glosario"
+shot 45_glosario 3
+tap "Mapa"
+shot 46_mapa 8
+back
+back
+
 # ---------- Documentos del celular (como ReadEra) ----------
 adb shell mkdir -p /sdcard/Download
 adb push $F/muestra.pdf "/sdcard/Download/Codigo_Civil_prueba.pdf"

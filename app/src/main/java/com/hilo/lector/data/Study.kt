@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.hilo.lector.Hilo
+import com.hilo.lector.text.Gloss
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -97,6 +98,13 @@ class StudyStore(ctx: Context) {
     val marks: SnapshotStateList<TextMark> = mutableStateListOf()
     val notes = mutableStateMapOf<String, String>()
     val langs = mutableStateMapOf<String, String>()
+    /** Palabras quitadas del análisis, por documento ("*" = en todos). */
+    val removed = mutableStateMapOf<String, Set<String>>()
+    /** Glosario: términos automáticos que quitaste y los que agregaste o corregiste. */
+    val glossHidden = mutableStateMapOf<String, Set<String>>()
+    val glossCustom = mutableStateMapOf<String, List<Gloss>>()
+    /** Capítulos marcados como estudiados (párrafo donde empieza). */
+    val chapDone = mutableStateMapOf<String, Set<Int>>()
     private var nextId = System.currentTimeMillis()
     private var saveJob: Job? = null
 
@@ -148,6 +156,39 @@ class StudyStore(ctx: Context) {
     fun setNote(bookId: String, text: String) { notes[bookId] = text; save() }
     fun setLang(bookId: String, lang: String) { langs[bookId] = lang; save() }
 
+    fun removedFor(bookId: String): Set<String> = removed[bookId].orEmpty() + removed["*"].orEmpty()
+
+    fun removeWord(bookId: String, key: String, everywhere: Boolean) {
+        val k = if (everywhere) "*" else bookId
+        removed[k] = removed[k].orEmpty() + key
+        save()
+    }
+
+    fun restoreWord(bookId: String, key: String) {
+        removed[bookId] = removed[bookId].orEmpty() - key
+        removed["*"] = removed["*"].orEmpty() - key
+        save()
+    }
+
+    fun hideGloss(bookId: String, term: String) {
+        glossHidden[bookId] = glossHidden[bookId].orEmpty() + term.lowercase()
+        glossCustom[bookId] = glossCustom[bookId].orEmpty().filterNot { it.term.equals(term, true) }
+        save()
+    }
+
+    fun putGloss(bookId: String, g: Gloss, replaces: String?) {
+        if (replaces != null) glossHidden[bookId] = glossHidden[bookId].orEmpty() + replaces.lowercase()
+        glossCustom[bookId] = glossCustom[bookId].orEmpty().filterNot { it.term.equals(g.term, true) || (replaces != null && it.term.equals(replaces, true)) } + g
+        glossHidden[bookId] = glossHidden[bookId].orEmpty() - g.term.lowercase()
+        save()
+    }
+
+    fun toggleChapter(bookId: String, start: Int) {
+        val cur = chapDone[bookId].orEmpty()
+        chapDone[bookId] = if (start in cur) cur - start else cur + start
+        save()
+    }
+
     fun removeBook(bookId: String) {
         cards.removeAll { it.bookId == bookId }
         marks.removeAll { it.bookId == bookId }
@@ -183,6 +224,18 @@ class StudyStore(ctx: Context) {
             }
             o.optJSONObject("notes")?.let { n -> n.keys().forEach { k -> notes[k] = n.optString(k) } }
             o.optJSONObject("langs")?.let { n -> n.keys().forEach { k -> langs[k] = n.optString(k) } }
+            fun strSets(name: String, into: MutableMap<String, Set<String>>) {
+                o.optJSONObject(name)?.let { n -> n.keys().forEach { k -> val a = n.getJSONArray(k); into[k] = (0 until a.length()).map { a.getString(it) }.toSet() } }
+            }
+            strSets("removed", removed)
+            strSets("glossHidden", glossHidden)
+            o.optJSONObject("chapDone")?.let { n -> n.keys().forEach { k -> val a = n.getJSONArray(k); chapDone[k] = (0 until a.length()).map { a.getInt(it) }.toSet() } }
+            o.optJSONObject("glossCustom")?.let { n ->
+                n.keys().forEach { k ->
+                    val a = n.getJSONArray(k)
+                    glossCustom[k] = (0 until a.length()).map { val j = a.getJSONObject(it); Gloss(j.optString("t"), j.optString("d"), j.optInt("p", -1)) }
+                }
+            }
         } catch (_: Exception) {}
     }
 
@@ -205,7 +258,14 @@ class StudyStore(ctx: Context) {
             }
             val no = JSONObject(); notes.toMap().forEach { (k, v) -> no.put(k, v) }
             val la = JSONObject(); langs.toMap().forEach { (k, v) -> la.put(k, v) }
-            val text = JSONObject().put("cards", ca).put("marks", ma).put("notes", no).put("langs", la).toString()
+            fun sets(m: Map<String, Set<*>>): JSONObject { val o = JSONObject(); m.forEach { (k, v) -> o.put(k, JSONArray(v.toList())) }; return o }
+            val gc = JSONObject()
+            glossCustom.toMap().forEach { (k, v) ->
+                val a = JSONArray(); v.forEach { a.put(JSONObject().put("t", it.term).put("d", it.definition).put("p", it.para)) }; gc.put(k, a)
+            }
+            val text = JSONObject().put("cards", ca).put("marks", ma).put("notes", no).put("langs", la)
+                .put("removed", sets(removed.toMap())).put("glossHidden", sets(glossHidden.toMap()))
+                .put("chapDone", sets(chapDone.toMap())).put("glossCustom", gc).toString()
             synchronized(file) {
                 file.parentFile?.mkdirs()
                 val tmp = File(file.path + ".tmp")

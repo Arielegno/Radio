@@ -29,6 +29,9 @@ import com.hilo.lector.text.TextTools
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import com.hilo.lector.text.Analysis
+import com.hilo.lector.text.Analyzer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -60,6 +63,31 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
 
     fun closeStudy() {
         screen = (studyFrom as? Screen.Reader)?.takeIf { r -> repo.get(r.id) != null } ?: Screen.Library
+    }
+
+    /** Texto del documento en párrafos para analizarlo; abre el PDF solo si hace falta. */
+    suspend fun studyText(book: Book, progress: (Int, Int) -> Unit): List<String> {
+        val cache = File(getApplication<Application>().filesDir, "flow/${book.id}.txt")
+        if (book.type != "pdf" || cache.exists()) return flowParas(book, null, progress)
+        val e = PdfEngine(getApplication(), repo.fileOf(book), book.id)
+        return try {
+            e.open()
+            flowParas(book, e, progress)
+        } finally {
+            withContext(NonCancellable) { runCatching { e.shutdown() } }
+        }
+    }
+
+    private val analyses = HashMap<String, Pair<Set<String>, Analysis>>()
+
+    /** Análisis del documento (palabras, glosario, mapa, guía). Se recalcula al quitar palabras. */
+    suspend fun analysis(book: Book, progress: (Int, Int) -> Unit): Analysis {
+        val removed = study.removedFor(book.id)
+        analyses[book.id]?.let { (r, a) -> if (r == removed) return a }
+        val paras = studyText(book, progress)
+        val a = withContext(Dispatchers.Default) { Analyzer.analyze(paras, removed) }
+        analyses[book.id] = removed to a
+        return a
     }
 
     /** Abre el documento justo donde está el texto de una tarjeta o un resaltado. */

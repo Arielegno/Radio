@@ -11,7 +11,7 @@ import java.util.zip.ZipFile
 /** Formatos de texto además de EPUB y PDF: Markdown, HTML, FB2, Word (DOCX) y OpenDocument (ODT). */
 object Formats {
     /** Extensión → tipo interno. */
-    val TEXT_TYPES = setOf("txt", "md", "html", "fb2", "docx", "odt", "epub")
+    val TEXT_TYPES = setOf("txt", "md", "html", "fb2", "docx", "odt", "epub", "mobi")
 
     fun typeOfName(name: String): String? {
         val ext = name.substringAfterLast('.', "").lowercase()
@@ -24,6 +24,7 @@ object Formats {
             "fb2" -> "fb2"
             "docx" -> "docx"
             "odt" -> "odt"
+            "mobi", "azw", "azw3", "prc", "pdb" -> "mobi"
             "jpg", "jpeg", "png", "webp", "heic", "heif" -> "img"
             else -> null
         }
@@ -38,13 +39,14 @@ object Formats {
         mime.contains("fictionbook") -> "fb2"
         mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> "docx"
         mime == "application/vnd.oasis.opendocument.text" -> "odt"
+        mime.contains("mobipocket") || mime.contains("amazon.ebook") || mime.contains("kindle") -> "mobi"
         mime == "text/plain" -> "txt"
         else -> null
     }
 
     fun label(type: String) = when (type) {
         "pdf" -> "PDF"; "epub" -> "EPUB"; "md" -> "Markdown"; "html" -> "HTML"
-        "fb2" -> "FB2"; "docx" -> "Word"; "odt" -> "ODT"; else -> "Texto"
+        "fb2" -> "FB2"; "docx" -> "Word"; "odt" -> "ODT"; "mobi" -> "MOBI"; else -> "Texto"
     }
 
     class Meta(val title: String, val author: String, val cover: ByteArray?)
@@ -54,6 +56,7 @@ object Formats {
             "epub" -> Epub.meta(f).let { Meta(it.title, it.author, it.cover) }
             "fb2" -> fb2Meta(f)
             "docx" -> docxMeta(f)
+            "mobi" -> Mobi.read(f, withText = false).let { Meta(it.title, it.author, it.cover) }
             "html" -> Jsoup.parse(f, null).title().takeIf { it.isNotBlank() }?.let { Meta(it, "", null) }
             else -> null
         }
@@ -68,6 +71,7 @@ object Formats {
         "fb2" -> fb2(f)
         "docx" -> docx(f)
         "odt" -> odt(f)
+        "mobi" -> html(Jsoup.parse(Mobi.read(f).html))
         else -> TextTools.smartParas(f.readText())
     }
 

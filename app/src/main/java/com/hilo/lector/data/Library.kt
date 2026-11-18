@@ -267,11 +267,14 @@ class LibraryRepo(private val ctx: Context) {
             val known = HashSet<String>()
             _books.value.forEach { known.add(it.srcKey); known.add(it.file) }
             known.addAll(ignoreSp.getStringSet("keys", emptySet()).orEmpty())
-            val exts = listOf("pdf", "epub", "docx", "odt", "fb2", "md", "markdown", "txt", "html", "htm")
+            val exts = listOf("pdf", "epub", "mobi", "azw3", "azw", "docx", "odt", "fb2", "md", "markdown", "txt", "html", "htm")
             val col = MediaStore.Files.FileColumns.DATA
             val sel = exts.joinToString(" OR ") { "$col LIKE ?" }
             val args = exts.map { "%.$it" }.toTypedArray()
             val own = ctx.filesDir.parentFile?.path ?: ctx.filesDir.path
+            val excluded = excludedFolders()
+            // La primera búsqueda no marca todo como «Nuevo» (serían cientos): solo lo que aparezca después
+            val firstScan = !ignoreSp.getBoolean("buscado", false)
             val found = ArrayList<Book>()
             try {
                 ctx.contentResolver.query(
@@ -283,6 +286,7 @@ class LibraryRepo(private val ctx: Context) {
                         val size = c.getLong(1)
                         if (path.contains("/Android/data/") || path.contains("/Android/obb/") || path.startsWith(own)) continue
                         if (path.split('/').any { it.startsWith(".") }) continue
+                        if (excluded.any { path.startsWith("$it/") }) continue
                         val name = path.substringAfterLast('/')
                         val kind = Formats.typeOfName(name) ?: continue
                         if (kind == "img") continue
@@ -294,8 +298,8 @@ class LibraryRepo(private val ctx: Context) {
                         known.add(key)
                         found.add(
                             Book(
-                                newId(), name.substringBeforeLast('.').replace('_', ' '), type = kind, file = path,
-                                added = now(), srcKey = key, isNew = true,
+                                newId(), cleanTitle(name), type = kind, file = path,
+                                added = now(), srcKey = key, isNew = !firstScan,
                             )
                         )
                     }
@@ -303,6 +307,7 @@ class LibraryRepo(private val ctx: Context) {
             } catch (e: Exception) {
                 return@withContext 0
             }
+            ignoreSp.edit().putBoolean("buscado", true).apply()
             if (found.isEmpty()) return@withContext 0
             _books.value = found + _books.value
             save()
@@ -312,7 +317,9 @@ class LibraryRepo(private val ctx: Context) {
                     val f = File(b.file)
                     if (b.type == "pdf") {
                         val pages = pdfInfo(f, coverFile(b.id))
-                        update(b.id) { it.copy(pages = pages) }
+                        // Si el nombre del archivo es un número o un código, se usa el título guardado dentro del PDF
+                        val meta = if (badTitle(b.title)) pdfMeta(f) else null
+                        update(b.id) { it.copy(pages = pages, title = meta?.first ?: it.title, author = it.author.ifBlank { meta?.second.orEmpty() }) }
                     } else {
                         val m = Formats.meta(b.type, f)
                         m?.cover?.let { runCatching { saveCover(it, coverFile(b.id)) } }
@@ -323,6 +330,47 @@ class LibraryRepo(private val ctx: Context) {
                 }
             }
             found.size
+        }
+    }
+
+    // ---------- carpetas que no se leen ----------
+
+    /** Carpetas del celular que el usuario pidió no revisar (rutas completas). */
+    fun excludedFolders(): Set<String> = ignoreSp.getStringSet("carpetas", emptySet()).orEmpty()
+
+    /** Carpetas donde Hilo encontró documentos, con cuántos hay en cada una. */
+    fun deviceFolders(): List<Pair<String, Int>> =
+        _books.value.filter { it.linked && it.file.startsWith("/") }.groupBy { it.file.substringBeforeLast('/') }
+            .map { it.key to it.value.size }.sortedByDescending { it.second }
+
+    /** Deja de leer una carpeta (y sus subcarpetas): sus documentos salen de Hilo; los archivos siguen en el celular. */
+    fun excludeFolder(path: String): Int {
+        ignoreSp.edit().putStringSet("carpetas", excludedFolders() + path).apply()
+        val out = _books.value.filter { it.linked && (it.file.startsWith("$path/")) }
+        if (out.isEmpty()) return 0
+        val ids = out.map { it.id }.toSet()
+        out.forEach { b -> coverOf(b).delete(); File(ctx.filesDir, "flow/${b.id}.txt").delete() }
+        _books.value = _books.value.filter { it.id !in ids }
+        save()
+        return out.size
+    }
+
+    fun includeFolder(path: String) {
+        ignoreSp.edit().putStringSet("carpetas", excludedFolders() - path).apply()
+    }
+
+    /** Quita la etiqueta «Nuevo» de todos. */
+    fun clearNew() {
+        if (_books.value.none { it.isNew }) return
+        _books.value = _books.value.map { if (it.isNew) it.copy(isNew = false) else it }
+        save()
+    }
+
+    /** Arregla los títulos que son solo números o códigos, con el título guardado dentro del PDF. */
+    suspend fun fixTitles() = withContext(Dispatchers.IO) {
+        for (b in _books.value.filter { it.type == "pdf" && badTitle(it.title) }) {
+            val m = runCatching { pdfMeta(fileOf(b)) }.getOrNull() ?: continue
+            update(b.id) { it.copy(title = m.first, author = it.author.ifBlank { m.second }) }
         }
     }
 
@@ -390,6 +438,16 @@ class LibraryRepo(private val ctx: Context) {
     private fun coverFile(id: String) = File(coverDir, "$id.jpg")
 
     /** Cuenta páginas y guarda la primera como portada. */
+    /** Título y autor guardados dentro del PDF, si son útiles. */
+    private fun pdfMeta(f: File): Pair<String, String>? = try {
+        com.tom_roush.pdfbox.pdmodel.PDDocument.load(f, com.tom_roush.pdfbox.io.MemoryUsageSetting.setupTempFileOnly()).use { d ->
+            val info = d.documentInformation
+            val t = info?.title?.trim().orEmpty()
+            val a = info?.author?.trim().orEmpty()
+            if (t.length >= 3 && !badTitle(t) && !t.lowercase().let { it.startsWith("microsoft") || it.endsWith(".doc") || it.endsWith(".docx") || it == "untitled" || it == "sin título" }) t to a else null
+        }
+    } catch (_: Throwable) { null }
+
     private fun pdfInfo(f: File, cover: File): Int {
         ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
             PdfRenderer(pfd).use { r ->
@@ -465,4 +523,16 @@ class LibraryRepo(private val ctx: Context) {
         val title = "Fotos · " + SimpleDateFormat("d MMM, HH:mm", Locale("es")).format(Date())
         return add(Book(id, title, type = "pdf", file = f.name, added = now(), pages = n))
     }
+}
+
+/** Título a partir del nombre del archivo: sin extensión, sin guiones bajos ni espacios de más. */
+fun cleanTitle(fileName: String): String =
+    fileName.substringBeforeLast('.').replace('_', ' ').replace(Regex("\\s+"), " ").trim()
+        .removeSuffix(" (1)").removeSuffix(" (2)").ifBlank { fileName }
+
+/** Un título «malo»: casi todo números o códigos (como «4 57714757040215178 40»). */
+fun badTitle(t: String): Boolean {
+    val letters = t.count { it.isLetter() }
+    val digits = t.count { it.isDigit() }
+    return letters < 3 || digits > letters || Regex("^[0-9a-fA-F-]{16,}$").matches(t.replace(" ", ""))
 }

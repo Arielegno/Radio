@@ -162,6 +162,7 @@ fun SwitchRow(title: String, sub: String, on: Boolean, onChange: (Boolean) -> Un
 
 // ---------- ajustes ----------
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
     val s by vm.settings.state.collectAsStateWithLifecycle()
@@ -190,6 +191,7 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
                 )
             }
 
+            SectionTitle("Página")
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Label("Modo de color", mode.name)
                 ModeSwatches(s.colorMode) { i ->
@@ -204,7 +206,7 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
                 ChoiceRow(listOf("Hacia abajo", "Horizontal"), s.pageMode) { i -> vm.settings.update { it.copy(pageMode = i) } }
             }
             if (s.pageMode == 1) {
-                SwitchRow("Dos páginas con el celular acostado", "Solo en PDF, como un libro abierto.", s.twoPages) { on ->
+                SwitchRow("Dos páginas con el celular acostado", "Como un libro abierto, en PDF y en los demás formatos.", s.twoPages) { on ->
                     vm.settings.update { it.copy(twoPages = on) }
                 }
             }
@@ -212,27 +214,55 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
                 vm.settings.update { it.copy(tapTurn = on) }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Label("Tipo de letra")
-                ChoiceRow(Fonts.names, s.font) { i -> vm.settings.update { it.copy(font = i) } }
+            SliderRow("Márgenes", if (s.margin <= 8) "Sin márgenes" else "${s.margin} dp", s.margin.toFloat(), 4f..48f, 10) { v ->
+                vm.settings.update { it.copy(margin = v.roundToInt()) }
             }
-            SliderRow("Tamaño", "${s.fontSize.roundToInt()}", s.fontSize, 14f..30f, 15) { v ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Label("Forma del texto")
+                ChoiceRow(listOf("Libro", "Separado"), if (s.indent && s.paraSpacing <= 0.3f) 0 else 1) { i ->
+                    vm.settings.update {
+                        if (i == 0) it.copy(indent = true, paraSpacing = 0.15f, align = if (it.align == 0) 1 else it.align)
+                        else it.copy(indent = false, paraSpacing = 0.8f)
+                    }
+                }
+                Text(
+                    if (s.indent && s.paraSpacing <= 0.3f) "Párrafos seguidos con sangría, como en un libro impreso."
+                    else "Párrafos separados por un espacio, sin sangría.",
+                    color = c.muted, fontSize = 13.sp,
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Label("Alineación")
+                ChoiceRow(listOf("Justificado y guiones", "Justificado", "Izquierda"), when (s.align) { 1 -> 0; 2 -> 1; else -> 2 }) { i ->
+                    vm.settings.update { it.copy(align = when (i) { 0 -> 1; 1 -> 2; else -> 0 }) }
+                }
+            }
+
+            SectionTitle("Letra")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Label("Tipo de letra", Fonts.notes.getOrElse(s.font) { "" })
+                FontPicker(s.font) { i -> vm.settings.update { it.copy(font = i) } }
+            }
+            SliderRow("Tamaño", "${s.fontSize.roundToInt()}", s.fontSize, 12f..36f, 23) { v ->
                 vm.settings.update { it.copy(fontSize = v.roundToInt().toFloat()) }
             }
+            SliderRow(
+                "Grosor", when { s.weight < 370 -> "Fina"; s.weight < 450 -> "Normal"; s.weight < 560 -> "Media"; else -> "Gruesa" },
+                s.weight.toFloat(), 300f..700f, 7,
+            ) { v -> vm.settings.update { it.copy(weight = ((v / 50).roundToInt() * 50)) } }
             val lhName = when {
                 s.lineHeight < 1.3f -> "Compacto"
                 s.lineHeight < 1.6f -> "Normal"
                 else -> "Amplio"
             }
-            SliderRow("Interlineado", "$lhName · ${"%.1f".format(s.lineHeight)}", s.lineHeight, 1.1f..2.0f, 8) { v ->
+            SliderRow("Interlineado", "$lhName · ${"%.1f".format(s.lineHeight)}", s.lineHeight, 1.0f..2.0f, 9) { v ->
                 vm.settings.update { it.copy(lineHeight = (v * 10).roundToInt() / 10f) }
             }
-            SliderRow("Espacio entre párrafos", "%.1f".format(s.paraSpacing), s.paraSpacing, 0f..1.5f, 5) { v ->
-                vm.settings.update { it.copy(paraSpacing = (v * 10).roundToInt() / 10f) }
+            SliderRow("Espacio entre párrafos", if (s.paraSpacing < 0.05f) "Ninguno" else "%.1f".format(s.paraSpacing), s.paraSpacing, 0f..1.5f, 14) { v ->
+                vm.settings.update { it.copy(paraSpacing = (v * 20).roundToInt() / 20f) }
             }
-            SliderRow("Márgenes", "${s.margin} dp", s.margin.toFloat(), 4f..48f, 10) { v ->
-                vm.settings.update { it.copy(margin = v.roundToInt()) }
-            }
+
+            SectionTitle("Ayudas para no perder el hilo")
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Label("Colores de línea")
                 ChoiceRow(listOf("Arcoíris", "Frío", "Cálido"), s.palette) { i -> vm.settings.update { it.copy(palette = i) } }
@@ -240,11 +270,20 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             SliderRow("Intensidad del color", "${(s.intensity * 100).roundToInt()}%", s.intensity, 0.4f..1f, 11) { v ->
                 vm.settings.update { it.copy(intensity = (v * 20).roundToInt() / 20f) }
             }
+            SectionTitle("PDF")
+            SwitchRow("Recortar márgenes", "Quita el borde blanco de la página para que la letra se vea más grande. El fondo toma el color del papel.", s.pdfCrop) { on ->
+                vm.settings.update { it.copy(pdfCrop = on) }
+            }
             SwitchRow("Reconocer texto en escaneados", "Para que los colores y la regla funcionen en fotos y PDF escaneados.", s.ocr) { on ->
                 vm.settings.update { it.copy(ocr = on) }
             }
             SliderRow("Palabra a palabra", "${s.wpm} ppm", s.wpm.toFloat(), 120f..600f, 23) { v ->
                 vm.settings.update { it.copy(wpm = (v / 20).roundToInt() * 20) }
+            }
+            SectionTitle("Biblioteca y menús")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Label("Vista de la biblioteca")
+                ChoiceRow(listOf("Lista", "Portadas"), s.libraryView) { i -> vm.settings.update { it.copy(libraryView = i) } }
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Label("Tema de los menús")
@@ -253,7 +292,7 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             SwitchRow("Mantener pantalla encendida", "Mientras estás leyendo.", s.keepOn) { on ->
                 vm.settings.update { it.copy(keepOn = on) }
             }
-            Label("Toques y pantalla")
+            SectionTitle("Toques y pantalla")
             SwitchRow("Pantalla completa", "Oculta la barra de estado y la de navegación al leer.", s.fullScreen) { on ->
                 vm.settings.update { it.copy(fullScreen = on) }
             }
@@ -275,6 +314,34 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             OutlinedButton(onClick = { vm.settings.reset() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Restablecer ajustes", color = c.ink)
             }
+        }
+    }
+}
+
+@Composable
+fun SectionTitle(text: String) {
+    val c = LocalHilo.current
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
+        Text(text, color = c.accent, fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+    }
+}
+
+/** Cada fuente se muestra escrita con ella misma. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+fun FontPicker(selected: Int, onPick: (Int) -> Unit) {
+    val c = LocalHilo.current
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Fonts.names.forEachIndexed { i, n ->
+            val on = i == selected
+            Text(
+                n, fontFamily = Fonts.reading(i), fontSize = 16.sp, color = if (on) c.accentInk else c.ink,
+                modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(if (on) c.accent else c.band)
+                    .clickable { onPick(i) }.padding(horizontal = 14.dp, vertical = 9.dp),
+            )
         }
     }
 }

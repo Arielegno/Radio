@@ -126,6 +126,60 @@ class PdfEngine(private val ctx: Context, private val file: File, bookId: String
         }
     }
 
+    // ---------- recorte de márgenes ----------
+
+    /** Recorte de cada página (izquierda, arriba, derecha, abajo en fracciones de 0 a 1). Se calcula al verla. */
+    val crops = androidx.compose.runtime.mutableStateMapOf<Int, CropBox>()
+
+    /** Busca el borde del contenido en una miniatura: lo que no es blanco es texto o imagen. */
+    suspend fun crop(page: Int): CropBox {
+        crops[page]?.let { return it }
+        val box = withContext(renderThread) {
+            val r = renderer ?: return@withContext CropBox.FULL
+            r.openPage(page).use { p ->
+                val w = 220
+                val h = max(1, (w * p.height.toFloat() / max(1, p.width)).roundToInt())
+                val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                bmp.eraseColor(Color.WHITE)
+                p.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                val px = IntArray(w * h)
+                bmp.getPixels(px, 0, w, 0, 0, w, h)
+                bmp.recycle()
+                fun ink(v: Int): Boolean {
+                    val lum = (Color.red(v) * 299 + Color.green(v) * 587 + Color.blue(v) * 114) / 1000
+                    return lum < 232
+                }
+                // Filas y columnas con algo de tinta (ignora motas sueltas)
+                val rowInk = IntArray(h); val colInk = IntArray(w)
+                for (y in 0 until h) for (x in 0 until w) if (ink(px[y * w + x])) { rowInk[y]++; colInk[x]++ }
+                val minRow = max(1, w / 150); val minCol = max(1, h / 150)
+                val top = rowInk.indexOfFirst { it >= minRow }
+                val bottom = rowInk.indexOfLast { it >= minRow }
+                val left = colInk.indexOfFirst { it >= minCol }
+                val right = colInk.indexOfLast { it >= minCol }
+                if (top < 0 || left < 0 || bottom <= top || right <= left) return@use CropBox.FULL
+                val padX = 0.025f; val padY = 0.02f
+                val b = CropBox(
+                    (left.toFloat() / w - padX).coerceAtLeast(0f), (top.toFloat() / h - padY).coerceAtLeast(0f),
+                    ((right + 1f) / w + padX).coerceAtMost(1f), ((bottom + 1f) / h + padY).coerceAtMost(1f),
+                )
+                // Si casi no hay margen, o el contenido es diminuto (página casi vacía), no se recorta
+                if (b.width > 0.94f && b.height > 0.94f) CropBox.FULL
+                else if (b.width < 0.3f || b.height < 0.2f) CropBox.FULL
+                else b
+            }
+        }
+        crops[page] = box
+        return box
+    }
+
+    /** Alto / ancho de la página tal como se ve (con o sin recorte). */
+    fun shownAspect(page: Int, cropOn: Boolean): Float {
+        val a = aspects.getOrElse(page) { 1.41f }.coerceAtLeast(0.05f)
+        val c = if (cropOn) crops[page] ?: return a else return a
+        return a * c.height / c.width
+    }
+
     fun rawKey(page: Int, w: Int) = "r$page@$w"
     fun styledKey(page: Int, w: Int, st: PageStyle) = "s$page@$w#${st.key}"
 
@@ -373,4 +427,11 @@ object Coloring {
             (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * k).roundToInt(),
         )
     }
+}
+
+/** Zona de la página que tiene contenido, en fracciones (0 a 1). */
+data class CropBox(val l: Float, val t: Float, val r: Float, val b: Float) {
+    val width get() = r - l
+    val height get() = b - t
+    companion object { val FULL = CropBox(0f, 0f, 1f, 1f) }
 }

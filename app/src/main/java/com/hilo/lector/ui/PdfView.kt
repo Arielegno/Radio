@@ -3,6 +3,9 @@ package com.hilo.lector.ui
 import android.graphics.Bitmap
 import android.content.res.Configuration
 import androidx.compose.foundation.ExperimentalFoundationApi
+import com.hilo.lector.pdf.CropBox
+import androidx.compose.ui.layout.layout
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.graphics.graphicsLayer
@@ -259,7 +262,9 @@ fun PdfView(
         }
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(if (paged) paper else c.bg)) {
+    // El fondo toma el color del papel (sin franjas negras); al desplazar, apenas más oscuro para separar las páginas
+    val gapBg = if (style.dark) androidx.compose.ui.graphics.lerp(paper, Color.White, 0.06f) else androidx.compose.ui.graphics.lerp(paper, Color.Black, 0.07f)
+    BoxWithConstraints(Modifier.fillMaxSize().background(if (paged) paper else gapBg)) {
         val pad = 8.dp
         val vw = maxWidth
         val vh = maxHeight
@@ -388,6 +393,7 @@ fun PdfView(
                 onNoteAdd = { x, y -> newNote = Triple(p, x, y) },
                 onNoteOpen = { editNote = it },
                 onLongLine = { li, x -> studyLine(p, li, x) },
+                cropOn = s.pdfCrop,
             )
         }
 
@@ -427,7 +433,7 @@ fun PdfView(
                             for (k in 0 until per) {
                                 val p = item * per + k
                                 if (p >= count) break
-                                val a = engine.aspects.getOrElse(p) { 1.41f }.coerceAtLeast(0.05f)
+                                val a = engine.shownAspect(p, s.pdfCrop)
                                 val w = min(((vw - pad * (per + 1)) / per).value, ((vh - pad * 2) / a).value).dp
                                 val rw = ((with(density) { w.toPx() } * pz / 128f).roundToInt().coerceAtLeast(2) * 128).coerceAtMost(2000)
                                 page(p, w, rw)
@@ -594,8 +600,64 @@ private fun DrawScope.drawInk(st: InkStroke) {
     drawPath(path, col, style = Stroke(width = sw, cap = if (st.highlight) StrokeCap.Butt else StrokeCap.Round, join = StrokeJoin.Round))
 }
 
+/**
+ * Página de PDF. Con «Recortar márgenes» se muestra solo la zona con contenido: la página completa
+ * se dibuja más grande y se recorta, así los trazos, notas y la regla siguen en su lugar.
+ */
 @Composable
 private fun PdfPage(
+    engine: PdfEngine,
+    page: Int,
+    width: Dp,
+    renderW: Int,
+    style: PageStyle,
+    paper: Color,
+    ocr: Boolean,
+    needLines: Boolean,
+    rulerOn: Boolean,
+    rulerLine: Int?,
+    tool: Tool,
+    penColor: Color,
+    hlColor: Color,
+    annots: AnnotStore,
+    onRulerTap: (Int) -> Unit,
+    onTapPlain: (Float) -> Unit,
+    onNoteAdd: (Float, Float) -> Unit,
+    onNoteOpen: (PdfNote) -> Unit,
+    onLongLine: (line: Int, x: Float) -> Unit = { _, _ -> },
+    cropOn: Boolean = false,
+) {
+    val box = if (cropOn) engine.crops[page] else CropBox.FULL
+    if (cropOn && box == null) LaunchedEffect(page) { runCatching { engine.crop(page) } }
+    val cb = box ?: CropBox.FULL
+    if (cb == CropBox.FULL) {
+        PdfPageFull(engine, page, width, renderW, style, paper, ocr, needLines, rulerOn, rulerLine, tool, penColor, hlColor, annots,
+            onRulerTap, onTapPlain, onNoteAdd, onNoteOpen, onLongLine)
+        return
+    }
+    val aspect = engine.aspects.getOrElse(page) { 1.41f }.takeIf { it > 0.05f } ?: 1.41f
+    val innerW = width / cb.width
+    val outerH = width * (aspect * cb.height / cb.width)
+    val rw = ((renderW / cb.width / 128f).roundToInt().coerceAtLeast(2) * 128).coerceAtMost(2600)
+    Box(Modifier.width(width).height(outerH).clip(RoundedCornerShape(3.dp)).background(paper)) {
+        Box(
+            Modifier.layout { m, _ ->
+                val iw = innerW.roundToPx()
+                val ih = (iw * aspect).roundToInt()
+                val pl = m.measure(androidx.compose.ui.unit.Constraints.fixed(iw, ih))
+                layout(width.roundToPx(), outerH.roundToPx()) {
+                    pl.place(-(cb.l * iw).roundToInt(), -(cb.t * ih).roundToInt())
+                }
+            }
+        ) {
+            PdfPageFull(engine, page, innerW, rw, style, paper, ocr, needLines, rulerOn, rulerLine, tool, penColor, hlColor, annots,
+                onRulerTap, onTapPlain, onNoteAdd, onNoteOpen, onLongLine)
+        }
+    }
+}
+
+@Composable
+private fun PdfPageFull(
     engine: PdfEngine,
     page: Int,
     width: Dp,

@@ -64,6 +64,7 @@
                 <data android:mimeType="application/x-fictionbook+xml" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
                 <data android:mimeType="application/vnd.oasis.opendocument.text" />
+                <data android:mimeType="application/x-mobipocket-ebook" />
             </intent-filter>
 
             <!-- Menú Compartir de otras apps -->

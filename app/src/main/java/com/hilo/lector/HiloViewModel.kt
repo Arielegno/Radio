@@ -42,6 +42,7 @@ sealed interface Screen {
     data object Library : Screen
     data class Reader(val id: String) : Screen
     data object Guide : Screen
+    data object News : Screen
     /** Estudio: de un documento, o de todos si [bookId] es null. */
     data class Study(val bookId: String?) : Screen
 }
@@ -183,6 +184,14 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
             settings.lastBook?.let { id -> repo.get(id)?.takeIf { !it.trashed }?.let { screen = Screen.Reader(it.id) } }
         }
         scanDevice(quiet = true)
+        // Versión 1.7: arreglar una vez los títulos que eran solo números o códigos
+        val sp = ctx.getSharedPreferences("arreglos", android.content.Context.MODE_PRIVATE)
+        if (!sp.getBoolean("titulos17", false)) {
+            viewModelScope.launch {
+                runCatching { repo.fixTitles() }
+                sp.edit().putBoolean("titulos17", true).apply()
+            }
+        }
         if (repo.folders().isNotEmpty()) {
             viewModelScope.launch {
                 val n = runCatching { repo.scanFolders() }.getOrDefault(0)

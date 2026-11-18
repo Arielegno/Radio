@@ -18,6 +18,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontVariation
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.core.view.WindowCompat
 import com.hilo.lector.R
 
@@ -75,13 +78,46 @@ object Fonts {
         Font(R.font.poppins_bold, FontWeight.Bold),
     )
 
-    fun reading(i: Int): FontFamily = when (i) {
-        1 -> lora
-        2 -> FontFamily.SansSerif
-        else -> inter
+    /** Fuente variable: el grosor se ajusta de forma continua (300 fina … 700 negrita). */
+    @OptIn(ExperimentalTextApi::class)
+    private fun variable(res: Int, weight: Int): FontFamily = FontFamily(
+        Font(res, FontWeight(weight), variationSettings = FontVariation.Settings(FontVariation.weight(weight))),
+        Font(res, FontWeight(minOf(900, weight + 300)), variationSettings = FontVariation.Settings(FontVariation.weight(minOf(900, weight + 300)))),
+    )
+
+    private val atkinson = FontFamily(
+        Font(R.font.atkinson_regular, FontWeight.Normal),
+        Font(R.font.atkinson_italic, FontWeight.Normal, FontStyle.Italic),
+        Font(R.font.atkinson_bold, FontWeight.Bold),
+    )
+
+    private val cache = HashMap<Long, FontFamily>()
+
+    /** Fuente de lectura [i] con el grosor elegido (400 = normal). */
+    fun reading(i: Int, weight: Int = 400): FontFamily = cache.getOrPut(i * 10_000L + weight) {
+        when (i) {
+            1 -> lora
+            2 -> FontFamily.SansSerif
+            3 -> variable(R.font.literata, weight)
+            4 -> variable(R.font.comfortaa, weight)
+            5 -> variable(R.font.lexend, weight)
+            6 -> atkinson
+            7 -> FontFamily.Serif
+            else -> inter
+        }
     }
 
-    val names = listOf("Inter", "Lora", "Sistema")
+    /** Las fuentes fijas solo tienen normal y negrita: el grosor se aproxima con el peso más cercano. */
+    fun weightFor(i: Int, weight: Int): FontWeight = when (i) {
+        3, 4, 5 -> FontWeight(weight)
+        else -> if (weight >= 560) FontWeight.Bold else if (weight >= 470) FontWeight.Medium else FontWeight.Normal
+    }
+
+    val names = listOf("Inter", "Lora", "Sistema", "Literata", "Comfortaa", "Lexend", "Atkinson", "Serif")
+    val notes = listOf(
+        "Clara y moderna", "Con serifa, de libro", "La del celular", "Hecha para leer libros largos",
+        "Redondeada y suave", "Pensada para leer con fluidez", "Letras muy distintas entre sí", "Serifa clásica",
+    )
 }
 
 private fun TextStyle.ui() = copy(fontFamily = Fonts.inter)

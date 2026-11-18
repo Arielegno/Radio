@@ -71,6 +71,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
@@ -78,7 +81,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
@@ -128,19 +134,25 @@ fun bionic(text: String): AnnotatedString = buildAnnotatedString {
 private fun paraText(body: String, heading: Boolean, s: ReaderSettings): AnnotatedString =
     if (s.bionic && !heading) bionic(body) else AnnotatedString(body)
 
-private fun paraStyle(heading: Boolean, s: ReaderSettings, ink: androidx.compose.ui.graphics.Color): TextStyle {
+internal fun paraStyle(heading: Boolean, s: ReaderSettings, ink: androidx.compose.ui.graphics.Color): TextStyle {
     val fs = if (heading) s.fontSize * 1.25f else s.fontSize
+    val justify = !heading && s.align >= 1
     return TextStyle(
-        fontFamily = if (heading) Fonts.display else Fonts.reading(s.font),
-        fontWeight = if (heading) FontWeight.Bold else FontWeight.Normal,
+        fontFamily = if (heading) Fonts.display else Fonts.reading(s.font, s.weight),
+        fontWeight = if (heading) FontWeight.Bold else Fonts.weightFor(s.font, s.weight),
         fontSize = fs.sp,
         lineHeight = (fs * s.lineHeight).sp,
         color = ink,
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None),
+        // Como la página de un libro: justificado, con guiones al cortar palabras y sangría al empezar el párrafo
+        textAlign = if (justify) TextAlign.Justify else TextAlign.Start,
+        hyphens = if (!heading && s.align == 1) Hyphens.Auto else Hyphens.None,
+        lineBreak = if (justify) LineBreak.Paragraph else LineBreak.Simple,
+        textIndent = if (!heading && s.indent) TextIndent(firstLine = (fs * 1.4f).sp) else TextIndent.None,
     )
 }
 
-private fun paraGap(heading: Boolean, s: ReaderSettings): Dp = (s.fontSize * (if (heading) 0.6f else s.paraSpacing)).dp
+private fun paraGap(heading: Boolean, s: ReaderSettings): Dp = (s.fontSize * (if (heading) 0.7f else s.paraSpacing)).dp
 
 /**
  * Un párrafo con colores por línea: cada línea va del color del texto a un color y la siguiente
@@ -157,6 +169,8 @@ fun FlowParagraph(
     onTap: (line: Int?, xFrac: Float) -> Unit,
     marks: List<IntRange> = emptyList(),
     onLongPress: ((offset: Int) -> Unit)? = null,
+    modifier: Modifier = Modifier,
+    gap: Boolean = true,
 ) {
     val heading = text.startsWith("# ")
     val longPress by rememberUpdatedState(onLongPress)
@@ -171,9 +185,9 @@ fun FlowParagraph(
         annotated,
         style = paraStyle(heading, s, ink),
         onTextLayout = { layout = it; onLayout(it) },
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = paraGap(heading, s))
+            .padding(bottom = if (gap) paraGap(heading, s) else 0.dp)
             .drawBehind {
                 val l = layout
                 // Resaltados del estudio
@@ -241,7 +255,8 @@ fun FlowParagraph(
     )
 }
 
-private data class Chunk(val para: Int, val start: Int, val end: Int)
+/** Trozo de un párrafo que cae en una página: caracteres [start, end) y su franja en píxeles dentro del párrafo. */
+private data class Chunk(val para: Int, val start: Int, val end: Int, val top: Float = 0f, val bottom: Float = 0f, val endsPara: Boolean = true)
 private data class PagedRuler(val page: Int, val chunk: Int, val line: Int)
 
 private class Pagination {
@@ -481,7 +496,7 @@ private fun ScrollFlow(
 private fun rememberPagination(list: List<String>, s: ReaderSettings, mode: ReadMode, widthPx: Int, heightPx: Int): Pagination {
     val measurer = rememberTextMeasurer(cacheSize = 0)
     val density = LocalDensity.current
-    val pag = remember(list, s.font, s.fontSize, s.lineHeight, s.paraSpacing, s.bionic, widthPx, heightPx) { Pagination() }
+    val pag = remember(list, s.font, s.weight, s.align, s.indent, s.fontSize, s.lineHeight, s.paraSpacing, s.bionic, widthPx, heightPx) { Pagination() }
     LaunchedEffect(pag) {
         if (widthPx <= 0 || heightPx <= 0) return@LaunchedEffect
         val cur = ArrayList<Chunk>()
@@ -513,7 +528,7 @@ private fun rememberPagination(list: List<String>, s: ReaderSettings, mode: Read
                 }
                 val st = lay.getLineStart(line)
                 val en = if (last >= lay.lineCount) body.length else lay.getLineStart(last)
-                cur.add(Chunk(pi, st, en))
+                cur.add(Chunk(pi, st, en, top0, lay.getLineBottom(last - 1), last >= lay.lineCount))
                 y += lay.getLineBottom(last - 1) - top0
                 line = last
                 if (line < lay.lineCount) push() else y += gap
@@ -549,27 +564,33 @@ private fun PagedFlow(
     var curPara by remember(book.id) { mutableIntStateOf(book.flowPos.coerceIn(0, list.size - 1)) }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(mode.paper)) {
-        val colW = min(maxWidth - (s.margin * 2).dp, 760.dp)
-        val topPad = 14.dp
+        // Con el celular acostado y «Dos páginas», se ven dos columnas como un libro abierto
+        val two = s.twoPages && maxWidth > maxHeight && maxWidth > 600.dp
+        val per = if (two) 2 else 1
+        val gutter = if (two) (s.margin * 2 + 16).dp else 0.dp
+        val colW = if (two) min((maxWidth - (s.margin * 2).dp - gutter) / 2, 620.dp) else min(maxWidth - (s.margin * 2).dp, 760.dp)
+        val topPad = (10 + s.margin / 2).dp
         val footer = 26.dp
         val colH = maxHeight - topPad - footer
         val wPx = with(density) { colW.roundToPx() }
         val hPx = with(density) { colH.roundToPx() }
         val pag = rememberPagination(list, s, mode, wPx, hPx)
-        val pagerState = rememberPagerState { max(1, pag.pages.size) }
-        var placed by remember(pag) { mutableStateOf(false) }
+        val spreads = max(1, (pag.pages.size + per - 1) / per)
+        val pagerState = rememberPagerState { spreads }
+        var placed by remember(pag, per) { mutableStateOf(false) }
 
         fun pageOfPara(p: Int): Int = pag.pages.indexOfFirst { pg -> pg.any { it.para >= p } }
+        fun curPage(): Int = pagerState.currentPage * per
 
         // Volver al mismo párrafo cuando se rearma la paginación (tamaño de letra, giro de pantalla)
-        LaunchedEffect(pag) {
+        LaunchedEffect(pag, per) {
             val target = curPara
             while (true) {
                 val idx = pageOfPara(target)
                 if (idx >= 0) {
                     val lastChunkBefore = pag.pages.getOrNull(idx - 1)?.lastOrNull()
                     val use = if (lastChunkBefore != null && lastChunkBefore.para == target) idx - 1 else idx
-                    pagerState.scrollToPage(use.coerceAtLeast(0))
+                    pagerState.scrollToPage(use.coerceAtLeast(0) / per)
                     break
                 }
                 if (pag.done) break
@@ -579,58 +600,64 @@ private fun PagedFlow(
         }
 
         // Guardar avance
-        LaunchedEffect(pag) {
+        LaunchedEffect(pag, per) {
             snapshotFlow { pagerState.currentPage }.collectLatest { i ->
                 if (!placed) return@collectLatest
-                val first = pag.pages.getOrNull(i)?.firstOrNull() ?: return@collectLatest
+                val first = pag.pages.getOrNull(i * per)?.firstOrNull() ?: return@collectLatest
                 curPara = first.para
                 delay(700)
-                val prog = if (pag.done) ((i + 1f) / pag.pages.size) else (first.para + 1f) / list.size
+                val prog = if (pag.done) ((i * per + per).toFloat() / pag.pages.size) else (first.para + 1f) / list.size
                 vm.repo.update(book.id) {
                     it.copy(flowPos = first.para, flowOffset = 0, progress = prog.coerceIn(0.001f, 1f), updated = System.currentTimeMillis(), flowMode = it.type == "pdf")
                 }
             }
         }
-        LaunchedEffect(s.ruler) { if (s.ruler && ruler == null) ruler = PagedRuler(pagerState.currentPage, 0, 0) }
+
+        // Líneas del párrafo que caen en el trozo k de la página pg
+        fun lineRange(pg: Int, k: Int): IntRange? {
+            val ch = pag.pages.getOrNull(pg)?.getOrNull(k) ?: return null
+            val l = layouts[pg * 1000 + k] ?: return null
+            return l.getLineForOffset(ch.start)..l.getLineForOffset(maxOf(ch.start, ch.end - 1))
+        }
+        LaunchedEffect(s.ruler) { if (s.ruler && ruler == null) ruler = PagedRuler(curPage(), 0, -1) }
 
         suspend fun goPara(p: Int) {
             var idx = pageOfPara(p)
             while (idx < 0 && !pag.done) { delay(40); idx = pageOfPara(p) }
-            if (idx >= 0) pagerState.scrollToPage(idx)
+            if (idx >= 0) pagerState.scrollToPage(idx / per)
         }
 
         suspend fun move(d: Int) {
-            val r = ruler ?: PagedRuler(pagerState.currentPage, 0, -1)
+            val r = ruler ?: PagedRuler(curPage(), 0, Int.MIN_VALUE)
             var pg = r.page
             var k = r.chunk
-            var l = r.line
-            layouts[pg * 1000 + k]?.lineCount?.let { if (it > 0) l = l.coerceAtMost(it - 1) }
-            l += d
-            val cnt = layouts[pg * 1000 + k]?.lineCount ?: 1
-            if (l >= cnt) {
-                k++; l = 0
+            val rg = lineRange(pg, k) ?: (0..0)
+            var l = when (r.line) { Int.MIN_VALUE -> rg.first - 1; -1 -> rg.first; Int.MAX_VALUE -> rg.last; else -> r.line } + d
+            if (l > rg.last) {
+                k++
                 if (k >= (pag.pages.getOrNull(pg)?.size ?: 0)) {
                     pg++; k = 0
                     if (pg >= pag.pages.size) { vm.toast = "Terminaste el texto. ¡Bien hecho!"; return }
                 }
-            } else if (l < 0) {
+                l = lineRange(pg, k)?.first ?: -1
+            } else if (l < rg.first) {
                 k--
                 if (k < 0) {
                     pg--
                     if (pg < 0) return
                     k = (pag.pages.getOrNull(pg)?.size ?: 1) - 1
                 }
-                l = (layouts[pg * 1000 + k]?.lineCount ?: 999) - 1
+                l = lineRange(pg, k)?.last ?: Int.MAX_VALUE
             }
             ruler = PagedRuler(pg, k, l)
-            if (pagerState.currentPage != pg) pagerState.animateScrollToPage(pg)
+            if (pagerState.currentPage != pg / per) pagerState.animateScrollToPage(pg / per)
         }
 
         fun tapAt(frac: Float) {
             when {
                 s.tapTurn && frac < 0.28f -> scope.launch { pagerState.animateScrollToPage((pagerState.currentPage - 1).coerceAtLeast(0)) }
                 s.tapTurn && frac > 0.72f -> scope.launch {
-                    if (pagerState.currentPage >= pag.pages.size - 1 && pag.done) vm.toast = "Terminaste el texto. ¡Bien hecho!"
+                    if (pagerState.currentPage >= spreads - 1 && pag.done) vm.toast = "Terminaste el texto. ¡Bien hecho!"
                     else pagerState.animateScrollToPage(pagerState.currentPage + 1)
                 }
                 else -> onTapPlain()
@@ -640,53 +667,80 @@ private fun PagedFlow(
         val cur = pagerState.currentPage
         SideEffect {
             bridge.position = cur
-            bridge.total = max(1, pag.pages.size)
+            bridge.total = spreads
             bridge.unit = "Pág."
             bridge.move = { d -> move(d) }
-            bridge.seek = { p -> pagerState.scrollToPage(p.coerceIn(0, max(0, pag.pages.size - 1))) }
+            bridge.seek = { p -> pagerState.scrollToPage(p.coerceIn(0, max(0, spreads - 1))) }
             bridge.goPara = { p -> goPara(p) }
             bridge.goPage = null
             bridge.follow = { p -> goPara(p) }
             bridge.here = {
-                val p = pag.pages.getOrNull(pagerState.currentPage)?.firstOrNull()?.para ?: curPara
+                val p = pag.pages.getOrNull(curPage())?.firstOrNull()?.para ?: curPara
                 p to TextTools.firstWords(list[p].removePrefix("# "), 8)
             }
             bridge.speakFrom = { after ->
-                val start = after?.plus(1) ?: (pag.pages.getOrNull(pagerState.currentPage)?.firstOrNull()?.para ?: curPara)
+                val start = after?.plus(1) ?: (pag.pages.getOrNull(curPage())?.firstOrNull()?.para ?: curPara)
                 (start until minOf(list.size, start + 30)).map { it to list[it].removePrefix("# ") }
             }
             bridge.words = {
-                val start = pag.pages.getOrNull(pagerState.currentPage)?.firstOrNull()?.para ?: curPara
+                val start = pag.pages.getOrNull(curPage())?.firstOrNull()?.para ?: curPara
                 TextTools.words(list.drop(start).take(400))
             }
         }
 
-        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize(), beyondViewportPageCount = 1) { pi ->
+        // Una página: cada trozo es el párrafo entero recortado a sus líneas, así el justificado,
+        // la sangría y los colores de línea quedan iguales aunque el párrafo siga en la página siguiente.
+        @Composable
+        fun PageColumn(pi: Int) {
             val chunks = pag.pages.getOrNull(pi).orEmpty()
-            Box(
-                Modifier.fillMaxSize().pageTurn(pagerState, pi).background(mode.paper)
-                    .pointerInput(Unit) { detectTapGestures { o -> tapAt(o.x / size.width) } },
-                contentAlignment = Alignment.TopCenter,
-            ) {
-                Column(Modifier.padding(top = topPad).width(colW).height(colH)) {
-                    chunks.forEachIndexed { k, ch ->
-                        val raw = list[ch.para]
-                        val heading = raw.startsWith("# ")
-                        val body = if (heading) raw.substring(2) else raw
-                        val piece = body.substring(ch.start.coerceAtMost(body.length), ch.end.coerceIn(ch.start, body.length))
+            Column(Modifier.width(colW).height(colH)) {
+                chunks.forEachIndexed { k, ch ->
+                    val raw = list[ch.para]
+                    val heading = raw.startsWith("# ")
+                    val h = with(density) { (ch.bottom - ch.top).toDp() }
+                    val r = ruler?.takeIf { it.page == pi && it.chunk == k }
+                    val lay = layouts[pi * 1000 + k]
+                    val rLine = r?.let { rr ->
+                        when (rr.line) {
+                            -1, Int.MIN_VALUE -> lay?.getLineForOffset(ch.start)
+                            Int.MAX_VALUE -> lay?.getLineForOffset(maxOf(ch.start, ch.end - 1))
+                            else -> rr.line
+                        }
+                    }
+                    Box(Modifier.width(colW).height(h).clipToBounds()) {
                         FlowParagraph(
-                            text = if (heading) "# $piece" else piece, s = s, mode = mode,
-                            rulerLine = ruler?.takeIf { it.page == pi && it.chunk == k }?.line,
+                            text = raw, s = s, mode = mode,
+                            rulerLine = rLine,
                             rulerOn = s.ruler,
                             onLayout = { layouts[pi * 1000 + k] = it },
                             onTap = { line, fx -> if (s.ruler && line != null) ruler = PagedRuler(pi, k, line) else tapAt(fx) },
-                            marks = marksFor(ch.para, ch.start, ch.end),
-                            onLongPress = { off -> study(ch.para, ch.start + off) },
+                            marks = marksFor(ch.para, 0, raw.length + 1),
+                            onLongPress = { off -> study(ch.para, off) },
+                            gap = false,
+                            modifier = Modifier.wrapContentHeight(Alignment.Top, unbounded = true)
+                                .offset { androidx.compose.ui.unit.IntOffset(0, -ch.top.roundToInt()) },
                         )
+                    }
+                    if (ch.endsPara && k < chunks.size - 1) Spacer(Modifier.height(paraGap(heading, s)))
+                }
+            }
+        }
+
+        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize(), beyondViewportPageCount = 1) { sp ->
+            Box(
+                Modifier.fillMaxSize().pageTurn(pagerState, sp).background(mode.paper)
+                    .pointerInput(Unit) { detectTapGestures { o -> tapAt(o.x / size.width) } },
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                Row(Modifier.padding(top = topPad), horizontalArrangement = Arrangement.spacedBy(gutter)) {
+                    for (j in 0 until per) {
+                        val pi = sp * per + j
+                        if (pi < pag.pages.size) PageColumn(pi) else Spacer(Modifier.width(colW))
                     }
                 }
                 Text(
-                    "${pi + 1} / ${pag.pages.size}${if (pag.done) "" else "…"}",
+                    if (per == 2) "${sp * 2 + 1}–${minOf(sp * 2 + 2, pag.pages.size)} / ${pag.pages.size}${if (pag.done) "" else "…"}"
+                    else "${sp + 1} / ${pag.pages.size}${if (pag.done) "" else "…"}",
                     color = mode.muted, fontSize = 12.sp,
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp),
                 )

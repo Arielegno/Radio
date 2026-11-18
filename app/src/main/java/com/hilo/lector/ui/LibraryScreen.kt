@@ -14,6 +14,17 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.NewReleases
+import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.RestoreFromTrash
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -155,6 +166,7 @@ private fun mimeOf(type: String) = when (type) {
     "fb2" -> "application/x-fictionbook+xml"
     "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     "odt" -> "application/vnd.oasis.opendocument.text"
+    "mobi" -> "application/x-mobipocket-ebook"
     else -> "text/plain"
 }
 
@@ -169,7 +181,14 @@ fun LibraryScreen(vm: HiloViewModel) {
     var addMenu by remember { mutableStateOf(false) }
     var menuFor by remember { mutableStateOf<Book?>(null) }
     var editFor by remember { mutableStateOf<Book?>(null) }
-    var collFor by remember { mutableStateOf<Book?>(null) }
+    var collFor by remember { mutableStateOf<List<Book>?>(null) }
+    var selected by remember { mutableStateOf(setOf<String>()) }
+    val selecting = selected.isNotEmpty()
+    var bulkDelete by remember { mutableStateOf(false) }
+    val rs by vm.settings.state.collectAsStateWithLifecycle()
+    val listView = rs.libraryView == 0
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    fun toggleSel(id: String) { selected = if (id in selected) selected - id else selected + id }
     var deleteFor by remember { mutableStateOf<Book?>(null) }
     var foldersOpen by remember { mutableStateOf(false) }
     var confirmEmpty by remember { mutableStateOf(false) }
@@ -201,8 +220,9 @@ fun LibraryScreen(vm: HiloViewModel) {
         }
     }
     val dueToday = vm.study.due().size
-    BackHandler(enabled = drawer.isOpen || section.kind != "all" || searching) {
+    BackHandler(enabled = drawer.isOpen || section.kind != "all" || searching || selecting) {
         when {
+            selecting -> selected = emptySet()
             drawer.isOpen -> scope.launch { drawer.close() }
             searching -> { searching = false; query = "" }
             else -> section = Section("all")
@@ -232,6 +252,17 @@ fun LibraryScreen(vm: HiloViewModel) {
         }.onFailure { vm.toast = "No pude compartir este archivo." }
     }
 
+    fun shareMany(bs: List<Book>) {
+        runCatching {
+            val uris = ArrayList(bs.mapNotNull { runCatching { vm.repo.shareUri(it) }.getOrNull() })
+            if (uris.isEmpty()) error("sin archivos")
+            val i = Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*")
+                .putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            ctx.startActivity(Intent.createChooser(i, "Compartir ${uris.size} archivos"))
+        }.onFailure { vm.toast = "No pude compartir esos archivos." }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawer,
         drawerContent = {
@@ -248,34 +279,52 @@ fun LibraryScreen(vm: HiloViewModel) {
                 onTimer = { vm.sheet = "timer"; scope.launch { drawer.close() } },
                 onSettings = { vm.sheet = "settings"; scope.launch { drawer.close() } },
                 onGuide = { vm.screen = Screen.Guide },
+                onNews = { vm.screen = Screen.News },
             )
         },
     ) {
         Box(Modifier.fillMaxSize().background(c.bg).windowInsetsPadding(WindowInsets.safeDrawing)) {
+          Column(Modifier.fillMaxSize()) {
+            // Barra de arriba fija: título y botones, o la barra de selección
+            if (selecting) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(c.band),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { selected = emptySet() }) { Icon(Icons.Rounded.Close, "Terminar selección", tint = c.ink) }
+                    Text(
+                        "${selected.size} ${if (selected.size == 1) "seleccionado" else "seleccionados"}",
+                        color = c.ink, fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f),
+                    )
+                    val all = list.isNotEmpty() && list.all { it.id in selected }
+                    TextButton(onClick = { selected = if (all) emptySet() else list.map { it.id }.toSet() }) { Text(if (all) "Ninguno" else "Todos") }
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
+                    IconButton(onClick = { scope.launch { drawer.open() } }) { Icon(Icons.Rounded.Menu, "Menú", tint = c.ink) }
+                    if (section.kind == "all") Brand(Modifier.weight(1f))
+                    else Text(
+                        section.title(), style = MaterialTheme.typography.titleLarge, color = c.ink,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { searching = !searching; if (!searching) query = "" }) { Icon(Icons.Rounded.Search, "Buscar", tint = c.ink) }
+                    val t = vm.timer
+                    IconButton(onClick = { vm.sheet = "timer" }) {
+                        if (t.running) Text(formatClock(t.remaining), color = c.accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        else Icon(Icons.Rounded.Timer, "Temporizador", tint = c.ink)
+                    }
+                    IconButton(onClick = { vm.sheet = "settings" }) { Icon(Icons.Rounded.Tune, "Ajustes", tint = c.ink) }
+                }
+            }
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(112.dp),
+                columns = if (listView) GridCells.Adaptive(330.dp) else GridCells.Adaptive(112.dp),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(if (listView) 10.dp else 12.dp),
+                modifier = Modifier.fillMaxWidth().weight(1f),
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { scope.launch { drawer.open() } }) { Icon(Icons.Rounded.Menu, "Menú", tint = c.ink) }
-                            if (section.kind == "all") Brand(Modifier.weight(1f))
-                            else Text(
-                                section.title(), style = MaterialTheme.typography.titleLarge, color = c.ink,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-                            )
-                            IconButton(onClick = { searching = !searching; if (!searching) query = "" }) { Icon(Icons.Rounded.Search, "Buscar", tint = c.ink) }
-                            val t = vm.timer
-                            IconButton(onClick = { vm.sheet = "timer" }) {
-                                if (t.running) Text(formatClock(t.remaining), color = c.accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                else Icon(Icons.Rounded.Timer, "Temporizador", tint = c.ink)
-                            }
-                            IconButton(onClick = { vm.sheet = "settings" }) { Icon(Icons.Rounded.Tune, "Ajustes", tint = c.ink) }
-                        }
                         if (searching) {
                             OutlinedTextField(
                                 value = query, onValueChange = { query = it },
@@ -324,6 +373,17 @@ fun LibraryScreen(vm: HiloViewModel) {
                         if (section.kind == "trash" && list.isNotEmpty()) {
                             TextButton(onClick = { confirmEmpty = true }) { Text("Vaciar papelera", color = c.lines[0]) }
                         }
+                        if (section.kind == "new" && list.isNotEmpty()) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { vm.repo.clearNew(); vm.newFound = 0; section = Section("all"); vm.toast = "Listo, ya no aparecen como nuevos." }) {
+                                    Text("Marcar todos como vistos", color = c.ink)
+                                }
+                                TextButton(onClick = { foldersOpen = true }) { Text("Elegir carpetas") }
+                            }
+                        }
+                        if (list.size > 1 && !selecting && section.kind != "trash") {
+                            Text("Mantén el dedo sobre un libro para elegir varios.", color = c.muted, fontSize = 12.sp)
+                        }
                     }
                 }
 
@@ -343,7 +403,13 @@ fun LibraryScreen(vm: HiloViewModel) {
                 }
 
                 items(list, key = { it.id }) { b ->
-                    BookCard(vm, b, onOpen = { if (b.trashed) menuFor = b else vm.open(b) }, onMenu = { menuFor = b })
+                    val sel = b.id in selected
+                    val open = { if (selecting) toggleSel(b.id) else if (b.trashed) menuFor = b else vm.open(b) }
+                    val long = { haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress); toggleSel(b.id) }
+                    if (listView) BookRow(
+                        vm, b, sel, selecting, onOpen = open, onLong = long, onMenu = { menuFor = b },
+                        onColl = { collFor = listOf(b) },
+                    ) else BookCard(vm, b, sel, selecting, onOpen = open, onLong = long, onMenu = { menuFor = b })
                 }
 
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -354,8 +420,9 @@ fun LibraryScreen(vm: HiloViewModel) {
                     )
                 }
             }
+          }
 
-            if (vm.newFound > 0) {
+            if (vm.newFound > 0 && !selecting) {
                 Row(
                     Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 150.dp, bottom = 24.dp)
                         .clip(RoundedCornerShape(12.dp)).background(c.ink).padding(start = 16.dp, end = 4.dp),
@@ -363,9 +430,42 @@ fun LibraryScreen(vm: HiloViewModel) {
                 ) {
                     Text("Nuevos: ${vm.newFound}", color = c.surface, fontSize = 14.sp, maxLines = 1)
                     TextButton(onClick = { section = Section("new"); vm.newFound = 0 }) { Text("VER", color = Color(0xFFFFC94D), fontWeight = FontWeight.Bold) }
+                    TextButton(onClick = { foldersOpen = true }) { Text("CARPETAS", color = c.surface.copy(alpha = 0.8f), fontSize = 12.sp) }
                 }
             }
-            Box(Modifier.align(Alignment.BottomEnd).padding(20.dp)) {
+            if (selecting) {
+                val chosen = books.filter { it.id in selected }
+                Row(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp).clip(RoundedCornerShape(20.dp))
+                        .background(c.surface).padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                ) {
+                    if (section.kind == "trash") {
+                        BulkAction(Icons.Rounded.RestoreFromTrash, "Restaurar") {
+                            chosen.forEach { b -> vm.repo.update(b.id) { it.copy(trashed = false) } }
+                            vm.toast = "Restaurados: ${chosen.size}."; selected = emptySet()
+                        }
+                        BulkAction(Icons.Rounded.DeleteForever, "Borrar", danger = true) { bulkDelete = true }
+                    } else {
+                        BulkAction(Icons.Rounded.Share, "Compartir") { shareMany(chosen) }
+                        val allFav = chosen.all { it.favorite }
+                        BulkAction(if (allFav) Icons.Rounded.StarBorder else Icons.Rounded.Star, if (allFav) "Quitar ★" else "Favoritos") {
+                            chosen.forEach { b -> vm.repo.update(b.id) { it.copy(favorite = !allFav) } }
+                            vm.toast = if (allFav) "Quitados de favoritos." else "Agregados a favoritos."
+                        }
+                        BulkAction(Icons.Rounded.CollectionsBookmark, "Colección") { collFor = chosen }
+                        BulkAction(Icons.Rounded.Check, "Leídos") {
+                            chosen.forEach { b -> vm.repo.update(b.id) { it.copy(done = true, progress = 1f, toRead = false, isNew = false) } }
+                            vm.toast = "Marcados como leídos."; selected = emptySet()
+                        }
+                        BulkAction(Icons.Rounded.Delete, "Papelera", danger = true) {
+                            chosen.forEach { b -> vm.repo.update(b.id) { it.copy(trashed = true) } }
+                            vm.toast = "${chosen.size} a la papelera."; selected = emptySet()
+                        }
+                    }
+                }
+            }
+            if (!selecting) Box(Modifier.align(Alignment.BottomEnd).padding(20.dp)) {
                 ExtendedFloatingActionButton(
                     onClick = { addMenu = true },
                     icon = { Icon(Icons.Rounded.Add, null) },
@@ -442,7 +542,8 @@ fun LibraryScreen(vm: HiloViewModel) {
                                     vm.toast = "¡Un libro más!"
                                 }
                             }
-                            MenuLine("Colecciones") { menuFor = null; collFor = b }
+                            MenuLine("Colecciones") { menuFor = null; collFor = listOf(b) }
+                            MenuLine("Elegir varios") { menuFor = null; selected = setOf(b.id) }
                             MenuLine("Editar título y autor") { menuFor = null; editFor = b }
                             MenuLine("Compartir archivo") { menuFor = null; share(b) }
                             MenuLine("Mover a la papelera", danger = true) {
@@ -481,16 +582,18 @@ fun LibraryScreen(vm: HiloViewModel) {
         )
     }
 
-    collFor?.let { b ->
+    collFor?.let { group ->
         val all = books.flatMap { it.collections }.distinct().sorted()
-        var chosen by remember(b.id) { mutableStateOf(b.collections.toSet()) }
-        var newName by remember(b.id) { mutableStateOf("") }
+        val key = group.joinToString { it.id }
+        var chosen by remember(key) { mutableStateOf(group.map { it.collections.toSet() }.reduce { a, b -> a intersect b }) }
+        var newName by remember(key) { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { collFor = null },
             containerColor = c.surface,
-            title = { Text("Colecciones") },
+            title = { Text(if (group.size == 1) "Colecciones" else "Colecciones de ${group.size} libros") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
+                    if (group.size > 1) Text("Se agregan a las colecciones que marques.", color = c.muted, fontSize = 13.sp)
                     all.forEach { name ->
                         Row(
                             Modifier.fillMaxWidth().clickable { chosen = if (name in chosen) chosen - name else chosen + name },
@@ -509,11 +612,31 @@ fun LibraryScreen(vm: HiloViewModel) {
             confirmButton = {
                 TextButton(onClick = {
                     val set = if (newName.isNotBlank()) chosen + newName.trim() else chosen
-                    vm.repo.update(b.id) { it.copy(collections = set.sorted()) }
+                    group.forEach { b ->
+                        vm.repo.update(b.id) { it.copy(collections = (if (group.size == 1) set else it.collections.toSet() + set).sorted()) }
+                    }
                     collFor = null
+                    if (group.size > 1) { selected = emptySet(); vm.toast = "Listo." }
                 }) { Text("Guardar") }
             },
             dismissButton = { TextButton(onClick = { collFor = null }) { Text("Cancelar") } },
+        )
+    }
+
+    if (bulkDelete) {
+        val chosen = books.filter { it.id in selected }
+        AlertDialog(
+            onDismissRequest = { bulkDelete = false },
+            containerColor = c.surface,
+            title = { Text("¿Borrar ${chosen.size} para siempre?") },
+            text = { Text("Salen de Hilo con su avance y anotaciones. Los documentos que estaban en tu celular siguen ahí.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    chosen.forEach { vm.study.removeBook(it.id); vm.repo.remove(it.id) }
+                    bulkDelete = false; selected = emptySet(); vm.toast = "Borrados."
+                }) { Text("Borrar", color = c.lines[0]) }
+            },
+            dismissButton = { TextButton(onClick = { bulkDelete = false }) { Text("Cancelar") } },
         )
     }
 
@@ -556,33 +679,76 @@ fun LibraryScreen(vm: HiloViewModel) {
     }
 
     if (foldersOpen) {
-        var folders by remember { mutableStateOf(vm.repo.folders()) }
-        AlertDialog(
-            onDismissRequest = { foldersOpen = false },
-            containerColor = c.surface,
-            title = { Text("Carpetas") },
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        "Hilo busca documentos en estas carpetas cada vez que abres la app y agrega los nuevos.",
-                        color = c.muted, fontSize = 14.sp,
-                    )
-                    if (folders.isEmpty()) Text("Todavía no elegiste ninguna carpeta.", color = c.ink)
-                    folders.forEach { u ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.Folder, null, tint = c.accent)
-                            Text(vm.repo.folderName(u), color = c.ink, modifier = Modifier.weight(1f).padding(start = 8.dp))
-                            TextButton(onClick = { vm.repo.removeFolder(u); folders = vm.repo.folders() }) { Text("Quitar") }
+        FoldersDialog(vm, onAdd = { foldersOpen = false; pickFolder.launch(null) }) { foldersOpen = false }
+    }
+}
+
+/** Nombre amable de una carpeta del celular. */
+private fun folderLabel(path: String): String {
+    val rel = path.removePrefix("/storage/emulated/0/").removePrefix("/sdcard/")
+    return when {
+        rel.contains("WhatsApp", true) -> "WhatsApp · " + rel.substringAfterLast('/')
+        rel.contains("Telegram", true) -> "Telegram · " + rel.substringAfterLast('/')
+        rel.equals("Download", true) || rel.equals("Downloads", true) -> "Descargas"
+        rel.equals("Documents", true) -> "Documentos"
+        rel.startsWith("Download/", true) -> "Descargas › " + rel.substringAfter('/')
+        rel.startsWith("Documents/", true) -> "Documentos › " + rel.substringAfter('/')
+        else -> rel.ifBlank { path }
+    }
+}
+
+/** Carpetas: las que Hilo encontró en el celular (se pueden dejar de leer) y las que elegiste tú. */
+@Composable
+private fun FoldersDialog(vm: HiloViewModel, onAdd: () -> Unit, onClose: () -> Unit) {
+    val c = LocalHilo.current
+    val books by vm.repo.books.collectAsStateWithLifecycle()
+    var excluded by remember { mutableStateOf(vm.repo.excludedFolders()) }
+    var picked by remember { mutableStateOf(vm.repo.folders()) }
+    val found = remember(books, excluded) {
+        val live = vm.repo.deviceFolders().toMap()
+        (live.keys + excluded).distinct().map { it to (live[it] ?: 0) }.sortedWith(compareBy({ it.first in excluded }, { -it.second }))
+    }
+    AlertDialog(
+        onDismissRequest = onClose,
+        containerColor = c.surface,
+        title = { Text("Carpetas") },
+        text = {
+            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (found.isNotEmpty()) {
+                    Label("Encontradas en el celular")
+                    Text("Apaga las carpetas que no quieres en Hilo (por ejemplo, documentos de WhatsApp). Los archivos no se borran.", color = c.muted, fontSize = 13.sp)
+                    found.forEach { (path, n) ->
+                        val on = path !in excluded
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Rounded.Folder, null, tint = if (on) c.accent else c.muted)
+                            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                Text(folderLabel(path), color = if (on) c.ink else c.muted, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(if (on) "$n ${if (n == 1) "documento" else "documentos"}" else "No se lee", color = c.muted, fontSize = 12.sp)
+                            }
+                            androidx.compose.material3.Switch(checked = on, onCheckedChange = { want ->
+                                if (want) { vm.repo.includeFolder(path); vm.scanDevice(quiet = false) }
+                                else { val k = vm.repo.excludeFolder(path); vm.toast = "Quité $k ${if (k == 1) "documento" else "documentos"} de esa carpeta." }
+                                excluded = vm.repo.excludedFolders()
+                            })
                         }
                     }
+                    HorizontalDivider(Modifier.padding(vertical = 6.dp), color = c.line)
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { foldersOpen = false; pickFolder.launch(null) }) { Text("Agregar carpeta") }
-            },
-            dismissButton = { TextButton(onClick = { foldersOpen = false }) { Text("Cerrar") } },
-        )
-    }
+                Label("Elegidas por ti")
+                Text("Hilo revisa estas carpetas cada vez que abres la app y agrega lo nuevo.", color = c.muted, fontSize = 13.sp)
+                if (picked.isEmpty()) Text("Todavía no elegiste ninguna.", color = c.ink, fontSize = 14.sp)
+                picked.forEach { u ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Folder, null, tint = c.accent)
+                        Text(vm.repo.folderName(u), color = c.ink, modifier = Modifier.weight(1f).padding(start = 8.dp))
+                        TextButton(onClick = { vm.repo.removeFolder(u); picked = vm.repo.folders() }) { Text("Quitar") }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onAdd) { Text("Agregar carpeta") } },
+        dismissButton = { TextButton(onClick = onClose) { Text("Cerrar") } },
+    )
 }
 
 @Composable
@@ -597,6 +763,7 @@ private fun LibraryDrawer(
     onTimer: () -> Unit,
     onSettings: () -> Unit,
     onGuide: () -> Unit,
+    onNews: () -> Unit,
 ) {
     val c = LocalHilo.current
     var open by remember { mutableStateOf("") }
@@ -666,6 +833,7 @@ private fun LibraryDrawer(
             line(Icons.Rounded.Timer, "Temporizador", null, false, onTimer)
             line(Icons.Rounded.Tune, "Ajustes", null, false, onSettings)
             line(Icons.AutoMirrored.Rounded.HelpOutline, "Cómo usar Hilo", null, false, onGuide)
+            line(Icons.Rounded.NewReleases, "Novedades · versión ${com.hilo.lector.data.Changelog.current.name}", null, false, onNews)
         }
     }
 }
@@ -716,10 +884,14 @@ private fun ContinueCard(vm: HiloViewModel, b: Book) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BookCard(vm: HiloViewModel, b: Book, onOpen: () -> Unit, onMenu: () -> Unit) {
+private fun BookCard(vm: HiloViewModel, b: Book, sel: Boolean, selecting: Boolean, onOpen: () -> Unit, onLong: () -> Unit, onMenu: () -> Unit) {
     val c = LocalHilo.current
-    Box(Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onOpen)) {
+    Box(
+        Modifier.clip(RoundedCornerShape(12.dp)).combinedClickable(onClick = onOpen, onLongClick = onLong)
+            .then(if (sel) Modifier.border(3.dp, c.accent, RoundedCornerShape(12.dp)) else Modifier)
+    ) {
         BookCover(vm, b, Modifier.fillMaxWidth())
         Column(
             Modifier.align(Alignment.BottomStart).fillMaxWidth()
@@ -752,15 +924,111 @@ private fun BookCard(vm: HiloViewModel, b: Book, onOpen: () -> Unit, onMenu: () 
         if (b.favorite) {
             Icon(
                 Icons.Rounded.Star, "Favorito", tint = Color(0xFFFFC94D),
-                modifier = Modifier.align(Alignment.TopStart).padding(start = 6.dp, top = if (b.done) 30.dp else 6.dp).size(20.dp),
+                modifier = Modifier.align(Alignment.TopStart).padding(start = 6.dp, top = if (b.done || b.isNew) 30.dp else 6.dp).size(20.dp),
             )
         }
-        Box(
+        if (selecting) {
+            SelectMark(sel, Modifier.align(Alignment.TopEnd).padding(6.dp))
+        } else Box(
             Modifier.align(Alignment.TopEnd).padding(5.dp).size(32.dp).clip(CircleShape)
                 .background(Color.Black.copy(alpha = 0.45f)).clickable(onClick = onMenu),
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.Rounded.MoreVert, "Opciones de ${b.title}", tint = Color.White, modifier = Modifier.size(18.dp))
         }
+    }
+}
+
+@Composable
+private fun SelectMark(on: Boolean, modifier: Modifier = Modifier) {
+    val c = LocalHilo.current
+    Box(
+        modifier.size(28.dp).clip(CircleShape).background(if (on) c.accent else Color.Black.copy(alpha = 0.35f))
+            .border(2.dp, Color.White, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) { if (on) Icon(Icons.Rounded.Check, "Elegido", tint = c.accentInk, modifier = Modifier.size(18.dp)) }
+}
+
+private fun sizeLabel(bytes: Long): String = when {
+    bytes >= 1_000_000 -> String.format(java.util.Locale.US, "%.1f MB", bytes / 1_000_000.0)
+    bytes >= 1000 -> "${bytes / 1000} kB"
+    else -> "$bytes B"
+}
+
+/** Un libro en la vista de lista, como en ReadEra: portada, datos, avance y botones rápidos. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun BookRow(
+    vm: HiloViewModel, b: Book, sel: Boolean, selecting: Boolean,
+    onOpen: () -> Unit, onLong: () -> Unit, onMenu: () -> Unit, onColl: () -> Unit,
+) {
+    val c = LocalHilo.current
+    val size by androidx.compose.runtime.produceState<Long?>(null, b.id, b.file) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { vm.repo.fileOf(b).length() }.getOrNull() }
+    }
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(if (sel) c.band else c.surface)
+            .then(if (sel) Modifier.border(2.dp, c.accent, RoundedCornerShape(18.dp)) else Modifier)
+            .combinedClickable(onClick = onOpen, onLongClick = onLong).padding(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(Modifier.width(76.dp)) {
+            BookCover(vm, b, Modifier.fillMaxWidth(), initialSize = 22)
+            if (selecting) SelectMark(sel, Modifier.align(Alignment.TopStart).padding(4.dp))
+            else if (b.isNew && !b.done) Text(
+                "Nuevo", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.TopStart).padding(4.dp).clip(RoundedCornerShape(50)).background(c.lines[3]).padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(b.title, color = c.ink, fontSize = 17.sp, fontWeight = FontWeight.Medium, lineHeight = 21.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (b.author.isNotBlank()) Text(b.author, color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                listOfNotNull(Formats.label(b.type), size?.let { sizeLabel(it) }, if (b.type == "pdf" && b.pages > 0) "${b.pages} págs." else null).joinToString(" · "),
+                color = c.muted, fontSize = 13.sp,
+            )
+            if (b.progress > 0f || b.done) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                    LinearProgressIndicator(
+                        progress = { if (b.done) 1f else b.progress }, color = c.accent, trackColor = c.chip,
+                        modifier = Modifier.weight(1f).height(5.dp).clip(RoundedCornerShape(3.dp)),
+                    )
+                    Text(if (b.done) "Leído" else "${(b.progress * 100).roundToInt()}%", color = c.muted, fontSize = 12.sp)
+                }
+            }
+            if (!selecting) Row(Modifier.fillMaxWidth().padding(top = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                QuickIcon(if (b.favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder, if (b.favorite) "Quitar de favoritos" else "Agregar a favoritos", b.favorite) {
+                    vm.repo.update(b.id) { it.copy(favorite = !it.favorite) }
+                }
+                QuickIcon(Icons.Rounded.Schedule, if (b.toRead) "Quitar de por leer" else "Agregar a por leer", b.toRead) {
+                    vm.repo.update(b.id) { it.copy(toRead = !it.toRead) }
+                }
+                QuickIcon(Icons.Rounded.DoneAll, if (b.done) "Marcar como no leído" else "Marcar como leído", b.done) {
+                    vm.repo.update(b.id) { if (it.done) it.copy(done = false, progress = 0f) else it.copy(done = true, progress = 1f, toRead = false, isNew = false) }
+                }
+                QuickIcon(Icons.Rounded.CollectionsBookmark, "Colecciones", b.collections.isNotEmpty(), onColl)
+                QuickIcon(Icons.Rounded.MoreVert, "Opciones de ${b.title}", false, onMenu)
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickIcon(icon: ImageVector, label: String, on: Boolean, onClick: () -> Unit) {
+    val c = LocalHilo.current
+    IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
+        Icon(icon, label, tint = if (on) (if (icon == Icons.Rounded.Star) Color(0xFFFFB300) else c.accent) else c.muted, modifier = Modifier.size(22.dp))
+    }
+}
+
+@Composable
+private fun BulkAction(icon: ImageVector, label: String, danger: Boolean = false, onClick: () -> Unit) {
+    val c = LocalHilo.current
+    Column(
+        Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, label, tint = if (danger) c.lines[0] else c.ink)
+        Text(label, color = if (danger) c.lines[0] else c.ink, fontSize = 11.sp, maxLines = 1)
     }
 }

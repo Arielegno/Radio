@@ -17,7 +17,7 @@ data class ReaderSettings(
     val font: Int = 0,             // 0 Inter, 1 Lora, 2 letra del sistema
     val fontSize: Float = 18f,
     val lineHeight: Float = 1.35f,
-    val paraSpacing: Float = 0.5f,
+    val paraSpacing: Float = 0.15f,
     val margin: Int = 18,
     val theme: Int = 0,            // 0 sistema, 1 claro, 2 oscuro (menús de la app)
     val colorMode: Int = 0,        // modo de color de la página (ver ReadModes)
@@ -36,6 +36,11 @@ data class ReaderSettings(
     val timerMin: Int = 15,
     val ocr: Boolean = true,
     val keepOn: Boolean = true,
+    val weight: Int = 400,         // grosor de la letra: 300 fina … 700 negrita
+    val align: Int = 1,            // 0 izquierda, 1 justificado con guiones, 2 justificado sin guiones
+    val indent: Boolean = true,    // sangría al empezar cada párrafo, como en un libro
+    val pdfCrop: Boolean = true,   // recortar los márgenes blancos del PDF
+    val libraryView: Int = 0,      // 0 lista (como ReadEra), 1 cuadrícula de portadas
 )
 
 class SettingsStore(ctx: Context) {
@@ -54,7 +59,7 @@ class SettingsStore(ctx: Context) {
         save(n)
     }
 
-    fun reset() = update { ReaderSettings(theme = it.theme, colorMode = it.colorMode, pageMode = it.pageMode) }
+    fun reset() = update { ReaderSettings(theme = it.theme, colorMode = it.colorMode, pageMode = it.pageMode, libraryView = it.libraryView) }
 
     private fun load(): ReaderSettings {
         val d = ReaderSettings()
@@ -86,7 +91,19 @@ class SettingsStore(ctx: Context) {
             timerMin = sp.getInt("timerMin", d.timerMin),
             ocr = sp.getBoolean("ocr", d.ocr),
             keepOn = sp.getBoolean("keepOn", d.keepOn),
-        )
+            weight = sp.getInt("weight", d.weight),
+            align = sp.getInt("align", d.align),
+            indent = sp.getBoolean("indent", d.indent),
+            pdfCrop = sp.getBoolean("pdfCrop", d.pdfCrop),
+            libraryView = sp.getInt("libraryView", d.libraryView),
+        ).let { r ->
+            // Versión 1.7: el texto pasa a verse como la página de un libro (justificado, sangría, sin huecos entre párrafos)
+            if (!sp.getBoolean("formatoLibro", false)) {
+                val m = r.copy(paraSpacing = minOf(r.paraSpacing, 0.15f), align = 1, indent = true)
+                sp.edit().putBoolean("formatoLibro", true).putFloat("paraSpacing", m.paraSpacing).putInt("align", 1).putBoolean("indent", true).apply()
+                m
+            } else r
+        }
     }
 
     private fun save(s: ReaderSettings) {
@@ -118,6 +135,11 @@ class SettingsStore(ctx: Context) {
             .putInt("timerMin", s.timerMin)
             .putBoolean("ocr", s.ocr)
             .putBoolean("keepOn", s.keepOn)
+            .putInt("weight", s.weight)
+            .putInt("align", s.align)
+            .putBoolean("indent", s.indent)
+            .putBoolean("pdfCrop", s.pdfCrop)
+            .putInt("libraryView", s.libraryView)
             .apply()
     }
 }

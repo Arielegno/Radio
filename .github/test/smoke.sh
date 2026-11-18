@@ -25,9 +25,15 @@ frames() {  # cuántos cuadros dibuja la app en 3 s sin tocar nada (debería ser
   echo "CUADROS EN REPOSO ($1): $(adb shell dumpsys gfxinfo $PKG | grep 'Total frames rendered' | head -1)" >> $OUT/steps.txt
 }
 xy() { python3 $F/find.py /tmp/ui.xml "$1" $2; }
+hold() {  # mantener el dedo sobre un elemento
+  rm -f /tmp/ui.xml; ui; local p; p=$(python3 $F/find.py /tmp/ui.xml "$1" $2)
+  if [ -n "$p" ]; then adb shell input swipe $p $p 900; echo "HOLD: $1" >> $OUT/steps.txt; else echo "NO ENCONTRADO: $1" >> $OUT/steps.txt; fi
+  sleep 1
+}
 tapat() { if [ -n "$1" ]; then adb shell input tap $1; echo "TAP AT: $1" >> $OUT/steps.txt; else echo "SIN COORDENADAS" >> $OUT/steps.txt; fi; sleep 1; }
-room() {  # abre la sala de estudio de un libro
+room() {  # abre la sala de estudio de un libro: room "Título" segundos palabra-para-buscar
   adb shell am force-stop $PKG; adb shell am start -W -n $PKG/.MainActivity; sleep 3
+  seek "$3"
   tap "Opciones de $1"; sleep 1; tap "Estudiar: tarjetas y resaltados"; sleep "${2:-6}"
 }
 tap() {   # tap "texto o descripción" [parcial]
@@ -43,7 +49,11 @@ put() {   # put archivo-local destino-en-la-app
 }
 back() { adb shell input keyevent 4; sleep "${1:-2}"; }
 swipe_left() { adb shell input swipe 950 1300 120 1300 350; }
-open_book() { adb shell am force-stop $PKG; adb shell am start -W -n $PKG/.MainActivity; sleep 3; tap "$1"; }
+seek() {  # busca en la biblioteca para que el libro quede a la vista (en la lista entran menos)
+  [ -z "$1" ] && return 0
+  tap "Buscar"; sleep 1; adb shell input text "$1"; sleep 1; adb shell input keyevent 4; sleep 1
+}
+open_book() { adb shell am force-stop $PKG; adb shell am start -W -n $PKG/.MainActivity; sleep 3; seek "$2"; tap "$1"; }
 
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell wm size >> $OUT/steps.txt
@@ -64,6 +74,7 @@ put $F/muestra.md files/books/t4.md
 put $F/muestra.fb2 files/books/t5.fb2
 put $F/muestra_ley.txt files/books/t6.txt
 put $F/muestra_teoria.txt files/books/t7.txt
+put $F/muestra.mobi files/books/t8.mobi
 cat > /tmp/lib.json <<'J'
 [{"id":"t1","title":"La sociología del conocimiento","author":"Berger y Luckmann","type":"pdf","file":"t1.pdf","added":5,"updated":9,"progress":0.1,"pages":2,"favorite":true},
  {"id":"t2","title":"Libro EPUB de prueba","author":"Berger y Luckmann","type":"epub","file":"t2.epub","added":4},
@@ -71,7 +82,8 @@ cat > /tmp/lib.json <<'J'
  {"id":"t4","title":"Apuntes en Markdown","type":"md","file":"t4.md","added":2},
  {"id":"t5","title":"Libro FB2 de prueba","author":"Peter Berger","type":"fb2","file":"t5.fb2","added":1,"collections":["Sociología"]},
  {"id":"t6","title":"Código Procesal de prueba","type":"txt","file":"t6.txt","added":0},
- {"id":"t7","title":"Teoría sociológica de prueba","author":"Varios","type":"txt","file":"t7.txt","added":0}]
+ {"id":"t7","title":"Teoría sociológica de prueba","author":"Varios","type":"txt","file":"t7.txt","added":0},
+ {"id":"t8","title":"Libro MOBI de prueba","author":"Émile Durkheim","type":"mobi","file":"t8.mobi","added":0}]
 J
 put /tmp/lib.json files/library.json
 
@@ -135,22 +147,22 @@ adb shell settings put system user_rotation 0
 sleep 3
 
 # Abrir los otros formatos (en páginas horizontales, modo Día)
-open_book "Libro EPUB de prueba"
+open_book "Libro EPUB de prueba" EPUB
 shot 13_epub 8
 swipe_left
 shot 14_epub_pagina_2 3
 tap "Contenido y marcadores"
 shot 15_indice_epub 3
 back
-open_book "Documento Word de prueba"
+open_book "Documento Word de prueba" Word
 shot 16_word 8
-open_book "Apuntes en Markdown"
+open_book "Apuntes en Markdown" Markdown
 shot 17_markdown 8
-open_book "Libro FB2 de prueba"
+open_book "Libro FB2 de prueba" FB2
 shot 18_fb2 8
 
 # Desplazar hacia abajo con la regla
-open_book "Libro EPUB de prueba"
+open_book "Libro EPUB de prueba" EPUB
 sleep 4
 tap "Ajustes de lectura"
 sleep 2
@@ -168,7 +180,7 @@ shot 21_sin_menus 3
 
 # ---------- Estudio ----------
 # Crear una tarjeta para completar
-open_book "Libro EPUB de prueba"
+open_book "Libro EPUB de prueba" EPUB
 sleep 5
 adb shell input swipe 400 900 400 900 900
 shot 23_hoja_estudio 3
@@ -176,7 +188,7 @@ tap "sociología"
 tap "Completar"
 sleep 2
 # Resaltar otra oración
-open_book "Libro EPUB de prueba"
+open_book "Libro EPUB de prueba" EPUB
 sleep 5
 adb shell input swipe 400 1250 400 1250 900
 sleep 2
@@ -196,6 +208,7 @@ back 2
 adb shell am force-stop $PKG
 adb shell am start -W -n $PKG/.MainActivity
 sleep 3
+seek EPUB
 tap "Opciones de Libro EPUB de prueba"
 sleep 1
 tap "Estudiar: tarjetas y resaltados"
@@ -220,6 +233,7 @@ back
 adb shell am force-stop $PKG
 adb shell am start -W -n $PKG/.MainActivity
 sleep 3
+seek EPUB
 tap "Opciones de Libro EPUB de prueba"
 sleep 1
 tap "Estudiar: tarjetas y resaltados"
@@ -249,8 +263,42 @@ shot 47_mapa_toque 2
 back
 back
 
+# ---------- Versión 1.7: MOBI, página de libro, lista, selección, carpetas, novedades ----------
+open_book "Libro MOBI de prueba" MOBI
+shot 70_mobi_pagina 10
+tap "Ajustes de lectura"
+sleep 2
+shot 71_ajustes_pagina 2
+adb shell input swipe 540 1900 540 700 400
+shot 72_ajustes_letra 2
+adb shell input swipe 540 1900 540 700 400
+shot 73_ajustes_mas 2
+back 2
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 3
+shot 74_lista 2
+hold "Libro EPUB de prueba"
+shot 75_seleccion 2
+tap "Documento Word de prueba"
+shot 76_dos_elegidos 2
+tap "Todos"
+shot 77_todos 2
+back 2
+tap "Menú"
+sleep 2
+tap "Carpetas"
+shot 78_carpetas 2
+back 2
+tap "Menú"
+sleep 2
+adb shell input swipe 300 1800 300 600 400
+tap "Novedades" parcial
+shot 79_novedades 3
+back 2
+
 # ---------- Derecho: ley, artículos enlazados y plazos ----------
-room "Código Procesal de prueba" 8
+room "Código Procesal de prueba" 8 Procesal
 shot 50_sala_ley 2
 tap "Ley"
 shot 51_ley 3
@@ -277,7 +325,7 @@ tap "+ caso o sentencia"
 shot 56_ficha_caso 3
 back 2
 # ---------- Sociología: autores, cuadro, línea de tiempo, citas, Feynman ----------
-room "Teoría sociológica de prueba" 8
+room "Teoría sociológica de prueba" 8 Varios
 shot 57_sala_teoria 2
 tap "Autores"
 shot 58_autores 3

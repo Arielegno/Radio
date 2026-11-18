@@ -33,9 +33,19 @@ import com.hilo.lector.HiloViewModel
 import com.hilo.lector.Screen
 
 private val SECTIONS = listOf(
+    "Tu biblioteca" to listOf(
+        "Se muestra en lista, como ReadEra: portada, formato, tamaño y avance. Debajo de cada libro hay botones rápidos: favorito, por leer, leído, colecciones y más opciones.",
+        "¿Prefieres ver solo las portadas? Ajustes → Vista de la biblioteca → Portadas.",
+        "Para elegir varios libros, mantén el dedo sobre uno y toca los demás. Abajo aparecen Compartir, Favoritos, Colección, Leídos y Papelera. «Todos» los marca a todos.",
+        "Menú → Carpetas: apaga las carpetas que no quieres que Hilo lea (por ejemplo, WhatsApp). Sus documentos salen de Hilo, pero no se borran del celular.",
+        "En Nuevos puedes tocar «Marcar todos como vistos».",
+        "Menú → Novedades: lo que cambió en cada versión.",
+    ),
     "Dos formas de leer" to listOf(
         "Página: el PDF tal como es, con su formato, imágenes y tablas. Los colores y la regla se pintan encima de cada línea.",
-        "Texto: el libro como párrafos de corrido, con interlineado compacto. Sirve para EPUB, textos pegados y PDF cuando el formato estorba.",
+        "Texto: el libro como la página de un libro impreso, justificado, con guiones y sangría. Sirve para EPUB, MOBI, Word, textos pegados y PDF cuando el formato estorba.",
+        "En Ajustes (Aa) eliges la fuente, el tamaño, el grosor, el interlineado, la alineación y los márgenes. «Forma del texto: Separado» vuelve a los párrafos con espacio entre ellos.",
+        "En PDF, «Recortar márgenes» quita el borde blanco de la página para que la letra se vea más grande.",
         "Cambia entre las dos con el botón Página / Texto arriba.",
     ),
     "Estudiar con tus documentos" to listOf(
@@ -77,7 +87,7 @@ private val SECTIONS = listOf(
     "Pasar páginas como en un libro" to listOf(
         "En Ajustes (Aa) → Pasar páginas, elige Horizontal. La página se desliza sobre la siguiente, en PDF y también en EPUB, Word y los demás formatos.",
         "Toca el borde derecho para avanzar, el izquierdo para volver y el centro para mostrar u ocultar los menús.",
-        "Con el celular acostado, un PDF puede mostrar dos páginas como un libro abierto.",
+        "Con el celular acostado y «Dos páginas» activado, se ven dos páginas como un libro abierto, en PDF y en los demás formatos.",
         "Abajo está la barra de páginas: arrastra el punto o toca «Pág. 27 de 237» para saltar.",
     ),
     "Modos de color" to listOf(
@@ -111,7 +121,7 @@ private val SECTIONS = listOf(
     ),
     "Agregar libros" to listOf(
         "Como ReadEra: toca Permitir en la biblioteca y Hilo encuentra solo los PDF, EPUB y Word de tu celular, sin copiarlos. Avisa cuando hay documentos nuevos.",
-        "Agregar → Archivos: PDF, EPUB, Word (DOCX), ODT, FB2, HTML, Markdown o TXT.",
+        "Agregar → Archivos: PDF, EPUB, MOBI y AZW3 (sin DRM), Word (DOCX), ODT, FB2, HTML, Markdown o TXT.",
         "Agregar → Buscar en una carpeta: elige, por ejemplo, Descargas. Hilo agrega lo que encuentre y revisa esa carpeta cada vez que abres la app.",
         "En el menú ☰ de la biblioteca: Leyendo ahora, Favoritos, Por leer, Leídos, Autores, Colecciones, Formatos y Papelera.",
         "Agregar → Fotos de páginas: elige varias en orden. Se unen en un PDF y Hilo reconoce su texto sin internet.",

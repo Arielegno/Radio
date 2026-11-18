@@ -102,6 +102,7 @@ fun HiloRoot(vm: HiloViewModel) {
             Screen.Library -> LibraryScreen(vm)
             is Screen.Reader -> ReaderScreen(vm, sc.id)
             Screen.Guide -> GuideScreen(vm)
+            Screen.News -> com.hilo.lector.ui.NewsScreen(vm)
             is Screen.Study -> StudyScreen(vm, sc.bookId)
         }
 
@@ -126,6 +127,22 @@ fun HiloRoot(vm: HiloViewModel) {
     when (vm.sheet) {
         "settings" -> SettingsSheet(vm) { vm.sheet = null }
         "timer" -> TimerSheet(vm) { vm.sheet = null }
+    }
+
+    // Novedades: una vez después de actualizar (no en la primera instalación)
+    var news by androidx.compose.runtime.remember {
+        val sp = ctx.getSharedPreferences("novedades", android.content.Context.MODE_PRIVATE)
+        val seen = sp.getInt("vista", 0)
+        val upgrading = seen == 0 && java.io.File(ctx.filesDir, "library.json").exists()
+        if (seen == 0 && !upgrading) sp.edit().putInt("vista", com.hilo.lector.data.Changelog.current.code).apply()
+        androidx.compose.runtime.mutableStateOf(upgrading || (seen in 1 until com.hilo.lector.data.Changelog.current.code))
+    }
+    if (news && vm.screen == Screen.Library) {
+        fun seen() {
+            news = false
+            ctx.getSharedPreferences("novedades", android.content.Context.MODE_PRIVATE).edit().putInt("vista", com.hilo.lector.data.Changelog.current.code).apply()
+        }
+        com.hilo.lector.ui.NewsDialog(onAll = { seen(); vm.screen = Screen.News }, onClose = { seen() })
     }
 
     vm.feynman?.let { r -> com.hilo.lector.ui.FeynmanDialog(vm, r) { vm.feynman = null } }

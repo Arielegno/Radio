@@ -962,8 +962,9 @@ fun CrossMapView(vm: HiloViewModel, onOpenDeck: (String) -> Unit) {
                 label.putIfAbsent(t.key, t.label)
             }
         }
-        val shared = occ.entries.filter { it.value.size >= 2 }
-            .sortedByDescending { e -> e.value.size * 1000 + e.value.values.sum() }.take(24)
+        // Conceptos importantes en al menos dos documentos (no palabras sueltas que aparecen de paso)
+        val shared = occ.entries.filter { e -> e.value.count { it.value >= 3 } >= 2 }
+            .sortedByDescending { e -> e.value.size * 1000 + e.value.values.sum() }.take(18)
         val usedDocs = shared.flatMap { it.value.keys }.toSortedSet().toList()
         val nodes = ArrayList<Term>()
         val idxDoc = HashMap<Int, Int>()
@@ -1103,7 +1104,7 @@ fun HubTools(vm: HiloViewModel, onCrossMap: () -> Unit, onDeck: (String) -> Unit
                 if (cards.isEmpty()) vm.toast = "Todavía no tienes tarjetas."
                 else runCatching { AnkiExport.share(ctx, AnkiExport.file(ctx, cards, { id -> books.firstOrNull { it.id == id }?.title ?: "Hilo" }, "Hilo_tarjetas")) }
                     .onFailure { vm.toast = "No pude crear el archivo." }
-            }) { Text("Exportar ${vm.study.cards.size} tarjetas", color = c.ink) }
+            }) { Text(if (vm.study.cards.size == 1) "Exportar 1 tarjeta" else "Exportar ${vm.study.cards.size} tarjetas", color = c.ink) }
         }
         Panel {
             Text("Copia de seguridad", fontWeight = FontWeight.Bold, color = c.ink, fontSize = 16.sp)

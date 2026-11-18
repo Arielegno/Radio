@@ -258,9 +258,12 @@ tap "Libro PRIMERO" parcial
 sleep 1
 tap "Título I" parcial
 sleep 1
-tap "Capítulo I" parcial
 shot 52_ley_indice 2
-tap "Art. 1"
+tap "Ir al artículo…"
+sleep 1
+adb shell input text "1"
+back 1
+tap "Ver"
 shot 53_articulo 3
 tap "Art. 3"
 shot 54_articulo_enlazado 2
@@ -280,7 +283,12 @@ tap "Autores"
 shot 58_autores 3
 tap "Comparar"
 sleep 1
+adb shell input swipe 540 1800 540 900 500
+sleep 1
 tap "Comparar"
+sleep 1
+adb shell input swipe 540 700 540 2000 300
+adb shell input swipe 540 700 540 2000 300
 sleep 1
 tap "Comparar Marx" parcial
 shot 59_cuadro 3
@@ -289,6 +297,8 @@ shot 60_linea_tiempo 3
 tap "Citas"
 shot 61_citas 3
 tap "Autores"
+sleep 1
+adb shell input swipe 540 1800 540 900 500
 sleep 1
 tap "Explícalo"
 sleep 2

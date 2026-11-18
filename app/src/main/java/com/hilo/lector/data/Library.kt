@@ -169,10 +169,10 @@ class LibraryRepo(private val ctx: Context) {
         emptyList()
     }
 
-    @Synchronized
     private var saveJob: kotlinx.coroutines.Job? = null
 
     /** Guarda la biblioteca en segundo plano (agrupa cambios seguidos, como el avance al leer). */
+    @Synchronized
     private fun save() {
         val snapshot = _books.value
         saveJob?.cancel()

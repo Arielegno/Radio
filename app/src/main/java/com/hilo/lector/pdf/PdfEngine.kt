@@ -30,6 +30,7 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import java.io.File
@@ -135,10 +136,9 @@ class PdfEngine(private val ctx: Context, private val file: File, bookId: String
     suspend fun lines(page: Int, allowOcr: Boolean): List<LineBox> {
         lineCache[page]?.let { return it }
         val f = File(lineDir, "$page.json")
-        if (f.exists()) {
-            val cached = runCatching { decode(f.readText()) }.getOrNull()
-            if (cached != null) { lineCache[page] = cached; return cached }
-        }
+        // Leer y escribir el archivo fuera de la pantalla (el modo estricto lo marcaba)
+        val cached = withContext(Dispatchers.IO) { if (f.exists()) runCatching { decode(f.readText()) }.getOrNull() else null }
+        if (cached != null) { lineCache[page] = cached; return cached }
         var res = withContext(textThread) { extract(page) }
         var settled = res.sumOf { it.text.length } >= 25
         if (!settled && allowOcr) {
@@ -149,7 +149,8 @@ class PdfEngine(private val ctx: Context, private val file: File, bookId: String
         // Una página escaneada que todavía no se reconoció no se guarda: así se reconoce cuando haga falta
         if (settled) {
             lineCache[page] = res
-            runCatching { f.writeText(encode(res)) }
+            val enc = encode(res)
+            withContext(Dispatchers.IO) { runCatching { f.writeText(enc) } }
         }
         return res
     }

@@ -172,6 +172,9 @@ class StudyStore(ctx: Context) {
 
     fun add(c: StudyCard) { cards.add(c); save() }
 
+    /** Agrega muchas tarjetas de una vez (tarjetas de toda una ley, todos los plazos…). */
+    fun addAll(list: List<StudyCard>) { if (list.isNotEmpty()) { cards.addAll(list); save() } }
+
     fun update(c: StudyCard) {
         val i = cards.indexOfFirst { it.id == c.id }
         if (i >= 0) { cards[i] = c; save() }

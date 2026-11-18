@@ -175,19 +175,29 @@ internal fun rememberHighlights(vm: HiloViewModel, book: Book): List<String> {
 // Ley o código: índice, artículos enlazados y tarjetas
 // =====================================================================
 
+private fun lawCardOf(vm: HiloViewModel, book: Book, art: LawArticle): StudyCard {
+    val body = art.text.removePrefix(art.title).trimStart('.', ' ', '-', '–').trim()
+    return StudyCard(
+        vm.study.newId(), book.id, "qa",
+        "¿Qué establece el artículo ${art.num}" + (if (art.title.isNotBlank()) " («${art.title}»)" else "") + "?",
+        body.take(1500).ifBlank { art.text.take(1500) },
+        source = "art. ${art.num}", sourcePos = art.para, sourceFlow = true, due = today(), created = System.currentTimeMillis(),
+    )
+}
+
 internal fun lawCard(vm: HiloViewModel, book: Book, art: LawArticle): Boolean {
     val src = "art. ${art.num}"
     if (vm.study.cards.any { it.bookId == book.id && it.source == src }) return false
-    val body = art.text.removePrefix(art.title).trimStart('.', ' ', '-', '–').trim()
-    vm.study.add(
-        StudyCard(
-            vm.study.newId(), book.id, "qa",
-            "¿Qué establece el artículo ${art.num}" + (if (art.title.isNotBlank()) " («${art.title}»)" else "") + "?",
-            body.take(1500).ifBlank { art.text.take(1500) },
-            source = src, sourcePos = art.para, sourceFlow = true, due = today(), created = System.currentTimeMillis(),
-        )
-    )
+    vm.study.add(lawCardOf(vm, book, art))
     return true
+}
+
+/** Tarjetas de muchos artículos de una vez: revisa duplicados con un conjunto, no tarjeta por tarjeta. */
+internal fun lawCards(vm: HiloViewModel, book: Book, arts: List<LawArticle>): Int {
+    val have = vm.study.cards.filter { it.bookId == book.id }.map { it.source }.toHashSet()
+    val list = arts.filter { have.add("art. ${it.num}") }.map { lawCardOf(vm, book, it) }
+    vm.study.addAll(list)
+    return list.size
 }
 
 @Composable
@@ -251,7 +261,7 @@ fun LawTab(vm: HiloViewModel, book: Book, a: Analysis) {
     var confirmAll by remember { mutableStateOf<List<LawArticle>?>(null) }
 
     fun makeCards(list: List<LawArticle>) {
-        val n = list.count { lawCard(vm, book, it) }
+        val n = lawCards(vm, book, list)
         vm.toast = if (n == 0) "Esos artículos ya tenían tarjeta." else "Creé $n ${if (n == 1) "tarjeta" else "tarjetas"}."
     }
 
@@ -367,7 +377,16 @@ fun DeadlinesTab(vm: HiloViewModel, book: Book, a: Analysis) {
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("${list.size} plazos encontrados en el texto. Repásalos como tarjetas para completar: se oculta el plazo.", color = c.muted, fontSize = 13.sp)
-        OutlinedButton(onClick = { val n = list.count { card(it) }; vm.toast = if (n == 0) "Ya estaban todas." else "Creé $n tarjetas de plazos." }) {
+        OutlinedButton(onClick = {
+            val have = vm.study.cards.filter { it.bookId == book.id }.map { it.front }.toHashSet()
+            val add = list.filter { have.add(it.sentence.replace(it.amount, "[ … ]")) }.map { d ->
+                StudyCard(vm.study.newId(), book.id, "cloze", d.sentence.replace(d.amount, "[ … ]"), d.amount, context = d.sentence,
+                    source = d.article?.let { "art. $it" } ?: "párrafo ${d.para + 1}", sourcePos = d.para, sourceFlow = true,
+                    due = today(), created = System.currentTimeMillis())
+            }
+            vm.study.addAll(add)
+            vm.toast = if (add.isEmpty()) "Ya estaban todas." else "Creé ${add.size} tarjetas de plazos."
+        }) {
             Text("Pasar todos a tarjetas", color = c.ink)
         }
         list.forEach { d ->
@@ -899,7 +918,7 @@ fun ExamCard(vm: HiloViewModel, book: Book, a: Analysis?) {
         val studyDays = max(1, days - 1)
         val perDay = if (pending.isEmpty()) 0 else ceil(pending.size / studyDays.toDouble()).toInt()
         val today = if (days <= 1) emptyList() else pending.take(perDay)
-        val due = vm.study.due(book.id).size
+        val due = vm.study.cards.count { it.bookId == book.id && it.due <= t }
         Panel {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.Event, null, tint = if (days <= 3) c.lines[0] else c.accent)

@@ -28,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -169,13 +170,22 @@ class LibraryRepo(private val ctx: Context) {
     }
 
     @Synchronized
+    private var saveJob: kotlinx.coroutines.Job? = null
+
+    /** Guarda la biblioteca en segundo plano (agrupa cambios seguidos, como el avance al leer). */
     private fun save() {
-        val arr = JSONArray()
-        _books.value.forEach { arr.put(it.toJson()) }
-        val tmp = File(index.path + ".tmp")
-        tmp.writeText(arr.toString())
-        if (!tmp.renameTo(index)) {
-            index.writeText(arr.toString()); tmp.delete()
+        val snapshot = _books.value
+        saveJob?.cancel()
+        saveJob = com.hilo.lector.Hilo.scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            kotlinx.coroutines.delay(250)
+            val arr = JSONArray()
+            snapshot.forEach { arr.put(it.toJson()) }
+            val text = arr.toString()
+            synchronized(index) {
+                val tmp = File(index.path + ".tmp")
+                tmp.writeText(text)
+                if (!tmp.renameTo(index)) { index.writeText(text); tmp.delete() }
+            }
         }
     }
 

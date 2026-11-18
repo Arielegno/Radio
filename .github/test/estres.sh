@@ -65,7 +65,10 @@ shot e03_libro_desplazado
 jank "40 deslizadas rápidas en el libro"
 mem "libro abierto"
 room "Libro enorme de prueba"
-log "  Análisis completo de la sala de estudio: $(wait_for 'Autores' 300) s"
+log "  Análisis completo de la sala de estudio: $(wait_for 'Autores' 240) s"
+adb shell dumpsys gfxinfo $PKG reset >/dev/null; sleep 4
+log "  Cuadros dibujados en 4 s sin tocar nada (debería ser casi 0): $(adb shell dumpsys gfxinfo $PKG | grep 'Total frames rendered' | tr -s ' ')"
+log "  Lectura de pantalla: $(timeout 40 adb shell uiautomator dump /sdcard/ui.xml 2>&1 | tr '\n' ' ' | cut -c1-160)"
 shot e04_sala_libro 1
 tap "Palabras"; sleep 4; shot e05_palabras
 tap "Mapa"; sleep 8; shot e06_mapa
@@ -134,6 +137,11 @@ mem "tras monkey"
 
 log ""
 log "8. REGISTRO DEL SISTEMA"
+adb root >/dev/null 2>&1; sleep 3
+mkdir -p $OUT/anr_trazas; adb pull /data/anr $OUT/anr_trazas >/dev/null 2>&1
+for f in $(ls $OUT/anr_trazas/anr/* 2>/dev/null); do
+  log "  Traza de bloqueo $(basename $f): $(grep -A 25 '"main"' $f | grep -E 'at com\.hilo' | head -6 | tr -s ' ' | tr '\n' ' ')"
+done
 timeout 60 adb logcat -d > $OUT/logcat.txt
 grep -n -A 30 "FATAL EXCEPTION" $OUT/logcat.txt > $OUT/cierres.txt
 grep -n -B 2 -A 20 "ANR in $PKG" $OUT/logcat.txt > $OUT/anr.txt

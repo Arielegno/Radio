@@ -512,10 +512,13 @@ private fun rememberPagination(list: List<String>, s: ReaderSettings, mode: Read
             val raw = list[pi]
             val heading = raw.startsWith("# ")
             val body = if (heading) raw.substring(2) else raw
-            val lay = measurer.measure(
-                paraText(body, heading, s), paraStyle(heading, s, mode.ink),
-                constraints = Constraints(maxWidth = widthPx),
-            )
+            // Medir fuera del hilo principal: con guiones y cortes de párrafo, un párrafo enorme tarda segundos
+            val lay = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                measurer.measure(
+                    paraText(body, heading, s), paraStyle(heading, s, mode.ink),
+                    constraints = Constraints(maxWidth = widthPx),
+                )
+            }
             val gap = with(density) { paraGap(heading, s).toPx() }
             // Un título no se queda solo al final de la página
             if (heading && cur.isNotEmpty() && y + lay.size.height + bodyLine * 2 > heightPx) push()
@@ -534,7 +537,6 @@ private fun rememberPagination(list: List<String>, s: ReaderSettings, mode: Read
                 line = last
                 if (line < lay.lineCount) push() else y += gap
             }
-            if (pi % 12 == 11) yield()
         }
         push()
         pag.done = true

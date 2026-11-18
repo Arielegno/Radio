@@ -458,14 +458,14 @@ private fun Cornell(vm: HiloViewModel, book: Book, onClose: () -> Unit) {
     OverlayFrame("Notas Cornell", onClose) {
         Text("Tapa la columna derecha y responde las preguntas de la izquierda: así repasas.", color = c.muted, fontSize = 13.sp)
         if (marks.isEmpty() && pdf.isEmpty()) Text("Todavía no hay subrayados. Mientras lees, mantén el dedo sobre una oración y elige un color.", color = c.ink)
-        marks.forEach { m ->
+        marks.take(150).forEach { m ->
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.surface)) {
                 Text(question(m), color = c.accent, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(0.38f).padding(10.dp))
                 Box(Modifier.width(1.dp).height(60.dp).background(c.line))
                 Text(m.text, color = c.ink, fontSize = 14.sp, modifier = Modifier.weight(0.62f).padding(10.dp))
             }
         }
-        pdf.forEach { t ->
+        pdf.take(100).forEach { t ->
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.surface)) {
                 Text("¿Qué idea clave hay aquí?", color = c.accent, fontSize = 13.sp, modifier = Modifier.weight(0.38f).padding(10.dp))
                 Text(t, color = c.ink, fontSize = 14.sp, modifier = Modifier.weight(0.62f).padding(10.dp))
@@ -493,7 +493,7 @@ private fun Doubts(vm: HiloViewModel, book: Book, onClose: () -> Unit) {
     OverlayFrame("Mis dudas", onClose) {
         Text("Lo que marcaste como «No entiendo». Búscalo, pregúntalo en clase o explícalo cuando lo entiendas.", color = c.muted, fontSize = 13.sp)
         if (marks.isEmpty() && pdf.isEmpty()) Text("No tienes dudas pendientes. ¡Bien!", color = c.ink)
-        marks.forEach { m ->
+        marks.take(150).forEach { m ->
             Panel {
                 Text(m.text, color = c.ink, fontSize = 15.sp)
                 Row {
@@ -503,7 +503,7 @@ private fun Doubts(vm: HiloViewModel, book: Book, onClose: () -> Unit) {
                 }
             }
         }
-        pdf.forEach { e ->
+        pdf.take(100).forEach { e ->
             Panel {
                 Text(e.text, color = c.ink, fontSize = 15.sp)
                 Text(e.title, color = c.muted, fontSize = 12.sp)
@@ -890,7 +890,7 @@ fun StatsView(vm: HiloViewModel, onClose: () -> Unit) {
         val byBook = cards.groupBy { it.bookId }
         if (byBook.isNotEmpty()) Panel {
             Text("Por documento", color = c.ink, fontWeight = FontWeight.Bold)
-            byBook.entries.sortedBy { (_, l) -> l.filter { it.reps > 0 }.map { it.recall() }.average().takeIf { !it.isNaN() } ?: 1.0 }.forEach { (id, l) ->
+            byBook.entries.sortedBy { (_, l) -> l.filter { it.reps > 0 }.map { it.recall() }.average().takeIf { !it.isNaN() } ?: 1.0 }.take(40).forEach { (id, l) ->
                 val title = books.firstOrNull { it.id == id }?.title ?: return@forEach
                 val r = l.filter { it.reps > 0 || it.stab > 0f }.map { it.recall() }.average().takeIf { !it.isNaN() }
                 val fr = l.count { it.fragile }

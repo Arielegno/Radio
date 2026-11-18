@@ -860,7 +860,7 @@ private fun GlobalResults(vm: HiloViewModel, query: String) {
         if (mine.isNotEmpty()) {
             HorizontalDivider(color = c.line)
             Text("En tus tarjetas, apuntes y escritos", color = c.ink, fontWeight = FontWeight.Bold)
-            mine.forEach { (kind, text, bookId) ->
+            mine.take(40).forEach { (kind, text, bookId) ->
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { vm.openStudy(bookId.takeIf { id -> books.any { it.id == id } }) }.padding(vertical = 4.dp)) {
                     Text(kind.uppercase(), color = c.muted, fontSize = 10.sp, modifier = Modifier.width(76.dp).padding(top = 2.dp))
                     Text(text, color = c.ink, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)

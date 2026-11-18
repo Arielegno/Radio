@@ -145,7 +145,7 @@ private fun DeadlineCalc(a: Analysis?, onClose: () -> Unit) {
         a?.law?.deadlines?.take(12)?.takeIf { it.isNotEmpty() }?.let { ds ->
             Label("Plazos de este documento")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                ds.forEach { d -> Pill(d.amount + (d.article?.let { " · art. $it" } ?: "")) { Plazos.parse(d.amount)?.let { (n, u) -> amount = "$n"; unit = u } } }
+                ds.take(40).forEach { d -> Pill(d.amount + (d.article?.let { " · art. $it" } ?: "")) { Plazos.parse(d.amount)?.let { (n, u) -> amount = "$n"; unit = u } } }
             }
         }
         OutlinedButton(onClick = { picking = true }) { Text("Fecha del hecho o notificación: ${dayLabel(start.toEpochDay())}", color = c.ink) }
@@ -195,7 +195,7 @@ private fun Syllogism(vm: HiloViewModel, book: Book?, a: Analysis?, onClose: () 
             val law = a?.law
             when {
                 refs.isEmpty() -> Text("✗ La premisa mayor no cita un artículo. Escribe «artículo N».", color = c.lines[0])
-                law != null && law.isLaw -> refs.forEach { r ->
+                law != null && law.isLaw -> refs.take(60).forEach { r ->
                     val ok = law.find(r) != null
                     Text(if (ok) "✓ El artículo $r existe en este documento." else "? El artículo $r no está en este documento (puede ser de otra ley).", color = if (ok) c.lines[1] else c.lines[2])
                 }
@@ -358,7 +358,7 @@ private fun Debate(vm: HiloViewModel, book: Book?, a: Analysis?, preset: Pair<St
             vm.toast = "Debate guardado."; onClose()
         }, enabled = topic.isNotBlank() && f[0].isNotBlank() && f[1].isNotBlank(), colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.accentInk)) { Text("Guardar") }
         val old = vm.motor.entriesOf("debate").take(5)
-        if (old.isNotEmpty()) { Label("Debates guardados"); old.forEach { Text("• ${it.title}", color = c.ink, fontSize = 14.sp) } }
+        if (old.isNotEmpty()) { Label("Debates guardados"); old.take(20).forEach { Text("• ${it.title}", color = c.ink, fontSize = 14.sp) } }
     }
 }
 
@@ -610,7 +610,7 @@ private fun Diary(vm: HiloViewModel, book: Book?, a: Analysis?, onClose: () -> U
         }, enabled = concept.isNotBlank() && text.isNotBlank(), colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.accentInk)) { Text("Guardar") }
         val old = vm.motor.entriesOf("diario").take(20)
         if (old.isNotEmpty()) Label("Tu diario")
-        old.forEach { e ->
+        old.take(30).forEach { e ->
             Panel {
                 Text(e.title, color = c.accent, fontWeight = FontWeight.Bold)
                 Text(e.text, color = c.ink, fontSize = 14.sp)

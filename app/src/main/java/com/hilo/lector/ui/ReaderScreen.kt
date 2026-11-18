@@ -721,7 +721,7 @@ private fun TopBars(
     val t = vm.timer
 
     val actions: @Composable () -> Unit = {
-        IconButton(onClick = { vm.openStudy(book.id) }) {
+        if (book.type != "comic") IconButton(onClick = { vm.openStudy(book.id) }) {
             val due = vm.study.due(book.id).size
             Box {
                 Icon(Icons.Rounded.School, "Estudiar este documento", tint = c.ink)
@@ -734,7 +734,7 @@ private fun TopBars(
                 Icon(Icons.Rounded.Brush, "Anotar sobre el PDF", tint = if (annotating) c.accent else c.ink)
             }
         }
-        Box(
+        if (book.type != "comic") Box(
             Modifier.padding(start = 4.dp, end = 4.dp).size(40.dp).clip(CircleShape).background(c.accent).clickable(onClick = onRsvp),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Rounded.PlayArrow, "Leer palabra por palabra", tint = c.accentInk) }
@@ -760,13 +760,14 @@ private fun TopBars(
                 Text(book.title, color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (!compact) {
                     Text(
-                        if (s.focus) (if (flow) "Texto fluido" else "Página original")
+                        if (book.type == "comic") "Cómic${if (s.focus) "" else " · ${(book.progress * 100).toInt()}%"}"
+                        else if (s.focus) (if (flow) "Texto fluido" else "Página original")
                         else if (flow) "Texto fluido · ${(book.progress * 100).toInt()}%" else "Página original · ${(book.progress * 100).toInt()}%",
                         color = c.muted, fontSize = 12.sp, maxLines = 1,
                     )
                 }
             }
-            if (compact) {
+            if (compact && book.type != "comic") {
                 Row(
                     Modifier.horizontalScroll(rememberScrollState()).padding(end = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -775,7 +776,7 @@ private fun TopBars(
             }
             actions()
         }
-        if (!compact) {
+        if (!compact && book.type != "comic") {
             Row(
                 Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

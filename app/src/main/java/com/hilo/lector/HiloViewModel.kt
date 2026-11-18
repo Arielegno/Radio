@@ -35,6 +35,7 @@ import com.hilo.lector.text.Analyzer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.asCoroutineDispatcher
 import java.io.File
 
 sealed interface Screen {
@@ -44,6 +45,17 @@ sealed interface Screen {
     /** Estudio: de un documento, o de todos si [bookId] es null. */
     data class Study(val bookId: String?) : Screen
 }
+
+/**
+ * Hilo de baja prioridad para analizar textos: así la pantalla siempre se dibuja primero
+ * (la prueba de estrés mostró bloqueos al analizar libros enormes con prioridad normal).
+ */
+private val analysisThread = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+    Thread({
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+        r.run()
+    }, "hilo-analisis")
+}.asCoroutineDispatcher()
 
 class HiloViewModel(app: Application) : AndroidViewModel(app) {
     private val ctx: Context get() = getApplication()
@@ -88,7 +100,7 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
         val removed = study.removedFor(book.id)
         analyses[book.id]?.let { (r, a) -> if (r == removed) return a }
         val paras = studyText(book, progress)
-        val a = withContext(Dispatchers.Default) { Analyzer.analyze(paras, removed) }
+        val a = withContext(analysisThread) { Analyzer.analyze(paras, removed) }
         analyses[book.id] = removed to a
         return a
     }

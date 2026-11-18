@@ -934,7 +934,7 @@ fun ExamCard(vm: HiloViewModel, book: Book, a: Analysis?) {
             Label("Plan para hoy")
             when {
                 days <= 1 -> Text("Repaso general: tus tarjetas, tus resaltados y la guía. Nada nuevo; descansa bien.", color = c.ink, fontSize = 14.sp)
-                today.isNotEmpty() -> today.forEach { g ->
+                today.isNotEmpty() -> today.take(3).forEach { g ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("• ${g.chapter.title}", color = c.ink, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                         TextButton(onClick = { vm.openAt(book.id, true, g.chapter.startPara) }) { Text("Leer") }
@@ -944,6 +944,7 @@ fun ExamCard(vm: HiloViewModel, book: Book, a: Analysis?) {
                 guides.isNotEmpty() -> Text("Ya estudiaste todas las partes. Ahora repasa con tarjetas y preguntas de la guía.", color = c.ink, fontSize = 14.sp)
                 else -> Text("Lee un poco cada día y repasa tus tarjetas.", color = c.ink, fontSize = 14.sp)
             }
+            if (today.size > 3) Text("…y ${today.size - 3} partes más hoy. Empieza por estas.", color = c.muted, fontSize = 13.sp)
             if (due > 0) Text("Y repasa $due ${if (due == 1) "tarjeta" else "tarjetas"}.", color = c.ink, fontSize = 14.sp)
             if (pending.isNotEmpty() && days > 1) Text("Te faltan ${pending.size} de ${guides.size} partes: unas $perDay por día.", color = c.muted, fontSize = 12.sp)
             TextButton(onClick = { vm.study.setExam(book.id, null) }) { Text("Quitar fecha", color = c.muted) }

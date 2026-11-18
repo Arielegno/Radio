@@ -339,7 +339,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                 if (current == null && !vocabOnly) {
                     // Todas las barajas: una por documento, más la de idiomas
                     val withCards = books.filter { b -> study.cards.any { it.bookId == b.id } }
-                    val vocab = study.cards.filter { it.kind == "vocab" }
+                    val vocab = study.cards.filter { it.kind == "vocab" }.sortedBy { it.due }
                     // Mazos importados de Anki
                     val decks = study.cards.map { it.bookId }.filter { it.startsWith("mazo:") }.distinct().sorted()
                     if (decks.isNotEmpty()) items(decks, key = { it }) { d ->
@@ -386,7 +386,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                             val l = mixQueue(all.filter { it.due <= today() }).take(SESSION)
                             if (l.isEmpty()) vm.toast = "Ese mazo está al día." else review = l
                         }
-                    }.sortedBy { it.due }
+                    }
                     items(vocab, key = { it.id }) { card -> CardRow(card, speaker) { editing = card } }
                 } else if (current != null) {
                     val simple = vm.settings.value.simple && !moreTabs

@@ -236,10 +236,12 @@ fun LibraryScreen(vm: HiloViewModel) {
         if (uri != null) vm.addFolder(uri)
     }
 
-    val q = query.trim().lowercase()
+    // Búsqueda sin importar mayúsculas ni tildes: «codigo» encuentra «Código»
+    fun fold(t: String) = java.text.Normalizer.normalize(t.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+    val q = fold(query.trim())
     val list = books
         .filter { it.inSection(section) }
-        .filter { q.isEmpty() || (it.title + " " + it.author).lowercase().contains(q) }
+        .filter { q.isEmpty() || fold(it.title + " " + it.author).contains(q) }
         .sortedByDescending { maxOf(it.updated, it.added) }
     val current = if (section.kind == "all" && q.isEmpty()) books.filter { it.reading() }.maxByOrNull { it.updated } else null
 

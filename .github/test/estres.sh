@@ -23,7 +23,8 @@ wait_for() {  # wait_for "texto" segundos-máximos → imprime los segundos que 
   while [ $(( $(date +%s) - t0 )) -lt $2 ]; do has "$1" $3 && { echo $(( $(date +%s) - t0 )); return 0; }; sleep 2; done
   echo "más de $2"; return 1
 }
-room() { start >/dev/null; tap "Opciones de $1"; sleep 1; tap "Estudiar: tarjetas y resaltados"; }
+seek() { [ -z "$1" ] && return 0; tap "Buscar"; sleep 1; adb shell input text "$1"; sleep 1; adb shell input keyevent 4; sleep 1; }
+room() { start >/dev/null; seek "$2"; tap "Opciones de $1"; sleep 1; tap "Estudiar: tarjetas y resaltados"; }
 
 : > $R
 log "PRUEBA DE ESTRÉS Y DEPURACIÓN DE HILO — $(date -u '+%Y-%m-%d %H:%M UTC')"
@@ -78,7 +79,7 @@ log "  Estado: $(alive)"
 
 log ""
 log "3. CÓDIGO DE 3000 ARTÍCULOS"
-room "Código enorme de prueba"
+room "Código enorme de prueba" Codigo
 log "  Índice de la ley listo: $(wait_for 'Ley' 240) s"
 tap "Ley"; sleep 3; shot e08_ley
 tap "Ir al artículo…"; sleep 1; adb shell input text "2999"; back 1; tap "Ver"; sleep 2; shot e09_art_2999
@@ -89,13 +90,13 @@ log "  Estado: $(alive)"
 
 log ""
 log "4. PDF DE 400 PÁGINAS"
-start >/dev/null; tap "PDF de 400 páginas"; sleep 10; shot e11_pdf
+start >/dev/null; seek PDF; tap "PDF de 400 páginas"; sleep 10; shot e11_pdf
 adb shell dumpsys gfxinfo $PKG reset >/dev/null
 for i in $(seq 1 60); do adb shell input swipe 540 1900 540 300 100; done
 shot e12_pdf_desplazado
 jank "60 deslizadas en el PDF"
 mem "PDF"
-room "PDF de 400 páginas"
+room "PDF de 400 páginas" PDF
 log "  Texto de las 400 páginas analizado: $(wait_for 'Autores' 600) s"
 shot e13_sala_pdf 1
 log "  Estado: $(alive)"

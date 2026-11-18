@@ -14,6 +14,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -326,6 +327,9 @@ fun LibraryScreen(vm: HiloViewModel) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (searching) {
+                            // Al tocar la lupa, el cursor ya queda en el cuadro de búsqueda
+                            val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+                            LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
                             OutlinedTextField(
                                 value = query, onValueChange = { query = it },
                                 placeholder = { Text("Buscar por título o autor") },
@@ -335,7 +339,7 @@ fun LibraryScreen(vm: HiloViewModel) {
                                     focusedContainerColor = c.surface, unfocusedContainerColor = c.surface,
                                     unfocusedBorderColor = c.line, focusedBorderColor = c.accent,
                                 ),
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().focusRequester(focus),
                             )
                         }
                         if (!access && !hideAccess && section.kind == "all") {

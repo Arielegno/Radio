@@ -278,10 +278,8 @@ adb shell am force-stop $PKG
 adb shell am start -W -n $PKG/.MainActivity
 sleep 3
 shot 74_lista 2
-hold "Libro EPUB de prueba"
+hold "Documento Word de prueba"
 shot 75_seleccion 2
-tap "Documento Word de prueba"
-shot 76_dos_elegidos 2
 tap "Todos"
 shot 77_todos 2
 back 2

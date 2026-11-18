@@ -93,7 +93,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-private fun saveCard(vm: HiloViewModel, book: Book, kind: String, front: String, back: String, para: Int, context: String = "") {
+internal fun saveCard(vm: HiloViewModel, book: Book, kind: String, front: String, back: String, para: Int, context: String = "") {
     vm.study.add(
         StudyCard(
             vm.study.newId(), book.id, kind, front, back, context = context,
@@ -237,6 +237,9 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
                         val s = a.sentencesWith(term.key).firstOrNull()
                         onCard(StudyCard(0, book.id, "qa", "¿Qué es «${term.label}»?", s?.text.orEmpty(), source = s?.let { "párrafo ${it.para + 1}" }.orEmpty(), sourcePos = s?.para ?: -1, sourceFlow = true, due = today()))
                     }) { Text("Tarjeta", color = c.ink) }
+                    OutlinedButton(onClick = {
+                        vm.feynman = FeynmanReq(book.id, term.label, a.sentencesWith(term.key, 3).joinToString(" ") { it.text }, emptyList())
+                    }) { Text("Explícalo", color = c.ink) }
                 }
                 LookupRow(term.label, vm.study.langs[book.id].orEmpty())
                 if (showWhere) {
@@ -289,7 +292,13 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
 // =====================================================================
 
 @Composable
-fun ConceptMapTab(vm: HiloViewModel, book: Book, a: Analysis) {
+fun ConceptMapTab(
+    vm: HiloViewModel,
+    book: Book?,
+    a: Analysis,
+    intro: String = "Los conceptos que más se repiten, unidos cuando aparecen en la misma oración. Pellizca para acercar, arrastra para moverte y toca un concepto para ver sus relaciones.",
+    panel: (@Composable (sel: Int, neighbors: List<Int>, select: (Int) -> Unit) -> Unit)? = null,
+) {
     val c = LocalHilo.current
     val n = a.mapTerms.size
     val pos = remember(a) {
@@ -373,10 +382,7 @@ fun ConceptMapTab(vm: HiloViewModel, book: Book, a: Analysis) {
     val neighbors = sel?.let { s -> a.edges.filter { it.a == s || it.b == s }.sortedByDescending { it.w }.map { if (it.a == s) it.b else it.a } }.orEmpty()
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            "Los conceptos que más se repiten, unidos cuando aparecen en la misma oración. Pellizca para acercar, arrastra para moverte y toca un concepto para ver sus relaciones.",
-            color = c.muted, fontSize = 13.sp,
-        )
+        Text(intro, color = c.muted, fontSize = 13.sp)
         Box(Modifier.fillMaxWidth().height(460.dp).clip(RoundedCornerShape(20.dp)).background(c.surface)) {
             Canvas(
                 Modifier.fillMaxSize()
@@ -428,7 +434,8 @@ fun ConceptMapTab(vm: HiloViewModel, book: Book, a: Analysis) {
             }
         }
 
-        sel?.let { s ->
+        if (panel != null) sel?.let { s -> panel(s, neighbors) { sel = it } }
+        if (panel == null && book != null) sel?.let { s ->
             val t = a.mapTerms[s]
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).padding(14.dp),
@@ -451,6 +458,9 @@ fun ConceptMapTab(vm: HiloViewModel, book: Book, a: Analysis) {
                     }
                 }
                 LookupRow(t.label, vm.study.langs[book.id].orEmpty())
+                TextButton(onClick = {
+                    vm.feynman = FeynmanReq(book.id, t.label, a.sentencesWith(t.key, 3).joinToString(" ") { it.text }, neighbors.take(3).map { a.mapTerms[it].label })
+                }) { Text("Explícalo con tus palabras") }
                 val other = neighbors.firstOrNull()
                 val sents = (if (other != null) a.sentences.filter { t.key in it.keys && a.mapTerms[other].key in it.keys } else emptyList())
                     .ifEmpty { a.sentencesWith(t.key) }.take(3)
@@ -518,6 +528,7 @@ fun GlossaryTab(vm: HiloViewModel, book: Book, a: Analysis) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(if (g.para >= 0) "párrafo ${g.para + 1}" else "", color = c.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
                     TextButton(onClick = { saveCard(vm, book, "qa", "¿Qué es «${g.term}»?", g.definition, g.para); vm.toast = "Tarjeta creada." }) { Text("Tarjeta") }
+                    TextButton(onClick = { vm.feynman = FeynmanReq(book.id, g.term, g.definition, emptyList()) }) { Text("Explícalo") }
                     TextButton(onClick = { edit = g to g.term }) { Text("Editar") }
                     if (g.para >= 0) TextButton(onClick = { vm.openAt(book.id, true, g.para) }) { Text("Ir") }
                     TextButton(onClick = { vm.study.hideGloss(book.id, g.term) }) { Text("Quitar", color = c.lines[0]) }
@@ -633,6 +644,9 @@ private fun ChapterCard(
                         vm.toast = "Agregué ${g.questions.size} tarjetas."
                     }) { Text("A tarjetas", color = c.ink) }
                 }
+                OutlinedButton(onClick = {
+                    vm.feynman = FeynmanReq(book.id, g.chapter.title, g.ideas.joinToString(" ") { it.text }, g.concepts)
+                }) { Text("Explica el capítulo", color = c.ink) }
             }
         }
     }

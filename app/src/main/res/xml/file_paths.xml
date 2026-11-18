@@ -2,4 +2,5 @@
 <paths>
     <files-path name="libros" path="books/" />
     <external-path name="celular" path="." />
+    <cache-path name="exportar" path="export/" />
 </paths>

@@ -10,6 +10,12 @@ import android.net.Uri
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.material.icons.rounded.Gavel
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MicOff
+import androidx.compose.runtime.LaunchedEffect
+import com.hilo.lector.data.Ficha
+import com.hilo.lector.text.KeyWords
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -106,7 +112,18 @@ import kotlin.math.roundToInt
 /** Sesiones cortas: mejor 15 tarjetas hoy que 100 que no terminas. */
 private const val SESSION = 15
 
-private val TABS = listOf("Guía", "Palabras", "Glosario", "Mapa", "Tarjetas", "Resaltados", "Apuntes")
+/** Secciones que necesitan el análisis del texto. */
+private val ANALYSIS_TABS = setOf("guia", "palabras", "glosario", "mapa", "ley", "plazos", "autores", "tiempo")
+
+private fun tabsFor(a: Analysis?): List<Pair<String, String>> = buildList {
+    add("guia" to "Guía"); add("palabras" to "Palabras"); add("glosario" to "Glosario"); add("mapa" to "Mapa")
+    if (a?.law?.isLaw == true) add("ley" to "Ley")
+    if (a?.law?.deadlines?.isNotEmpty() == true) add("plazos" to "Plazos")
+    if (a?.authors?.isNotEmpty() == true) add("autores" to "Autores")
+    if ((a?.timeline?.size ?: 0) >= 2) add("tiempo" to "Línea de tiempo")
+    add("fichas" to "Fichas"); add("citas" to "Citas")
+    add("tarjetas" to "Tarjetas"); add("resaltados" to "Resaltados"); add("apuntes" to "Apuntes")
+}
 
 private fun kindLabel(k: String) = when (k) {
     "vocab" -> "Vocabulario"
@@ -175,6 +192,7 @@ fun lookup(ctx: Context, term: String, where: String, lang: String) {
             else -> "https://$l.wiktionary.org/wiki/${Uri.encode(q.lowercase())}"
         }
         "wiki" -> "https://$l.wikipedia.org/w/index.php?search=$enc"
+        "jur" -> "https://dpej.rae.es/lema/${Uri.encode(q.lowercase())}"
         else -> "https://translate.google.com/?sl=${if (l == "es") "auto" else l}&tl=${if (l == "es") "en" else "es"}&text=$enc&op=translate"
     }
     runCatching {
@@ -199,6 +217,12 @@ fun LookupRow(term: String, lang: String) {
                 Icon(Icons.Rounded.Public, null, tint = c.accent, modifier = Modifier.size(18.dp))
                 Text("  Wikipedia", color = c.ink)
             }
+            if (lang.isBlank() || lang == "es") {
+                OutlinedButton(onClick = { lookup(ctx, term, "jur", lang) }) {
+                    Icon(Icons.Rounded.Gavel, null, tint = c.accent, modifier = Modifier.size(18.dp))
+                    Text("  Jurídico", color = c.ink)
+                }
+            }
             OutlinedButton(onClick = { lookup(ctx, term, "tr", lang) }) {
                 Icon(Icons.Rounded.Translate, null, tint = c.accent, modifier = Modifier.size(18.dp))
                 Text("  Traducir", color = c.ink)
@@ -207,7 +231,7 @@ fun LookupRow(term: String, lang: String) {
     }
 }
 
-private fun shareText(ctx: Context, title: String, text: String) {
+internal fun shareText(ctx: Context, title: String, text: String) {
     runCatching {
         val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT, title).putExtra(Intent.EXTRA_TEXT, text)
         ctx.startActivity(Intent.createChooser(i, "Compartir"))
@@ -227,7 +251,9 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
     var review by remember { mutableStateOf<List<StudyCard>?>(null) }
     var deck by rememberSaveable { mutableStateOf<String?>(bookId) }
     var vocabOnly by rememberSaveable { mutableStateOf(false) }
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var tab by rememberSaveable { mutableStateOf("guia") }
+    var cross by rememberSaveable { mutableStateOf(false) }
+    var ficha by remember { mutableStateOf<Ficha?>(null) }
     var editing by remember { mutableStateOf<StudyCard?>(null) }
     var quiz by remember { mutableStateOf<Pair<String, List<Question>>?>(null) }
     val study = vm.study
@@ -238,6 +264,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
         when {
             review != null -> review = null
             quiz != null -> quiz = null
+            cross -> cross = false
             deck != bookId || vocabOnly -> { deck = bookId; vocabOnly = false }
             else -> vm.closeStudy()
         }
@@ -249,9 +276,8 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
     var anProg by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var anError by remember(current?.id) { mutableStateOf(false) }
     val removedNow = current?.let { study.removedFor(it.id) }
-    val analysis by produceState<Analysis?>(null, current?.id, removedNow, tab < 4) {
+    val analysis by produceState<Analysis?>(null, current?.id, removedNow) {
         val b = current ?: return@produceState
-        if (tab >= 4) return@produceState
         try {
             val a = vm.analysis(b) { p, n -> anProg = p to n }
             if (a.totalWords == 0) anError = true else value = a
@@ -272,12 +298,14 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
         Column(Modifier.widthIn(max = 760.dp).fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
                 IconButton(onClick = {
-                    if (deck != bookId || vocabOnly) { deck = bookId; vocabOnly = false } else vm.closeStudy()
+                    if (cross) cross = false
+                    else if (deck != bookId || vocabOnly) { deck = bookId; vocabOnly = false } else vm.closeStudy()
                 }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Volver", tint = c.ink) }
                 Column(Modifier.weight(1f)) {
                     Text(
                         when {
                             vocabOnly -> "Vocabulario de idiomas"
+                            cross && current == null -> "Mapa entre documentos"
                             current != null -> current.title
                             else -> "Estudio"
                         },
@@ -293,7 +321,12 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
+                if (cross && current == null) {
+                    item { CrossMapView(vm) { id -> cross = false; deck = id; tab = "guia" } }
+                    return@LazyColumn
+                }
                 item { TodayCard(due.size, study.streak, study.todayCount, onStart = { startReview(SESSION) }, onQuick = { startReview(5) }) }
+                if (current != null && !vocabOnly) item { ExamCard(vm, current, analysis) }
 
                 if (current == null && !vocabOnly) {
                     // Todas las barajas: una por documento, más la de idiomas
@@ -305,7 +338,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                         item { Label("Tus documentos") }
                         items(withCards, key = { it.id }) { b ->
                             val all = study.cardsOf(b.id)
-                            DeckRow(b.title, all.count { it.due <= today() }, all.size) { deck = b.id; tab = 0 }
+                            DeckRow(b.title, all.count { it.due <= today() }, all.size) { deck = b.id; tab = "guia" }
                         }
                         if (vocab.isNotEmpty()) {
                             item {
@@ -319,23 +352,26 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                             color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp),
                         )
                     }
+                    item { HubTools(vm, onCrossMap = { cross = true }, onDeck = { id -> deck = id; tab = "guia" }) }
                 } else if (vocabOnly) {
                     val vocab = study.cards.filter { it.kind == "vocab" }.sortedBy { it.due }
                     items(vocab, key = { it.id }) { card -> CardRow(card, speaker) { editing = card } }
                 } else if (current != null) {
+                    val tabs = tabsFor(analysis)
+                    if (analysis != null && tabs.none { it.first == tab }) tab = "guia"
                     item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                            TABS.forEachIndexed { i, t ->
-                                val on = i == tab
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            tabs.forEach { (k, t) ->
+                                val on = k == tab
                                 Text(
                                     t, color = if (on) c.accentInk else c.ink, fontSize = 14.sp,
                                     modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) c.accent else c.surface)
-                                        .clickable { tab = i }.padding(horizontal = 14.dp, vertical = 8.dp),
+                                        .clickable { tab = k }.padding(horizontal = 14.dp, vertical = 8.dp),
                                 )
                             }
                         }
                     }
-                    if (tab < 4) {
+                    if (tab in ANALYSIS_TABS) {
                         val an = analysis
                         when {
                             anError -> item {
@@ -347,24 +383,31 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                                     Text(anProg?.let { (p, n) -> "Leyendo el documento… página ${p + 1} de $n" } ?: "Analizando el texto…", color = c.muted)
                                 }
                             }
-                            tab == 0 -> item { GuideTab(vm, current, an) { t, qs -> quiz = t to qs } }
-                            tab == 1 -> item { WordsTab(vm, current, an) { editing = it } }
-                            tab == 2 -> item { GlossaryTab(vm, current, an) }
-                            else -> item { ConceptMapTab(vm, current, an) }
+                            tab == "guia" -> item { GuideTab(vm, current, an) { t, qs -> quiz = t to qs } }
+                            tab == "palabras" -> item { WordsTab(vm, current, an) { editing = it } }
+                            tab == "glosario" -> item { GlossaryTab(vm, current, an) }
+                            tab == "mapa" -> item { ConceptMapTab(vm, current, an) }
+                            tab == "ley" -> item { LawTab(vm, current, an) }
+                            tab == "plazos" -> item { DeadlinesTab(vm, current, an) }
+                            tab == "autores" -> item { AuthorsTab(vm, current, an) { ficha = it } }
+                            tab == "tiempo" -> item { TimelineTab(vm, current, an) }
                         }
                     }
                     when (tab) {
-                        4 -> {
+                        "fichas" -> item { FichasTab(vm, current, analysis) { ficha = it } }
+                        "citas" -> item { CitesTab(vm, current) }
+                        "tarjetas" -> {
                             item { NewCardButtons(onNew = { k -> editing = StudyCard(0, current.id, k, "", "", lang = study.langs[current.id].orEmpty(), due = today()) }) }
                             item { LangRow(study.langs[current.id].orEmpty()) { study.setLang(current.id, it) } }
+                            item { TextButton(onClick = { exportDeck(vm, ctx, current) }) { Text("Exportar estas tarjetas a Anki") } }
                             val cards = study.cardsOf(current.id).sortedBy { it.due }
                             if (cards.isEmpty()) item { EmptyStudyHint() }
                             items(cards, key = { it.id }) { card -> CardRow(card, speaker) { editing = card } }
                         }
-                        5 -> item { MarksTab(vm, current, onCard = { text, flow, pos, src ->
+                        "resaltados" -> item { MarksTab(vm, current, onCard = { text, flow, pos, src ->
                             editing = StudyCard(0, current.id, "qa", "", text, source = src, sourcePos = pos, sourceFlow = flow, due = today())
                         }) }
-                        6 -> item { NotesTab(vm, current) }
+                        "apuntes" -> item { NotesTab(vm, current) }
                     }
                 }
             }
@@ -386,6 +429,8 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
     }
 
     quiz?.let { (t, qs) -> current?.let { b -> QuizOverlay(vm, b, t, qs) { quiz = null } } }
+
+    ficha?.let { f -> current?.let { b -> FichaEditor(vm, b, analysis, f) { ficha = null } } }
 
     review?.let { list ->
         ReviewSession(
@@ -699,6 +744,15 @@ private fun ReviewSession(
     val again = remember(cards) { HashMap<Long, Int>() }
     val start = remember(cards) { mutableLongStateOf(System.currentTimeMillis()) }
     var done by remember(cards) { mutableIntStateOf(0) }
+    var oral by rememberSaveable { mutableStateOf(false) }
+    var spoken by remember(cards) { mutableStateOf("") }
+    val cur = queue.getOrNull(idx)
+    val oralLang = cur?.lang?.ifBlank { null } ?: cur?.let { vm.study.langs[it.bookId] }.orEmpty()
+    val dictate = rememberDictation(vm, oralLang) { spoken = it; showBack = true }
+    LaunchedEffect(cur?.id, idx, oral) {
+        spoken = ""
+        if (oral && cur != null) speaker.say(cur.front.replace("[ … ]", "tal cosa").replace("\n", ". "), oralLang.ifBlank { "es" })
+    }
 
     Box(
         Modifier.fillMaxSize().background(c.bg).windowInsetsPadding(WindowInsets.safeDrawing)
@@ -714,6 +768,9 @@ private fun ReviewSession(
                     modifier = Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)),
                 )
                 Text("  ${minOf(idx + 1, queue.size)} / ${queue.size}", color = c.muted, fontSize = 14.sp)
+                IconButton(onClick = { oral = !oral; if (!oral) speaker.stop(); vm.toast = if (oral) "Examen oral: escucha la pregunta y responde hablando." else "Examen oral apagado." }) {
+                    Icon(if (oral) Icons.Rounded.Mic else Icons.Rounded.MicOff, "Examen oral", tint = if (oral) c.accent else c.muted)
+                }
             }
 
             if (idx >= queue.size) {
@@ -760,6 +817,16 @@ private fun ReviewSession(
                 }
                 Text(card.front, color = c.ink, fontSize = if (card.front.length < 40) 26.sp else 19.sp, lineHeight = if (card.front.length < 40) 32.sp else 27.sp)
                 if (showBack) {
+                    if (spoken.isNotBlank()) {
+                        val keys = remember(card.id) { KeyWords.of(card.back, emptyList(), 8) }
+                        val (hit, miss) = KeyWords.coverage(spoken, keys)
+                        val pct = if (keys.isEmpty()) 0 else hit.size * 100 / keys.size
+                        Text("Dijiste: «$spoken»", color = c.ink, fontSize = 15.sp)
+                        Text(
+                            "Coincide en $pct %" + if (miss.isNotEmpty()) " · te faltó: " + miss.take(5).joinToString(", ") else "",
+                            color = if (pct >= 60) c.lines[1] else c.lines[2], fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                        )
+                    }
                     Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
                     Text(card.back, color = c.accent, fontSize = 22.sp, fontWeight = FontWeight.Medium, lineHeight = 28.sp)
                     if (card.kind == "cloze" && card.context.isNotBlank()) {
@@ -793,7 +860,16 @@ private fun ReviewSession(
             }
 
             if (!showBack) {
-                Button(
+                if (oral) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = dictate,
+                            colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.accentInk),
+                            modifier = Modifier.weight(1f).height(60.dp),
+                        ) { Icon(Icons.Rounded.Mic, null); Text("  Responder hablando", fontSize = 16.sp) }
+                        OutlinedButton(onClick = { showBack = true }, modifier = Modifier.height(60.dp)) { Text("Ver", color = c.ink) }
+                    }
+                } else Button(
                     onClick = { showBack = true },
                     colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.accentInk),
                     modifier = Modifier.fillMaxWidth().height(60.dp),
@@ -880,6 +956,7 @@ fun StudySheet(vm: HiloViewModel, req: StudyRequest, onDismiss: () -> Unit) {
             }
 
             LookupRow(term = answer.ifBlank { words.getOrNull(req.wordIndex)?.let { core(it) }.orEmpty() }, lang = lang)
+            ArticleRefsRow(vm, req.bookId, req.sentence)
 
             when (mode) {
                 "vocab" -> {
@@ -915,6 +992,13 @@ fun StudySheet(vm: HiloViewModel, req: StudyRequest, onDismiss: () -> Unit) {
                             question = if (sel.isNotEmpty()) "¿Qué es o qué significa «$answer»?" else ""
                             mode = "qa"
                         }) { Text("Pregunta", color = c.ink) }
+                        OutlinedButton(onClick = {
+                            // Cita: la oración completa, o las palabras elegidas si marcaste varias seguidas
+                            val idx = sel.sorted()
+                            val contiguous = idx.size >= 4 && idx.last() - idx.first() == idx.size - 1
+                            saveQuote(vm, req, if (contiguous) idx.joinToString(" ") { words[it] } else req.sentence)
+                            onDismiss()
+                        }) { Text("Citar", color = c.ink) }
                         TextButton(onClick = {
                             val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                             cm?.setPrimaryClip(ClipData.newPlainText("Hilo", if (sel.isEmpty()) req.sentence else answer))
@@ -923,7 +1007,7 @@ fun StudySheet(vm: HiloViewModel, req: StudyRequest, onDismiss: () -> Unit) {
                         }) { Text("Copiar") }
                     }
                     Text(
-                        "Completar: oculta las palabras elegidas. Vocabulario: para idiomas, con su significado. Pregunta: escribe tú la pregunta.",
+                        "Completar: oculta las palabras elegidas. Vocabulario: para idiomas, con su significado. Pregunta: escribe tú la pregunta. Citar: la guarda con su página para tus trabajos (formato APA).",
                         color = c.muted, fontSize = 12.sp,
                     )
                 }

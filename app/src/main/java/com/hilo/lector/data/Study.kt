@@ -59,6 +59,34 @@ data class TextMark(
 
 enum class Grade { AGAIN, HARD, GOOD, EASY }
 
+/** Ficha de estudio: de caso o sentencia, de lectura o de autor. Cada campo es (nombre, contenido). */
+data class Ficha(
+    val id: Long,
+    val bookId: String,
+    val kind: String,              // caso | lectura | autor
+    val title: String,
+    val fields: List<Pair<String, String>>,
+    val time: Long,
+)
+
+val FICHA_KINDS = listOf(
+    "caso" to "Ficha de caso o sentencia",
+    "lectura" to "Ficha de lectura",
+    "autor" to "Ficha de autor",
+)
+
+fun fichaFields(kind: String): List<String> = when (kind) {
+    "caso" -> listOf("Datos (tribunal, fecha, partes)", "Hechos", "Problema jurídico", "Norma aplicable", "Argumentos", "Decisión o fallo", "Mi comentario")
+    "autor" -> listOf("Autor", "Contexto y época", "Conceptos clave", "Ideas principales", "Obras y fechas", "Citas")
+    else -> listOf("Referencia", "Tesis central", "Argumentos principales", "Conceptos clave", "Citas importantes", "Crítica personal")
+}
+
+/** Cita textual guardada para un trabajo, con su página o párrafo. */
+data class Quote(val id: Long, val bookId: String, val text: String, val loc: String, val pos: Int, val flow: Boolean, val time: Long)
+
+/** Datos del documento para la referencia APA. */
+data class BookRef(val authors: String = "", val year: String = "", val title: String = "", val publisher: String = "", val url: String = "")
+
 fun today(): Long = LocalDate.now().toEpochDay()
 
 /** Repaso espaciado al estilo Anki (SM-2 simplificado). */
@@ -105,7 +133,21 @@ class StudyStore(ctx: Context) {
     val glossCustom = mutableStateMapOf<String, List<Gloss>>()
     /** Capítulos marcados como estudiados (párrafo donde empieza). */
     val chapDone = mutableStateMapOf<String, Set<Int>>()
+    val fichas: SnapshotStateList<Ficha> = mutableStateListOf()
+    val quotes: SnapshotStateList<Quote> = mutableStateListOf()
+    val refs = mutableStateMapOf<String, BookRef>()
+    /** Fecha de examen por documento (día, LocalDate.toEpochDay). */
+    val exams = mutableStateMapOf<String, Long>()
     private var nextId = System.currentTimeMillis()
+
+    var remindOn: Boolean
+        get() = sp.getBoolean("remindOn", false)
+        set(v) { sp.edit().putBoolean("remindOn", v).apply(); remindTick++ }
+    var remindHour: Int
+        get() = sp.getInt("remindHour", 19)
+        set(v) { sp.edit().putInt("remindHour", v).apply(); remindTick++ }
+    var remindTick by mutableIntStateOf(0)
+        private set
     private var saveJob: Job? = null
 
     var streak by mutableIntStateOf(0)
@@ -138,8 +180,12 @@ class StudyStore(ctx: Context) {
     fun delete(id: Long) { cards.removeAll { it.id == id }; save() }
 
     fun grade(c: StudyCard, g: Grade) {
-        update(Srs.schedule(c, g))
         val t = today()
+        var nc = Srs.schedule(c, g)
+        // Con examen cerca, la tarjeta vuelve antes del examen
+        val ex = exams[c.bookId]
+        if (ex != null && ex > t && nc.due >= ex) nc = nc.copy(due = max(t + if (g == Grade.AGAIN) 0 else 1, ex - 1))
+        update(nc)
         val last = sp.getLong("lastDay", -10)
         when {
             last == t -> todayCount++
@@ -189,11 +235,40 @@ class StudyStore(ctx: Context) {
         save()
     }
 
+    fun fichasOf(bookId: String) = fichas.filter { it.bookId == bookId }.sortedByDescending { it.time }
+    fun putFicha(f: Ficha) {
+        val i = fichas.indexOfFirst { it.id == f.id }
+        if (i >= 0) fichas[i] = f else fichas.add(f)
+        save()
+    }
+    fun deleteFicha(id: Long) { fichas.removeAll { it.id == id }; save() }
+
+    fun quotesOf(bookId: String) = quotes.filter { it.bookId == bookId }.sortedBy { it.time }
+    fun addQuote(q: Quote) { quotes.add(q); save() }
+    fun deleteQuote(id: Long) { quotes.removeAll { it.id == id }; save() }
+    fun setRef(bookId: String, r: BookRef) { refs[bookId] = r; save() }
+
+    fun setExam(bookId: String, day: Long?) {
+        if (day == null) exams.remove(bookId) else exams[bookId] = day
+        // Las tarjetas que vencerían después del examen vuelven antes
+        if (day != null) {
+            val t = today()
+            for (i in cards.indices) {
+                val c = cards[i]
+                if (c.bookId == bookId && c.due >= day && day > t) cards[i] = c.copy(due = max(t, day - 1))
+            }
+        }
+        save()
+    }
+
     fun removeBook(bookId: String) {
         cards.removeAll { it.bookId == bookId }
         marks.removeAll { it.bookId == bookId }
         notes.remove(bookId)
         langs.remove(bookId)
+        fichas.removeAll { it.bookId == bookId }
+        quotes.removeAll { it.bookId == bookId }
+        exams.remove(bookId)
         save()
     }
 
@@ -236,13 +311,40 @@ class StudyStore(ctx: Context) {
                     glossCustom[k] = (0 until a.length()).map { val j = a.getJSONObject(it); Gloss(j.optString("t"), j.optString("d"), j.optInt("p", -1)) }
                 }
             }
+            o.optJSONArray("fichas")?.let { a ->
+                for (i in 0 until a.length()) {
+                    val j = a.getJSONObject(i)
+                    val fa = j.optJSONArray("f") ?: JSONArray()
+                    fichas.add(Ficha(j.getLong("id"), j.optString("book"), j.optString("kind"), j.optString("title"),
+                        (0 until fa.length()).map { val x = fa.getJSONObject(it); x.optString("n") to x.optString("v") }, j.optLong("time")))
+                }
+            }
+            o.optJSONArray("quotes")?.let { a ->
+                for (i in 0 until a.length()) {
+                    val j = a.getJSONObject(i)
+                    quotes.add(Quote(j.getLong("id"), j.optString("book"), j.optString("text"), j.optString("loc"), j.optInt("pos", -1), j.optBoolean("flow"), j.optLong("time")))
+                }
+            }
+            o.optJSONObject("refs")?.let { n ->
+                n.keys().forEach { k -> val j = n.getJSONObject(k); refs[k] = BookRef(j.optString("a"), j.optString("y"), j.optString("t"), j.optString("p"), j.optString("u")) }
+            }
+            o.optJSONObject("exams")?.let { n -> n.keys().forEach { k -> exams[k] = n.optLong(k) } }
         } catch (_: Exception) {}
     }
+
+    /** Guarda ya mismo (antes de exportar una copia de seguridad). */
+    fun flush() { saveJob?.cancel(); writeNow() }
 
     private fun save() {
         saveJob?.cancel()
         saveJob = Hilo.scope.launch(Dispatchers.IO) {
             delay(300)
+            writeNow()
+        }
+    }
+
+    private fun writeNow() {
+        run {
             val ca = JSONArray()
             for (c in cards.toList()) {
                 ca.put(
@@ -265,7 +367,19 @@ class StudyStore(ctx: Context) {
             }
             val text = JSONObject().put("cards", ca).put("marks", ma).put("notes", no).put("langs", la)
                 .put("removed", sets(removed.toMap())).put("glossHidden", sets(glossHidden.toMap()))
-                .put("chapDone", sets(chapDone.toMap())).put("glossCustom", gc).toString()
+                .put("chapDone", sets(chapDone.toMap())).put("glossCustom", gc)
+                .put("fichas", JSONArray().also { arr ->
+                    fichas.toList().forEach { f ->
+                        val fa = JSONArray(); f.fields.forEach { (n, v) -> fa.put(JSONObject().put("n", n).put("v", v)) }
+                        arr.put(JSONObject().put("id", f.id).put("book", f.bookId).put("kind", f.kind).put("title", f.title).put("f", fa).put("time", f.time))
+                    }
+                })
+                .put("quotes", JSONArray().also { arr ->
+                    quotes.toList().forEach { q -> arr.put(JSONObject().put("id", q.id).put("book", q.bookId).put("text", q.text).put("loc", q.loc).put("pos", q.pos).put("flow", q.flow).put("time", q.time)) }
+                })
+                .put("refs", JSONObject().also { o2 -> refs.toMap().forEach { (k, r) -> o2.put(k, JSONObject().put("a", r.authors).put("y", r.year).put("t", r.title).put("p", r.publisher).put("u", r.url)) } })
+                .put("exams", JSONObject().also { o2 -> exams.toMap().forEach { (k, v) -> o2.put(k, v) } })
+                .toString()
             synchronized(file) {
                 file.parentFile?.mkdirs()
                 val tmp = File(file.path + ".tmp")

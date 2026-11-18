@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (savedInstanceState == null) handleIntent(intent)
+        runCatching { com.hilo.lector.data.Reminders.schedule(this) }
         setContent {
             val s by vm.settings.state.collectAsStateWithLifecycle()
             HiloTheme(s.theme) { HiloRoot(vm) }
@@ -64,6 +65,11 @@ class MainActivity : ComponentActivity() {
     /** Recibe archivos y textos de "Abrir con" y del menú Compartir. */
     private fun handleIntent(i: Intent?) {
         if (i == null) return
+        if (i.getBooleanExtra(com.hilo.lector.data.Reminders.EXTRA_STUDY, false)) {
+            i.removeExtra(com.hilo.lector.data.Reminders.EXTRA_STUDY)
+            vm.openStudy(null)
+            return
+        }
         when (i.action) {
             Intent.ACTION_VIEW -> i.data?.let { vm.import(listOf(it)) }
             Intent.ACTION_SEND -> {
@@ -120,6 +126,17 @@ fun HiloRoot(vm: HiloViewModel) {
     when (vm.sheet) {
         "settings" -> SettingsSheet(vm) { vm.sheet = null }
         "timer" -> TimerSheet(vm) { vm.sheet = null }
+    }
+
+    vm.feynman?.let { r -> com.hilo.lector.ui.FeynmanDialog(vm, r) { vm.feynman = null } }
+
+    if (vm.restored) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Copia restaurada") },
+            text = { Text("Hilo se va a reiniciar para cargar tus datos.") },
+            confirmButton = { TextButton(onClick = { com.hilo.lector.data.Backup.restart(ctx) }) { Text("Reiniciar") } },
+        )
     }
 
     vm.pasteDraft?.let { draft ->

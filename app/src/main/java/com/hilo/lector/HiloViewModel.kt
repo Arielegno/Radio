@@ -119,6 +119,38 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
     var toast by mutableStateOf<String?>(null)
     var sheet by mutableStateOf<String?>(null)   // "settings" | "timer"
     var pasteDraft by mutableStateOf<String?>(null)
+    /** Modo Feynman abierto: explicar un concepto con tus palabras. */
+    var feynman by mutableStateOf<com.hilo.lector.ui.FeynmanReq?>(null)
+    /** La copia se restauró: hay que reiniciar Hilo. */
+    var restored by mutableStateOf(false)
+
+    fun backup(uri: Uri, withBooks: Boolean) {
+        viewModelScope.launch {
+            busy = "Guardando la copia de seguridad…"
+            val r = runCatching {
+                withContext(Dispatchers.IO) {
+                    study.flush()
+                    ctx.contentResolver.openOutputStream(uri)?.use { com.hilo.lector.data.Backup.write(ctx, it, withBooks) } ?: error("sin salida")
+                }
+            }
+            busy = null
+            toast = if (r.isSuccess) "Copia guardada (${r.getOrNull()} archivos)." else "No pude guardar la copia. Prueba en otra carpeta."
+        }
+    }
+
+    fun restore(uri: Uri) {
+        viewModelScope.launch {
+            busy = "Restaurando la copia…"
+            val r = runCatching {
+                withContext(Dispatchers.IO) {
+                    ctx.contentResolver.openInputStream(uri)?.use { com.hilo.lector.data.Backup.restore(ctx, it) } ?: error("sin archivo")
+                }
+            }
+            busy = null
+            if (r.isSuccess) restored = true
+            else toast = if (r.exceptionOrNull()?.message == "No es una copia de Hilo") "Ese archivo no es una copia de Hilo." else "No pude leer la copia."
+        }
+    }
 
     fun open(b: Book) {
         settings.lastBook = b.id

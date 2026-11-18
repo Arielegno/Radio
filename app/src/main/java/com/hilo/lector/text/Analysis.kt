@@ -38,7 +38,12 @@ class Analysis(
     val edges: List<Edge>,
     val glossary: List<Gloss>,
     val guides: List<ChapterGuide>,
+    val law: LawIndex = LawIndex(emptyList(), emptyList(), emptyList()),
+    val authors: List<AuthorInfo> = emptyList(),
+    val timeline: List<TimeEvent> = emptyList(),
 ) {
+    fun labelOf(key: String): String = (terms.firstOrNull { it.key == key } ?: phrases.firstOrNull { it.key == key })?.label ?: key
+
     fun sentencesWith(key: String, limit: Int = 30): List<Sent> = sentences.filter { key in it.keys }.take(limit)
 }
 
@@ -73,7 +78,7 @@ object Analyzer {
         each between through after where while how being however many must much own same well within without upon here
         capítulo capitulo sección seccion página pagina aparece aparecen existe existen permite permiten presenta presentan
         realiza realizan muestra muestran lleva llevan sigue siguen encuentra encuentran trata tratan refiere considera
-        consideran estudia estudió señala señalan plantea plantean afirma afirman cabe tiene tenían hacia ejemplo general
+        consideran concepto conceptos estudia estudió señala señalan plantea plantean afirma afirman cabe tiene tenían hacia ejemplo general
         de la que el en y a los se del las un por con no una su para es al lo como más pero sus le ya o este sí porque esta
     """.trim().split(Regex("\\s+")).toSet()
 
@@ -261,7 +266,10 @@ object Analyzer {
             ChapterGuide(ch, words, ideas, concepts.map { labelFor[it] ?: it }, qs)
         }
 
-        return Analysis(total, distinct, terms, phrases, sentences, mapTerms, keep.toList(), glossary, guides)
+        val law = runCatching { Law.parse(paras) }.getOrElse { LawIndex(emptyList(), emptyList(), emptyList()) }
+        val authors = runCatching { Social.authors(paras, sentences, terms, phrases) }.getOrDefault(emptyList())
+        val timeline = runCatching { Social.timeline(sentences, authors) }.getOrDefault(emptyList())
+        return Analysis(total, distinct, terms, phrases, sentences, mapTerms, keep.toList(), glossary, guides, law, authors, timeline)
     }
 
     private val DEF1 = Regex(

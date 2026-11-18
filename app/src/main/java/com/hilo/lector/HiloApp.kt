@@ -51,6 +51,21 @@ object Stats {
             .putInt("s", t.sessions + sessions)
             .putInt("m", t.minutes + minutes)
             .putInt("p", t.pages + pages)
+            .putInt("m_" + key(), t.minutes + minutes)
+            .putInt("p_" + key(), t.pages + pages)
             .apply()
+    }
+
+    /** Minutos y páginas de los últimos [days] días (el último es hoy). */
+    fun history(ctx: Context, days: Int = 14): List<Pair<Int, Int>> {
+        val sp = ctx.getSharedPreferences("stats", Context.MODE_PRIVATE)
+        val f = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val cal = java.util.Calendar.getInstance()
+        cal.add(java.util.Calendar.DAY_OF_YEAR, -(days - 1))
+        return (0 until days).map {
+            val k = f.format(cal.time)
+            cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            sp.getInt("m_$k", 0) to sp.getInt("p_$k", 0)
+        }
     }
 }

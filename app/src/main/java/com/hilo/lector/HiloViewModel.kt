@@ -64,6 +64,8 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
     val settings = SettingsStore(app)
     val timer = FocusTimer(app, viewModelScope)
     val study = StudyStore(app)
+    /** Motor de estudio: registro de repasos, ruta de estudio, escritos y estadísticas. */
+    val motor = com.hilo.lector.data.Motor(app).also { m -> study.onReview = { c, g, conf -> m.log(c, g, conf) }; study.onRemoveBook = { id -> m.removeBook(id) } }
 
     /** Documentos nuevos encontrados en el celular en la última revisión (para el aviso "Ver"). */
     var newFound by mutableStateOf(0)
@@ -146,6 +148,7 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
             val r = runCatching {
                 withContext(Dispatchers.IO) {
                     study.flush()
+                    motor.flush()
                     ctx.contentResolver.openOutputStream(uri)?.use { com.hilo.lector.data.Backup.write(ctx, it, withBooks) } ?: error("sin salida")
                 }
             }

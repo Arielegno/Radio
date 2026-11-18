@@ -182,12 +182,15 @@ fun PdfView(
             StudyRequest(
                 bookId = book.id, sentence = sentence, wordIndex = wordIndexAt(text.substring(a, b), at - a),
                 flow = false, pos = p, source = "pág. ${p + 1}",
-                onHighlight = {
+                onHighlight = { kind ->
                     val cy = (ln.t + ln.b) / 2
                     val asp = engine.aspects.getOrElse(p) { 1.41f }
+                    val col = com.hilo.lector.data.MARK_KINDS.firstOrNull { it.first == kind }?.third ?: HL_YELLOW
                     annots.addStroke(
-                        InkStroke(annots.newId(), p, true, HL_YELLOW, (ln.b - ln.t) * asp * 1.05f, floatArrayOf(ln.l, cy, ln.r, cy), ln.text)
+                        InkStroke(annots.newId(), p, true, col, (ln.b - ln.t) * asp * 1.05f, floatArrayOf(ln.l, cy, ln.r, cy), ln.text)
                     )
+                    // Las dudas también quedan en el motor de estudio, para resolverlas después
+                    if (kind == "duda") vm.motor.add(com.hilo.lector.data.Entry(vm.motor.newId(), book.id, "duda", "pág. ${p + 1}", ln.text, System.currentTimeMillis()))
                 },
             )
         )

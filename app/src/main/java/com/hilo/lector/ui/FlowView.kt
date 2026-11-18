@@ -167,7 +167,7 @@ fun FlowParagraph(
     rulerOn: Boolean,
     onLayout: (TextLayoutResult) -> Unit,
     onTap: (line: Int?, xFrac: Float) -> Unit,
-    marks: List<IntRange> = emptyList(),
+    marks: List<Pair<IntRange, Int>> = emptyList(),
     onLongPress: ((offset: Int) -> Unit)? = null,
     modifier: Modifier = Modifier,
     gap: Boolean = true,
@@ -192,9 +192,9 @@ fun FlowParagraph(
                 val l = layout
                 // Resaltados del estudio
                 if (l != null && marks.isNotEmpty()) {
-                    val hl = if (mode.dark) Color(0xFFFFD54F).copy(alpha = 0.28f) else Color(0xFFFFD54F).copy(alpha = 0.55f)
                     val n = l.layoutInput.text.length
-                    for (r in marks) {
+                    for ((r, col) in marks) {
+                        val hl = Color(col).copy(alpha = if (mode.dark) 0.30f else 0.55f)
                         val a = r.first.coerceIn(0, n)
                         val b = (r.last + 1).coerceIn(a, n)
                         if (b > a) drawPath(l.getPathForRange(a, b), hl)
@@ -340,9 +340,10 @@ fun FlowView(
                 StudyRequest(
                     bookId = book.id, sentence = sentence, wordIndex = wordIndexAt(body.substring(a, b), offset - a),
                     flow = true, pos = para, source = "párrafo ${para + 1}",
-                    onHighlight = {
+                    onHighlight = { kind ->
+                        val col = com.hilo.lector.data.MARK_KINDS.firstOrNull { it.first == kind }?.third ?: 0xFFFFD54F.toInt()
                         vm.study.addMark(
-                            TextMark(vm.study.newId(), book.id, para, a, b, sentence, 0xFFFFD54F.toInt(), System.currentTimeMillis())
+                            TextMark(vm.study.newId(), book.id, para, a, b, sentence, col, System.currentTimeMillis(), kind)
                         )
                     },
                 )
@@ -371,8 +372,8 @@ private fun ScrollFlow(
     val layouts = remember(book.id) { HashMap<Int, TextLayoutResult>() }
     var ruler by remember(book.id) { mutableStateOf<Pair<Int, Int>?>(null) }
     val bookMarks = vm.study.marks.filter { it.bookId == book.id }
-    fun marksFor(para: Int, start: Int, end: Int): List<IntRange> = bookMarks.filter { it.para == para && it.end > start && it.start < end }
-        .map { (maxOf(it.start, start) - start) until (minOf(it.end, end) - start) }
+    fun marksFor(para: Int, start: Int, end: Int): List<Pair<IntRange, Int>> = bookMarks.filter { it.para == para && it.end > start && it.start < end }
+        .map { ((maxOf(it.start, start) - start) until (minOf(it.end, end) - start)) to it.color }
 
     LaunchedEffect(list) {
         snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
@@ -556,8 +557,8 @@ private fun PagedFlow(
     val c = LocalHilo.current
     val density = LocalDensity.current
     val bookMarks = vm.study.marks.filter { it.bookId == book.id }
-    fun marksFor(para: Int, start: Int, end: Int): List<IntRange> = bookMarks.filter { it.para == para && it.end > start && it.start < end }
-        .map { (maxOf(it.start, start) - start) until (minOf(it.end, end) - start) }
+    fun marksFor(para: Int, start: Int, end: Int): List<Pair<IntRange, Int>> = bookMarks.filter { it.para == para && it.end > start && it.start < end }
+        .map { ((maxOf(it.start, start) - start) until (minOf(it.end, end) - start)) to it.color }
     val scope = rememberCoroutineScope()
     val layouts = remember(book.id) { HashMap<Int, TextLayoutResult>() }
     var ruler by remember(book.id) { mutableStateOf<PagedRuler?>(null) }

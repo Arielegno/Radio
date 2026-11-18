@@ -113,10 +113,10 @@ import kotlin.math.roundToInt
 private const val SESSION = 15
 
 /** Secciones que necesitan el análisis del texto. */
-private val ANALYSIS_TABS = setOf("guia", "palabras", "glosario", "mapa", "ley", "plazos", "autores", "tiempo")
+private val ANALYSIS_TABS = setOf("ruta", "guia", "palabras", "glosario", "mapa", "ley", "plazos", "autores", "tiempo")
 
 private fun tabsFor(a: Analysis?): List<Pair<String, String>> = buildList {
-    add("guia" to "Guía"); add("palabras" to "Palabras"); add("glosario" to "Glosario"); add("mapa" to "Mapa")
+    add("ruta" to "Ruta"); add("guia" to "Guía"); add("palabras" to "Palabras"); add("glosario" to "Glosario"); add("mapa" to "Mapa")
     if (a?.law?.isLaw == true) add("ley" to "Ley")
     if (a?.law?.deadlines?.isNotEmpty() == true) add("plazos" to "Plazos")
     if (a?.authors?.isNotEmpty() == true) add("autores" to "Autores")
@@ -139,7 +139,7 @@ data class StudyRequest(
     val flow: Boolean,
     val pos: Int,
     val source: String,
-    val onHighlight: (() -> Unit)?,
+    val onHighlight: ((kind: String) -> Unit)?,
 )
 
 private val SENTENCE_END = Regex("[.!?…;:](?=[\\s»”\"')\\]]|$)")
@@ -251,7 +251,8 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
     var review by remember { mutableStateOf<List<StudyCard>?>(null) }
     var deck by rememberSaveable { mutableStateOf<String?>(bookId) }
     var vocabOnly by rememberSaveable { mutableStateOf(false) }
-    var tab by rememberSaveable { mutableStateOf("guia") }
+    var tab by rememberSaveable { mutableStateOf("ruta") }
+    var practice by remember { mutableStateOf<String?>(null) }
     var cross by rememberSaveable { mutableStateOf(false) }
     var ficha by remember { mutableStateOf<Ficha?>(null) }
     var editing by remember { mutableStateOf<StudyCard?>(null) }
@@ -295,7 +296,8 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
     val due = study.due(deck).filter { !vocabOnly || it.kind == "vocab" }
 
     fun startReview(n: Int) {
-        val list = due.take(n)
+        // Primero las frágiles; el resto mezclado por documento y tipo (repaso intercalado)
+        val list = mixQueue(due).take(n)
         if (list.isEmpty()) vm.toast = "No hay tarjetas pendientes. ¡Estás al día!" else review = list
     }
 
@@ -327,7 +329,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                 modifier = Modifier.fillMaxSize(),
             ) {
                 if (cross && current == null) {
-                    item { CrossMapView(vm) { id -> cross = false; deck = id; tab = "guia" } }
+                    item { CrossMapView(vm) { id -> cross = false; deck = id; tab = "ruta" } }
                     return@LazyColumn
                 }
                 item { TodayCard(due.size, study.streak, study.todayCount, onStart = { startReview(SESSION) }, onQuick = { startReview(5) }) }
@@ -343,7 +345,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                         item { Label("Tus documentos") }
                         items(withCards, key = { it.id }) { b ->
                             val all = study.cardsOf(b.id)
-                            DeckRow(b.title, all.count { it.due <= today() }, all.size) { deck = b.id; tab = "guia" }
+                            DeckRow(b.title, all.count { it.due <= today() }, all.size) { deck = b.id; tab = "ruta" }
                         }
                         if (vocab.isNotEmpty()) {
                             item {
@@ -357,13 +359,19 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                             color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp),
                         )
                     }
-                    item { HubTools(vm, onCrossMap = { cross = true }, onDeck = { id -> deck = id; tab = "guia" }) }
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedButton(onClick = { practice = "stats" }, modifier = Modifier.weight(1f).height(52.dp)) { Text("Estadísticas", color = c.ink) }
+                            OutlinedButton(onClick = { practice = "simulacro" }, modifier = Modifier.weight(1f).height(52.dp)) { Text("Simulacro", color = c.ink) }
+                        }
+                    }
+                    item { HubTools(vm, onCrossMap = { cross = true }, onDeck = { id -> deck = id; tab = "ruta" }) }
                 } else if (vocabOnly) {
                     val vocab = study.cards.filter { it.kind == "vocab" }.sortedBy { it.due }
                     items(vocab, key = { it.id }) { card -> CardRow(card, speaker) { editing = card } }
                 } else if (current != null) {
                     val tabs = tabsFor(analysis)
-                    if (analysis != null && tabs.none { it.first == tab }) tab = "guia"
+                    if (analysis != null && tabs.none { it.first == tab }) tab = "ruta"
                     item {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             tabs.forEach { (k, t) ->
@@ -387,6 +395,12 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                                     CircularProgressIndicator(color = c.accent)
                                     Text(anProg?.let { (p, n) -> "Leyendo el documento… página ${p + 1} de $n" } ?: "Analizando el texto…", color = c.muted)
                                 }
+                            }
+                            tab == "ruta" -> item {
+                                RouteTab(vm, current, an, open = { practice = it }, goTab = { tab = it }, review = {
+                                    val l = mixQueue(study.due(current.id)).take(SESSION)
+                                    if (l.isEmpty()) vm.toast = "No hay tarjetas pendientes. ¡Estás al día!" else review = l
+                                })
                             }
                             tab == "guia" -> item { GuideTab(vm, current, an) { t, qs -> quiz = t to qs } }
                             tab == "palabras" -> item { WordsTab(vm, current, an) { editing = it } }
@@ -436,6 +450,8 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
     quiz?.let { (t, qs) -> current?.let { b -> QuizOverlay(vm, b, t, qs) { quiz = null } } }
 
     ficha?.let { f -> current?.let { b -> FichaEditor(vm, b, analysis, f) { ficha = null } } }
+
+    practice?.let { p -> PracticeOverlay(vm, current, analysis, p, onReview = { review = it }) { practice = null } }
 
     review?.let { list ->
         ReviewSession(
@@ -751,6 +767,10 @@ private fun ReviewSession(
     var done by remember(cards) { mutableIntStateOf(0) }
     var oral by rememberSaveable { mutableStateOf(false) }
     var spoken by remember(cards) { mutableStateOf("") }
+    // Calibración: antes de ver la respuesta dices si la sabes; Hilo compara con tu acierto
+    var conf by remember(cards) { mutableIntStateOf(0) }
+    var overconf by remember(cards) { mutableIntStateOf(0) }
+    var streakOk by remember(cards) { mutableIntStateOf(0) }
     val cur = queue.getOrNull(idx)
     val oralLang = cur?.lang?.ifBlank { null } ?: cur?.let { vm.study.langs[it.bookId] }.orEmpty()
     val dictate = rememberDictation(vm, oralLang) { spoken = it; showBack = true }
@@ -793,6 +813,15 @@ private fun ReviewSession(
                         "Repasaste $done ${if (done == 1) "tarjeta" else "tarjetas"} en $mins min.\nRacha: ${vm.study.streak} ${if (vm.study.streak == 1) "día" else "días"}.",
                         color = c.muted, textAlign = TextAlign.Center, fontSize = 16.sp,
                     )
+                    if (overconf > 0) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Ojo: en $overconf ${if (overconf == 1) "tarjeta dijiste" else "tarjetas dijiste"} «Lo sé» y fallaste. Esas vuelven pronto.",
+                            color = c.lines[2], textAlign = TextAlign.Center, fontSize = 14.sp,
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    SessionClose(vm, cards.firstOrNull()?.bookId)
                     Spacer(Modifier.height(24.dp))
                     if (left > 0) {
                         Button(
@@ -874,11 +903,18 @@ private fun ReviewSession(
                         ) { Icon(Icons.Rounded.Mic, null); Text("  Responder hablando", fontSize = 16.sp) }
                         OutlinedButton(onClick = { showBack = true }, modifier = Modifier.height(60.dp)) { Text("Ver", color = c.ink) }
                     }
-                } else Button(
-                    onClick = { showBack = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.accentInk),
-                    modifier = Modifier.fillMaxWidth().height(60.dp),
-                ) { Text("Mostrar respuesta", fontSize = 17.sp) }
+                } else Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("¿La sabes? Responde en tu cabeza y elige:", color = c.muted, fontSize = 13.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(Triple(1, "Lo sé", c.accent), Triple(2, "Dudo", c.lines[2]), Triple(3, "No lo sé", c.muted)).forEach { (k, label, col) ->
+                            Box(
+                                Modifier.weight(1f).height(58.dp).clip(RoundedCornerShape(14.dp)).background(col.copy(alpha = 0.16f))
+                                    .border(2.dp, col, RoundedCornerShape(14.dp)).clickable { conf = k; showBack = true },
+                                contentAlignment = Alignment.Center,
+                            ) { Text(label, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 16.sp) }
+                        }
+                    }
+                }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(
@@ -890,8 +926,18 @@ private fun ReviewSession(
                         Column(
                             Modifier.weight(1f).height(64.dp).clip(RoundedCornerShape(14.dp)).background(col)
                                 .clickable {
-                                    vm.study.grade(card, g)
+                                    vm.study.grade(card, g, conf)
+                                    if (conf == 1 && g == Grade.AGAIN) overconf++
+                                    conf = 0
                                     done++
+                                    // Dificultad deseable: si aciertas 10 seguidas, adelanta las más difíciles
+                                    streakOk = if (g >= Grade.GOOD) streakOk + 1 else 0
+                                    if (streakOk == 10 && idx + 1 < queue.size) {
+                                        val rest = queue.drop(idx + 1).sortedByDescending { it.diff }
+                                        queue = queue.take(idx + 1) + rest
+                                        vm.toast = "¡10 seguidas! Ahora vienen las más difíciles."
+                                        streakOk = 0
+                                    }
                                     val n = again[card.id] ?: 0
                                     if (g == Grade.AGAIN && n < 2) {
                                         again[card.id] = n + 1
@@ -962,6 +1008,22 @@ fun StudySheet(vm: HiloViewModel, req: StudyRequest, onDismiss: () -> Unit) {
 
             LookupRow(term = answer.ifBlank { words.getOrNull(req.wordIndex)?.let { core(it) }.orEmpty() }, lang = lang)
             ArticleRefsRow(vm, req.bookId, req.sentence)
+            if (req.onHighlight != null) {
+                // Subrayado con código de colores (lectura activa)
+                Text("Subrayar como", color = c.muted, fontSize = 12.sp)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    com.hilo.lector.data.MARK_KINDS.forEach { (k, label, col) ->
+                        Text(
+                            label, fontSize = 13.sp, color = Color(0xFF1B1B1B),
+                            modifier = Modifier.clip(RoundedCornerShape(50)).background(Color(col)).clickable {
+                                req.onHighlight.invoke(k)
+                                vm.toast = if (k == "duda") "Marcada como duda: la verás en tu ruta de estudio." else "Subrayado como ${label.lowercase()}."
+                                onDismiss()
+                            }.padding(horizontal = 12.dp, vertical = 6.dp),
+                        )
+                    }
+                }
+            }
 
             when (mode) {
                 "vocab" -> {
@@ -985,7 +1047,7 @@ fun StudySheet(vm: HiloViewModel, req: StudyRequest, onDismiss: () -> Unit) {
                 else -> {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (req.onHighlight != null) {
-                            OutlinedButton(onClick = { req.onHighlight.invoke(); vm.toast = "Resaltado."; onDismiss() }) { Text("Resaltar", color = c.ink) }
+                            OutlinedButton(onClick = { req.onHighlight.invoke(""); vm.toast = "Resaltado."; onDismiss() }) { Text("Resaltar", color = c.ink) }
                         }
                         Button(
                             onClick = { create(base("cloze").copy(front = clozeFront(req.sentence, answer), back = answer, context = req.sentence)) },

@@ -95,16 +95,23 @@ class LogicTest {
         assertEquals(0, KeyWords.coverage("", emptyList()).first.size)
     }
 
-    @Test fun repasoEspaciado() {
+    @Test fun repasoEspaciadoFsrs() {
         var c = StudyCard(1, "b", "qa", "f", "r", due = 0)
-        c = Srs.schedule(c, Grade.GOOD, 100); assertEquals(101, c.due)
-        c = Srs.schedule(c, Grade.GOOD, 101); assertEquals(104, c.due)
-        c = Srs.schedule(c, Grade.GOOD, 104); assertTrue(c.interval > 3)
+        c = Srs.schedule(c, Grade.GOOD, 100); assertEquals(103, c.due)           // primera vez «Bien»: unos 3 días
+        val first = c.stab
+        c = Srs.schedule(c, Grade.GOOD, 103); assertTrue("crece: ${c.stab}", c.stab > first * 2 && c.due > 108)
+        val easy = Srs.schedule(c, Grade.EASY, c.due); val good = Srs.schedule(c, Grade.GOOD, c.due)
+        assertTrue(easy.interval > good.interval)
         val lapse = Srs.schedule(c, Grade.AGAIN, 200)
-        assertEquals(200, lapse.due); assertEquals(1, lapse.lapses); assertTrue(lapse.ease >= 1.3f)
+        assertEquals(200, lapse.due); assertEquals(1, lapse.lapses); assertTrue(lapse.stab < c.stab)
         var e = StudyCard(2, "b", "qa", "f", "r")
-        repeat(30) { e = Srs.schedule(e, Grade.AGAIN, 0) }
-        assertEquals(1.3f, e.ease, 0.001f)
+        repeat(30) { e = Srs.schedule(e, Grade.AGAIN, it.toLong()) }
+        assertTrue(e.diff in 1f..10f && e.stab > 0f)
+        // Tarjeta del sistema anterior (SM-2): se convierte sin perder su intervalo
+        val old = StudyCard(3, "b", "qa", "f", "r", ease = 2.5f, interval = 20, reps = 4, due = 120)
+        val n = Srs.schedule(old, Grade.GOOD, 120)
+        assertTrue("intervalo ${n.interval}", n.interval > 20)
+        assertTrue(n.recall(n.last) > 0.99f)
     }
 
     @Test fun textosRarosNoRompen() {

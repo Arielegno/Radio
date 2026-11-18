@@ -43,7 +43,15 @@ data class StudyCard(
     val lapses: Int = 0,
     val due: Long = 0,             // día (LocalDate.toEpochDay)
     val created: Long = 0,
-)
+    val stab: Float = 0f,          // FSRS: estabilidad (días para bajar al 90 % de recuerdo)
+    val diff: Float = 0f,          // FSRS: dificultad (1 fácil … 10 difícil)
+    val last: Long = -1,           // último repaso (día)
+) {
+    /** Probabilidad de recordarla hoy (0 a 1). */
+    fun recall(day: Long = today()): Float = if (last < 0 || stab <= 0f) (if (reps == 0) 0f else 0.5f) else Fsrs.retrievability((day - last).toFloat(), stab)
+    /** Tarjeta frágil: la fallaste varias veces o es muy probable que la olvides. */
+    val fragile: Boolean get() = lapses >= 3 || (reps > 0 && diff >= 8.5f)
+}
 
 /** Texto resaltado en el modo de texto: párrafo y rango de letras. */
 data class TextMark(
@@ -55,6 +63,17 @@ data class TextMark(
     val text: String,
     val color: Int,
     val time: Long,
+    val kind: String = "",         // definicion | tesis | ejemplo | critica | dato | duda ("" = resaltado común)
+)
+
+/** Tipos de subrayado con su color, como en la lectura activa con código de colores. */
+val MARK_KINDS = listOf(
+    Triple("definicion", "Definición", 0xFF4FC3F7.toInt()),
+    Triple("tesis", "Tesis", 0xFFFFD54F.toInt()),
+    Triple("ejemplo", "Ejemplo", 0xFF81C784.toInt()),
+    Triple("critica", "Crítica", 0xFFF48FB1.toInt()),
+    Triple("dato", "Dato", 0xFFCE93D8.toInt()),
+    Triple("duda", "No entiendo", 0xFFFF8A65.toInt()),
 )
 
 enum class Grade { AGAIN, HARD, GOOD, EASY }
@@ -89,25 +108,75 @@ data class BookRef(val authors: String = "", val year: String = "", val title: S
 
 fun today(): Long = LocalDate.now().toEpochDay()
 
-/** Repaso espaciado al estilo Anki (SM-2 simplificado). */
-object Srs {
-    fun schedule(c: StudyCard, g: Grade, day: Long = today()): StudyCard {
-        val iv: Int
-        var ease = c.ease
-        var reps = c.reps
-        var lapses = c.lapses
-        when (g) {
-            Grade.AGAIN -> { iv = 0; reps = 0; lapses++; ease = max(1.3f, ease - 0.2f) }
-            Grade.HARD -> { iv = if (c.reps == 0) 1 else max(1, (c.interval * 1.2f).roundToInt()); ease = max(1.3f, ease - 0.15f); reps++ }
-            Grade.GOOD -> { iv = when (c.reps) { 0 -> 1; 1 -> 3; else -> max(c.interval + 1, (c.interval * ease).roundToInt()) }; reps++ }
-            Grade.EASY -> { iv = if (c.reps == 0) 4 else max(c.interval + 2, (c.interval * ease * 1.3f).roundToInt()); ease += 0.15f; reps++ }
-        }
-        return c.copy(interval = iv, ease = ease, reps = reps, lapses = lapses, due = day + iv)
+/**
+ * FSRS-5: el algoritmo de repaso espaciado moderno (el mismo de Anki desde 2023).
+ * Estima para cada tarjeta su estabilidad y dificultad, y la programa justo antes de que la olvides.
+ */
+object Fsrs {
+    private val w = floatArrayOf(
+        0.40255f, 1.18385f, 3.173f, 15.69105f, 7.1949f, 0.5345f, 1.4604f, 0.0046f, 1.54575f, 0.1192f,
+        1.01925f, 1.9395f, 0.11f, 0.29605f, 2.2698f, 0.2315f, 2.9898f, 0.51655f, 0.6621f,
+    )
+    private const val DECAY = -0.5f
+    private const val FACTOR = 19f / 81f
+    const val RETENTION = 0.9f
+
+    fun retrievability(t: Float, s: Float): Float = Math.pow((1.0 + FACTOR * t / s), DECAY.toDouble()).toFloat()
+
+    private fun d0(g: Int) = (w[4] - kotlin.math.exp(w[5] * (g - 1)) + 1f).coerceIn(1f, 10f)
+
+    private fun nextD(d: Float, g: Int): Float {
+        val dp = d + (-w[6] * (g - 3)) * (10f - d) / 9f
+        return (w[7] * d0(4) + (1 - w[7]) * dp).coerceIn(1f, 10f)
     }
+
+    private fun success(d: Float, s: Float, r: Float, g: Int): Float {
+        val hard = if (g == 2) w[15] else 1f
+        val easy = if (g == 4) w[16] else 1f
+        return s * (1f + kotlin.math.exp(w[8]) * (11f - d) * Math.pow(s.toDouble(), -w[9].toDouble()).toFloat() *
+            (kotlin.math.exp(w[10] * (1f - r)) - 1f) * hard * easy)
+    }
+
+    private fun fail(d: Float, s: Float, r: Float): Float =
+        minOf(s, w[11] * Math.pow(d.toDouble(), -w[12].toDouble()).toFloat() * (Math.pow((s + 1.0), w[13].toDouble()).toFloat() - 1f) * kotlin.math.exp(w[14] * (1f - r)))
+
+    fun interval(s: Float): Int = (s / FACTOR * (Math.pow(RETENTION.toDouble(), (1.0 / DECAY)).toFloat() - 1f)).roundToInt().coerceIn(1, 36500)
+
+    /** Estado nuevo de la tarjeta después de responder [g] (1 otra vez, 2 difícil, 3 bien, 4 fácil). */
+    fun next(c: StudyCard, g: Int, day: Long): StudyCard {
+        var s = c.stab
+        var d = c.diff
+        // Tarjetas que venían del sistema anterior: se estima su estado con lo que había
+        if (s <= 0f && c.reps > 0) { s = maxOf(0.5f, c.interval.toFloat()); d = (11f - (c.ease - 1.3f) * 5f).coerceIn(1f, 10f) }
+        val first = s <= 0f
+        if (first) {
+            s = w[g - 1]; d = d0(g)
+        } else {
+            val elapsed = if (c.last >= 0) (day - c.last).toFloat().coerceAtLeast(0f) else c.interval.toFloat()
+            val r = retrievability(elapsed, s)
+            if (elapsed < 1f) {
+                s *= kotlin.math.exp(w[17] * (g - 3 + w[18]))
+            } else {
+                s = if (g == 1) fail(d, s, r) else success(d, s, r, g)
+            }
+            d = nextD(d, g)
+        }
+        s = s.coerceIn(0.1f, 36500f)
+        val iv = if (g == 1) 0 else interval(s)
+        return c.copy(
+            stab = s, diff = d, last = day, interval = iv, due = day + iv,
+            reps = if (g == 1) 0 else c.reps + 1, lapses = if (g == 1 && !first) c.lapses + 1 else c.lapses,
+        )
+    }
+}
+
+/** Repaso espaciado: usa FSRS. Se mantiene el nombre para el resto de la app. */
+object Srs {
+    fun schedule(c: StudyCard, g: Grade, day: Long = today()): StudyCard = Fsrs.next(c, g.ordinal + 1, day)
 
     /** Texto para el botón: cuándo vuelve a aparecer. */
     fun preview(c: StudyCard, g: Grade): String {
-        val d = schedule(c, g, 0).interval
+        val d = schedule(c, g, today()).interval
         return when {
             d == 0 -> "otra vez hoy"
             d == 1 -> "mañana"
@@ -182,7 +251,11 @@ class StudyStore(ctx: Context) {
 
     fun delete(id: Long) { cards.removeAll { it.id == id }; save() }
 
-    fun grade(c: StudyCard, g: Grade) {
+    /** Registro de repasos (para estadísticas y calibración), lo guarda [Motor]. */
+    var onReview: ((StudyCard, Grade, Int) -> Unit)? = null
+
+    fun grade(c: StudyCard, g: Grade, conf: Int = 0) {
+        onReview?.invoke(c, g, conf)
         val t = today()
         var nc = Srs.schedule(c, g)
         // Con examen cerca, la tarjeta vuelve antes del examen
@@ -264,7 +337,10 @@ class StudyStore(ctx: Context) {
         save()
     }
 
+    var onRemoveBook: ((String) -> Unit)? = null
+
     fun removeBook(bookId: String) {
+        onRemoveBook?.invoke(bookId)
         cards.removeAll { it.bookId == bookId }
         marks.removeAll { it.bookId == bookId }
         notes.remove(bookId)
@@ -290,6 +366,7 @@ class StudyStore(ctx: Context) {
                             sourceFlow = j.optBoolean("srcFlow"), ease = j.optDouble("ease", 2.5).toFloat(),
                             interval = j.optInt("iv"), reps = j.optInt("reps"), lapses = j.optInt("lapses"),
                             due = j.optLong("due"), created = j.optLong("created"),
+                            stab = j.optDouble("s", 0.0).toFloat(), diff = j.optDouble("d", 0.0).toFloat(), last = j.optLong("last", -1),
                         )
                     )
                 }
@@ -297,7 +374,7 @@ class StudyStore(ctx: Context) {
             o.optJSONArray("marks")?.let { a ->
                 for (i in 0 until a.length()) {
                     val j = a.getJSONObject(i)
-                    marks.add(TextMark(j.getLong("id"), j.optString("book"), j.optInt("para"), j.optInt("start"), j.optInt("end"), j.optString("text"), j.optInt("color"), j.optLong("time")))
+                    marks.add(TextMark(j.getLong("id"), j.optString("book"), j.optInt("para"), j.optInt("start"), j.optInt("end"), j.optString("text"), j.optInt("color"), j.optLong("time"), j.optString("k")))
                 }
             }
             o.optJSONObject("notes")?.let { n -> n.keys().forEach { k -> notes[k] = n.optString(k) } }
@@ -355,11 +432,12 @@ class StudyStore(ctx: Context) {
                         .put("back", c.back).put("ctx", c.context).put("lang", c.lang).put("src", c.source)
                         .put("srcPos", c.sourcePos).put("srcFlow", c.sourceFlow).put("ease", c.ease.toDouble())
                         .put("iv", c.interval).put("reps", c.reps).put("lapses", c.lapses).put("due", c.due).put("created", c.created)
+                        .put("s", c.stab.toDouble()).put("d", c.diff.toDouble()).put("last", c.last)
                 )
             }
             val ma = JSONArray()
             for (m in marks.toList()) {
-                ma.put(JSONObject().put("id", m.id).put("book", m.bookId).put("para", m.para).put("start", m.start).put("end", m.end).put("text", m.text).put("color", m.color).put("time", m.time))
+                ma.put(JSONObject().put("id", m.id).put("book", m.bookId).put("para", m.para).put("start", m.start).put("end", m.end).put("text", m.text).put("color", m.color).put("time", m.time).put("k", m.kind))
             }
             val no = JSONObject(); notes.toMap().forEach { (k, v) -> no.put(k, v) }
             val la = JSONObject(); langs.toMap().forEach { (k, v) -> la.put(k, v) }

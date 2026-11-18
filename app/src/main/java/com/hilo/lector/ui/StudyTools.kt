@@ -826,6 +826,13 @@ fun FeynmanDialog(vm: HiloViewModel, req: FeynmanReq, onDismiss: () -> Unit) {
     val dictate = rememberDictation(vm, lang) { t -> text = if (text.isBlank()) t else "$text $t"; checked = false }
     val (hit, miss) = KeyWords.coverage(text, keys)
     val pct = if (keys.isEmpty()) 0 else hit.size * 100 / keys.size
+    // Rúbrica de Feynman: además de las palabras clave, cómo lo explicaste
+    val rubric = remember(req) { mutableStateListOf(false, false, false, false) }
+    val rubricNames = listOf("Lo dije claro y en orden", "Sin palabras difíciles (o las expliqué)", "Puse un ejemplo propio", "Lo conecté con otro concepto")
+    fun saveScore() {
+        val score = (pct * 0.5f + rubric.count { it } * 12.5f).toInt()
+        vm.motor.add(com.hilo.lector.data.Entry(vm.motor.newId(), req.bookId, "feynman", req.term, text, System.currentTimeMillis(), score))
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -849,6 +856,14 @@ fun FeynmanDialog(vm: HiloViewModel, req: FeynmanReq, onDismiss: () -> Unit) {
                             miss.forEach { Text(it, fontSize = 13.sp, color = c.ink, modifier = Modifier.clip(RoundedCornerShape(50)).border(1.dp, c.lines[0], RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 4.dp)) }
                         }
                     }
+                    Label("Tu explicación tuvo…")
+                    rubricNames.forEachIndexed { i, n ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { rubric[i] = !rubric[i] }) {
+                            androidx.compose.material3.Checkbox(checked = rubric[i], onCheckedChange = { rubric[i] = it })
+                            Text(n, color = c.ink, fontSize = 14.sp)
+                        }
+                    }
+                    Text("Puntaje: ${(pct * 0.5f + rubric.count { it } * 12.5f).toInt()} / 100", color = c.accent, fontWeight = FontWeight.Bold)
                     Label("Lo que dice el texto")
                     Text(req.reference, color = c.ink, fontSize = 14.sp, lineHeight = 20.sp)
                     TextButton(onClick = {
@@ -861,7 +876,7 @@ fun FeynmanDialog(vm: HiloViewModel, req: FeynmanReq, onDismiss: () -> Unit) {
         },
         confirmButton = {
             if (!checked) TextButton(onClick = { checked = true }, enabled = text.isNotBlank()) { Text("Comparar") }
-            else TextButton(onClick = onDismiss) { Text("Listo") }
+            else TextButton(onClick = { saveScore(); onDismiss() }) { Text("Listo") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(if (checked) "Cerrar" else "Cancelar") } },
     )

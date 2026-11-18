@@ -947,7 +947,7 @@ fun CrossMapView(vm: HiloViewModel, onOpenDeck: (String) -> Unit) {
     var prog by remember { mutableStateOf("") }
     val data by produceState<CrossData?>(null) {
         val cand = books.filter { b -> !b.trashed && (b.type != "pdf" || File(ctx.filesDir, "flow/${b.id}.txt").exists()) }
-            .sortedByDescending { b -> (if (vm.study.cards.any { it.bookId == b.id }) 1L shl 50 else 0L) + b.updated }.take(12)
+            .sortedByDescending { b -> (if (vm.study.cards.any { it.bookId == b.id }) 1L shl 50 else 0L) + b.updated }.take(10)
         val docs = ArrayList<Book>()
         val per = ArrayList<Analysis>()
         cand.forEachIndexed { i, b ->

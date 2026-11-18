@@ -33,6 +33,15 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+        textReport = true
+        textOutput = file("build/reports/lint.txt")
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -63,4 +72,6 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
     // Leer EPUB
     implementation("org.jsoup:jsoup:1.18.1")
+
+    testImplementation("junit:junit:4.13.2")
 }

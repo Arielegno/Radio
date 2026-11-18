@@ -35,7 +35,7 @@ class LawIndex(val articles: List<LawArticle>, val headings: List<LawHeading>, v
  * las remisiones entre artículos ("conforme al artículo 12") y los plazos.
  */
 object Law {
-    private const val NUM = "(\\d{1,4}(?:\\s?-?\\s?[A-Z](?![\\p{L}]))?(?:\\s+(?:bis|ter|qu[áa]ter|quinquies))?)"
+    private const val NUM = "(\\d{1,4}(?:\\s?(?i:bis|ter|qu[áa]ter|quinquies)(?![\\p{L}]))?(?:\\s?-?\\s?[A-Z](?![\\p{L}]))?)"
     // Inicio de artículo: al principio del párrafo o después de un punto. Lleva separador: "Artículo 12.-", "ARTÍCULO 12:", "Art. 12."
     private val ART = Regex(
         "(?:^|(?<=[.;:]\\s{1,3}))(?:#\\s*)?(?:ART[ÍI]CULO|Art[íi]culo|ARTICULO|ART\\.|Art\\.)\\s*$NUM\\s*(?:[.:°º]+\\s*[-–—]*|[-–—]+|\\s(?=[\\p{Lu}]))",
@@ -48,13 +48,35 @@ object Law {
         "^(?:#\\s*)?(LIBRO|T[ÍI]TULO|CAP[ÍI]TULO|SECCI[ÓO]N|PARTE)\\s+([\\p{L}\\d]+)\\b[.:\\-–—\\s]*(.*)$",
         RegexOption.IGNORE_CASE,
     )
-    private val REF = Regex(
-        "(?<![\\p{L}])(?:art[íi]culos?|arts?\\.)\\s+((?:\\d{1,4}(?:\\s?bis|\\s?ter)?(?:\\s*(?:,|y|e|o|al|a|hasta)\\s*)?)+)",
-        RegexOption.IGNORE_CASE,
+    // Remisiones: "artículo 12", "artículos 3, 5 y 8". Se recorren número por número (sin repeticiones anidadas,
+    // que con listas muy largas desbordan la pila).
+    private val REF_HEAD = Regex("(?<![\\p{L}])(?:art[íi]culos?|arts?\\.)\\s+(?=\\d)", RegexOption.IGNORE_CASE)
+    private val REF_ITEM = java.util.regex.Pattern.compile(
+        "(\\d{1,4}(?:\\s?(?:bis|ter))?)(?:\\s{0,3}(?:,|y|e|o|al|a|hasta)\\s{0,3}(?=\\d))?",
+        java.util.regex.Pattern.CASE_INSENSITIVE,
     )
-    private val NUMS = Regex("\\d{1,4}(?:\\s?bis|\\s?ter)?")
 
-    fun normNum(n: String) = n.lowercase().replace(Regex("[\\s-]"), "")
+    private fun scanRefs(text: String, out: MutableCollection<String>, limit: Int = 400) {
+        val m = REF_ITEM.matcher(text)
+        for (h in REF_HEAD.findAll(text)) {
+            var pos = h.range.last + 1
+            var n = 0
+            while (pos < text.length && n < 200 && out.size < limit) {
+                m.region(pos, text.length)
+                if (!m.lookingAt() || m.end() == pos) break
+                out.add(m.group(1).replace(" ", ""))
+                pos = m.end()
+                n++
+            }
+            if (out.size >= limit) return
+        }
+    }
+
+    fun normNum(n: String): String {
+        val k = n.lowercase().replace(Regex("[\\s-]"), "")
+        val t = k.trimStart('0')
+        return if (t.isEmpty() || !t[0].isDigit()) k else t
+    }
 
     private fun levelOf(word: String): Int = when (word.lowercase().replace('í', 'i').replace('ó', 'o')) {
         "parte" -> 0
@@ -120,11 +142,10 @@ object Law {
             val title = Regex("^([^.\\n]{3,70})\\.\\s+\\S").find(body)?.groupValues?.get(1)?.takeIf { t ->
                 t.split(' ').size <= 8 && t.first().isUpperCase()
             }.orEmpty()
+            // "artículo 5 de la Ley de…" remite a otra ley: igual se muestra, se aclara en la vista
             val refs = LinkedHashSet<String>()
-            for (m in REF.findAll(body)) {
-                // "artículo 5 de la Ley de…" remite a otra ley: igual se muestra, se aclara en la vista
-                NUMS.findAll(m.groupValues[1]).forEach { n -> val k = n.value.replace(" ", ""); if (normNum(k) != normNum(s.num)) refs.add(k) }
-            }
+            scanRefs(body, refs, 60)
+            refs.removeAll { normNum(it) == normNum(s.num) }
             val path = heads.filter { it.para <= s.para }.let { hs ->
                 val out = ArrayList<LawHeading>()
                 for (h in hs) { while (out.isNotEmpty() && out.last().level >= h.level) out.removeAt(out.size - 1); out.add(h) }
@@ -142,9 +163,13 @@ object Law {
         RegexOption.IGNORE_CASE,
     )
 
+    private val DEADLINE_HINTS = listOf("plazo", "término", "termino", "dentro", "prescrib", "caduc", "tardar", "exceder", "hasta")
+
     private fun findDeadlines(paras: List<String>, articles: List<LawArticle>): List<Deadline> {
         val out = ArrayList<Deadline>()
         fun scan(text: String, para: Int, art: String?) {
+            val low = text.lowercase()
+            if (DEADLINE_HINTS.none { low.contains(it) }) return
             for (m in DEADLINE.findAll(text)) {
                 val lead = m.groupValues[1].trim().lowercase()
                 // "hasta" solo cuenta en leyes (en otros textos suele ser "hasta dos años después")
@@ -171,7 +196,7 @@ object Law {
     /** Números de artículo mencionados en un texto ("según el artículo 12 y 13"). */
     fun refsIn(text: String): List<String> {
         val out = LinkedHashSet<String>()
-        for (m in REF.findAll(text)) NUMS.findAll(m.groupValues[1]).forEach { out.add(it.value.replace(" ", "")) }
+        scanRefs(text, out, 40)
         return out.toList()
     }
 }

@@ -78,7 +78,10 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private val analyses = HashMap<String, Pair<Set<String>, Analysis>>()
+    /** Últimos análisis (pocos, porque un libro grande ocupa mucha memoria). */
+    private val analyses = object : LinkedHashMap<String, Pair<Set<String>, Analysis>>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Set<String>, Analysis>>?) = size > 5
+    }
 
     /** Análisis del documento (palabras, glosario, mapa, guía). Se recalcula al quitar palabras. */
     suspend fun analysis(book: Book, progress: (Int, Int) -> Unit): Analysis {

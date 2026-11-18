@@ -14,6 +14,15 @@ class HiloApp : Application() {
     override fun onCreate() {
         super.onCreate()
         PDFBoxResourceLoader.init(applicationContext)
+        // Modo de depuración: registra en el log el trabajo lento en la pantalla y los archivos sin cerrar.
+        // Solo se activa si existe el archivo files/depurar (lo crea la prueba automática).
+        if (java.io.File(filesDir, "depurar").exists()) {
+            android.os.StrictMode.setThreadPolicy(android.os.StrictMode.ThreadPolicy.Builder().detectAll().penaltyLog().build())
+            android.os.StrictMode.setVmPolicy(
+                android.os.StrictMode.VmPolicy.Builder().detectLeakedClosableObjects().detectLeakedSqlLiteObjects()
+                    .detectActivityLeaks().detectFileUriExposure().penaltyLog().build()
+            )
+        }
     }
 }
 

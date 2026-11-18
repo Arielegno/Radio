@@ -97,7 +97,8 @@ object Social {
             if (k in counts) continue
             if (n < 2) continue
             val name = display[k] ?: continue
-            val total = paras.sumOf { p -> Regex("(?<![\\p{L}])" + Regex.escape(name) + "(?![\\p{L}])").findAll(p).count() }
+            val nrx = Regex("(?<![\\p{L}])" + Regex.escape(name) + "(?![\\p{L}])")
+            val total = paras.sumOf { p -> if (p.contains(name)) nrx.findAll(p).count() else 0 }
             if (total >= 2) counts[k] = total
         }
         if (counts.isEmpty()) return emptyList()
@@ -111,7 +112,7 @@ object Social {
             val name = display[k] ?: k
             val short = KNOWN[k]?.substringAfterLast(' ') ?: name
             val rx = Regex("(?<![\\p{L}])" + Regex.escape(short) + "(?![\\p{L}])")
-            val mentionSents = sentences.filter { rx.containsMatchIn(it.text) }
+            val mentionSents = sentences.filter { it.text.contains(short) && rx.containsMatchIn(it.text) }
             if (mentionSents.isEmpty()) return@mapNotNull null
             val paraSet = mentionSents.map { it.para }.toSet()
             // Conceptos: los que aparecen en los párrafos donde se habla del autor
@@ -121,8 +122,9 @@ object Social {
                 .filter { deaccent(it.key) != deaccent(k) && !short.lowercase().contains(it.key) }
                 .sortedByDescending { it.value / sqrt((globalCount[it.key] ?: 1).toDouble()) * (1 + it.value) }
                 .take(8).map { it.key }
+            val yrx = Regex(Regex.escape(short) + "\\s?\\(?(1[5-9]\\d\\d|20[0-2]\\d)\\)?")
             paras.forEach { p ->
-                Regex(Regex.escape(short) + "\\s?\\(?(1[5-9]\\d\\d|20[0-2]\\d)\\)?").findAll(p).forEach { m ->
+                if (p.contains(short)) yrx.findAll(p).forEach { m ->
                     years.getOrPut(k) { LinkedHashSet() }.add(m.groupValues[1])
                 }
             }
@@ -153,6 +155,7 @@ object Social {
 
     private val YEAR = Regex("(?<![\\d.,/-])(1[0-9]\\d\\d|20[0-4]\\d)(?![\\d.,]\\d)")
     private val NOT_YEAR_BEFORE = Regex("(?:art[íi]culo|art\\.|n[°º.]|no\\.|n[úu]mero|p[áa]g(?:ina)?\\.?|pp?\\.|decreto|ley|acuerdo|expediente|exp\\.)\\s*$", RegexOption.IGNORE_CASE)
+    private val CITES = Regex("\\(([^()]*\\d{4}[^()]*)\\)")
     private val CENTURY = Regex("(?<![\\p{L}])siglo\\s+([XVI]{1,5})(?![\\p{L}])", RegexOption.IGNORE_CASE)
 
     private fun roman(s: String): Int {
@@ -166,15 +169,19 @@ object Social {
     fun timeline(sentences: List<Sent>, authors: List<AuthorInfo>, maxYear: Int = 2100): List<TimeEvent> {
         val out = ArrayList<TimeEvent>()
         val authorRx = authors.map { a -> a.name to Regex("(?<![\\p{L}])" + Regex.escape(KNOWN[a.key]?.substringAfterLast(' ') ?: a.name) + "(?![\\p{L}])") }
+        val shorts = authors.map { a -> KNOWN[a.key]?.substringAfterLast(' ') ?: a.name }
         for (s in sentences) {
             if (s.text.length > 500) continue
-            val who = authorRx.firstOrNull { it.second.containsMatchIn(s.text) }?.first
+            // Solo oraciones con algún dígito o con "siglo"
+            val hasDigit = s.text.any { it in '0'..'9' }
+            if (!hasDigit && !s.text.contains("iglo")) continue
+            val who = authorRx.withIndex().firstOrNull { (i, r) -> s.text.contains(shorts[i]) && r.second.containsMatchIn(s.text) }?.value?.first
             val ys = YEAR.findAll(s.text).filter { m ->
                 val y = m.value.toInt()
                 y in 1000..maxYear && !NOT_YEAR_BEFORE.containsMatchIn(s.text.substring(0, m.range.first).takeLast(14))
             }.map { it.value.toInt() }.distinct().toList()
             // Oraciones que solo citan (muchos años entre paréntesis) no son hechos
-            val cites = Regex("\\(([^()]*\\d{4}[^()]*)\\)").findAll(s.text).count()
+            val cites = if (ys.size >= 3) CITES.findAll(s.text).count() else 0
             if (ys.isNotEmpty() && cites >= 2 && ys.size >= 3) continue
             ys.take(2).forEach { y -> out.add(TimeEvent(y, y.toString(), s.text, s.para, who)) }
             CENTURY.findAll(s.text).take(1).forEach { m ->

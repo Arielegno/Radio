@@ -276,15 +276,20 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
     var anProg by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var anError by remember(current?.id) { mutableStateOf(false) }
     val removedNow = current?.let { study.removedFor(it.id) }
-    val analysis by produceState<Analysis?>(null, current?.id, removedNow) {
-        val b = current ?: return@produceState
+    // Al quitar una palabra se recalcula en segundo plano y se sigue mostrando el análisis anterior
+    var analysis by remember(current?.id) { mutableStateOf<Analysis?>(null) }
+    LaunchedEffect(current?.id, removedNow) {
+        val b = current ?: return@LaunchedEffect
         try {
             val a = vm.analysis(b) { p, n -> anProg = p to n }
-            if (a.totalWords == 0) anError = true else value = a
+            if (a.totalWords == 0) anError = true else analysis = a
         } catch (ce: CancellationException) {
             throw ce
         } catch (e: Exception) {
             anError = true
+        } catch (e: OutOfMemoryError) {
+            anError = true
+            vm.toast = "El documento es demasiado grande para analizarlo entero en este celular."
         }
     }
     val due = study.due(deck).filter { !vocabOnly || it.kind == "vocab" }

@@ -635,7 +635,7 @@ private fun Essay(vm: HiloViewModel, book: Book?, a: Analysis?, onClose: () -> U
         parts.forEachIndexed { i, p ->
             OutlinedTextField(f[i], { f[i] = it; store() }, label = { Text(p) }, minLines = if (i == 0) 1 else 3, modifier = Modifier.fillMaxWidth())
             if (i == 4 && quotes.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                quotes.take(8).forEach { q -> Pill("+ " + q.text.take(30) + "…") { f[4] = f[4].trimEnd() + "\n" + com.hilo.lector.text.Apa.quote(q.text, ref?.authors ?: book.author, ref?.year.orEmpty(), q.loc); store() } }
+                quotes.take(8).forEach { q -> Pill("+ " + q.text.take(30) + "…") { f[4] = f[4].trimEnd() + "\n" + com.hilo.lector.text.Apa.quote(q.text, ref?.authors ?: book?.author.orEmpty(), ref?.year.orEmpty(), q.loc); store() } }
             }
         }
         Label("Lista de revisión")

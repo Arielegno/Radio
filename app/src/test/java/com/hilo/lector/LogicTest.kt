@@ -63,6 +63,8 @@ class LogicTest {
         "Durkheim estudió la división del trabajo en 1893 y el suicidio en 1897. Para Durkheim, la anomia es la falta de normas.",
         "# Contemporáneos",
         "Bourdieu (1979) propone el capital cultural. En el siglo XIX nace la sociología.",
+        "Marx analiza el capitalismo y las clases sociales. Weber analiza el capitalismo y la burocracia. El capitalismo transforma la sociedad.",
+        "Para Weber, el capitalismo moderno depende de la racionalidad. Para Marx, el capitalismo explota el trabajo de las clases.",
     )
 
     @Test fun autoresYLineaDeTiempo() {

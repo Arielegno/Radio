@@ -414,9 +414,11 @@ private fun ScrollFlow(
         }
     }
 
-    val cur = listState.firstVisibleItemIndex
+    // La posición se sigue sin volver a dibujar toda la vista en cada párrafo que pasa
+    LaunchedEffect(listState, bridge) {
+        androidx.compose.runtime.snapshotFlow { listState.firstVisibleItemIndex }.collect { bridge.position = it }
+    }
     SideEffect {
-        bridge.position = cur
         bridge.total = list.size
         bridge.unit = "Párr."
         bridge.move = { d -> move(d) }

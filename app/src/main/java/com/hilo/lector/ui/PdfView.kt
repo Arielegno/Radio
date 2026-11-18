@@ -339,9 +339,10 @@ fun PdfView(
             ensureVisible(p, ls[l])
         }
 
-        val cur = currentPage()
+        LaunchedEffect(bridge, count, paged, per) {
+            androidx.compose.runtime.snapshotFlow { currentPage() }.collect { bridge.position = it }
+        }
         SideEffect {
-            bridge.position = cur
             bridge.total = count
             bridge.unit = "Pág."
             bridge.move = { d -> move(d) }

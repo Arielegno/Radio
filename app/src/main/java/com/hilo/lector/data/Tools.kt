@@ -196,7 +196,9 @@ object Reminders {
             .setContentIntent(open)
             .setAutoCancel(true)
             .build()
-        runCatching { NotificationManagerCompat.from(ctx).notify(71, n) }
+        if (Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            try { NotificationManagerCompat.from(ctx).notify(71, n) } catch (_: SecurityException) {}
+        }
     }
 }
 

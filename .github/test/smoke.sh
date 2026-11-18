@@ -24,6 +24,12 @@ frames() {  # cuántos cuadros dibuja la app en 3 s sin tocar nada (debería ser
   sleep 3
   echo "CUADROS EN REPOSO ($1): $(adb shell dumpsys gfxinfo $PKG | grep 'Total frames rendered' | head -1)" >> $OUT/steps.txt
 }
+xy() { python3 $F/find.py /tmp/ui.xml "$1" $2; }
+tapat() { if [ -n "$1" ]; then adb shell input tap $1; echo "TAP AT: $1" >> $OUT/steps.txt; else echo "SIN COORDENADAS" >> $OUT/steps.txt; fi; sleep 1; }
+room() {  # abre la sala de estudio de un libro
+  adb shell am force-stop $PKG; adb shell am start -W -n $PKG/.MainActivity; sleep 3
+  tap "Opciones de $1"; sleep 1; tap "Estudiar: tarjetas y resaltados"; sleep "${2:-6}"
+}
 tap() {   # tap "texto o descripción" [parcial]
   rm -f /tmp/ui.xml
   ui
@@ -56,12 +62,16 @@ put $F/muestra.epub files/books/t2.epub
 put $F/muestra.docx files/books/t3.docx
 put $F/muestra.md files/books/t4.md
 put $F/muestra.fb2 files/books/t5.fb2
+put $F/muestra_ley.txt files/books/t6.txt
+put $F/muestra_teoria.txt files/books/t7.txt
 cat > /tmp/lib.json <<'J'
 [{"id":"t1","title":"La sociología del conocimiento","author":"Berger y Luckmann","type":"pdf","file":"t1.pdf","added":5,"updated":9,"progress":0.1,"pages":2,"favorite":true},
  {"id":"t2","title":"Libro EPUB de prueba","author":"Berger y Luckmann","type":"epub","file":"t2.epub","added":4},
  {"id":"t3","title":"Documento Word de prueba","author":"Ariel","type":"docx","file":"t3.docx","added":3,"toRead":true},
  {"id":"t4","title":"Apuntes en Markdown","type":"md","file":"t4.md","added":2},
- {"id":"t5","title":"Libro FB2 de prueba","author":"Peter Berger","type":"fb2","file":"t5.fb2","added":1,"collections":["Sociología"]}]
+ {"id":"t5","title":"Libro FB2 de prueba","author":"Peter Berger","type":"fb2","file":"t5.fb2","added":1,"collections":["Sociología"]},
+ {"id":"t6","title":"Código Procesal de prueba","type":"txt","file":"t6.txt","added":0},
+ {"id":"t7","title":"Teoría sociológica de prueba","author":"Varios","type":"txt","file":"t7.txt","added":0}]
 J
 put /tmp/lib.json files/library.json
 
@@ -217,7 +227,10 @@ sleep 2
 tap "Guía"
 shot 40_guia 5
 frames guia
-tapxy 334 705
+rm -f /tmp/ui.xml; ui
+P=$(xy "Palabras"); G=$(xy "Glosario"); M=$(xy "Mapa")
+echo "CHIPS: P=$P G=$G M=$M" >> $OUT/steps.txt
+tapat "$P"
 shot 43_nube_palabras 5
 frames palabras
 adb shell input swipe 540 2000 540 900 400
@@ -225,16 +238,82 @@ sleep 2
 shot 44_lista_palabras 2
 adb shell input swipe 540 900 540 2000 400
 sleep 1
-tapxy 589 705
+tapat "$G"
 shot 45_glosario 4
 frames glosario
-tapxy 810 705
+tapat "$M"
 shot 46_mapa 8
 frames mapa
 adb shell input tap 540 1500
 shot 47_mapa_toque 2
 back
 back
+
+# ---------- Derecho: ley, artículos enlazados y plazos ----------
+room "Código Procesal de prueba" 8
+shot 50_sala_ley 2
+tap "Ley"
+shot 51_ley 3
+tap "Libro PRIMERO" parcial
+sleep 1
+tap "Título I" parcial
+sleep 1
+tap "Capítulo I" parcial
+shot 52_ley_indice 2
+tap "Art. 1"
+shot 53_articulo 3
+tap "Art. 3"
+shot 54_articulo_enlazado 2
+tap "Cerrar"
+sleep 1
+tap "Plazos"
+shot 55_plazos 3
+tap "Fichas"
+sleep 1
+tap "+ caso o sentencia"
+shot 56_ficha_caso 3
+back 2
+# ---------- Sociología: autores, cuadro, línea de tiempo, citas, Feynman ----------
+room "Teoría sociológica de prueba" 8
+shot 57_sala_teoria 2
+tap "Autores"
+shot 58_autores 3
+tap "Comparar"
+sleep 1
+tap "Comparar"
+sleep 1
+tap "Comparar Marx" parcial
+shot 59_cuadro 3
+tap "Línea de tiempo"
+shot 60_linea_tiempo 3
+tap "Citas"
+shot 61_citas 3
+tap "Autores"
+sleep 1
+tap "Explícalo"
+sleep 2
+adb shell input text "la%sestructura%seconomica%sdetermina%sla%sconciencia%sy%shay%slucha%sde%sclases"
+sleep 1
+tap "Comparar"
+shot 62_feynman 3
+tap "Listo"
+# Fecha de examen
+tap "Pon la fecha" parcial
+shot 63_fecha_examen 3
+back 2
+# ---------- Estudio general: herramientas y mapa entre documentos ----------
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 3
+tap "Menú"
+sleep 2
+tap "Estudio"
+sleep 2
+adb shell input swipe 540 2000 540 500 400
+shot 64_herramientas 3
+tap "Mapa entre tus documentos"
+shot 65_mapa_documentos 20
+back 2
 
 # ---------- Documentos del celular (como ReadEra) ----------
 adb shell mkdir -p /sdcard/Download

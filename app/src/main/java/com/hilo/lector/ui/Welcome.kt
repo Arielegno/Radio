@@ -73,7 +73,10 @@ fun WelcomeScreen(vm: HiloViewModel, onDone: () -> Unit) {
             Modifier.widthIn(max = 620.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Brand()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { Brand() }
+                TextButton(onClick = onDone) { Text("Ahora no", color = c.muted) }
+            }
             Text("¿Cómo lees mejor?", fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 26.sp, color = c.ink)
             Text("Elige lo que más se parece a ti. Puedes cambiarlo cuando quieras en Ajustes.", color = c.muted, fontSize = 15.sp)
             PROFILES.forEach { (k, t, d) ->
@@ -93,7 +96,6 @@ fun WelcomeScreen(vm: HiloViewModel, onDone: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().height(54.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.accentInk),
             ) { Text("Empezar", fontSize = 17.sp) }
-            TextButton(onClick = onDone, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Ahora no", color = c.muted) }
         }
     }
 }

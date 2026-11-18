@@ -239,7 +239,7 @@ sleep 1
 tap "Repasar 1" parcial
 sleep 2
 shot 29_repaso_frente 2
-tap "Mostrar respuesta"
+tap "Dudo"
 shot 30_repaso_respuesta 2
 tap "Bien"
 shot 31_repaso_fin 2
@@ -294,6 +294,7 @@ adb shell am force-stop $PKG
 adb shell am start -W -n $PKG/.MainActivity
 sleep 3
 shot 74_lista 2
+seek Word
 hold "Documento Word de prueba"
 shot 75_seleccion 2
 tap "Todos"
@@ -416,7 +417,7 @@ back 2
 back
 
 # ---------- Versión 2.0: cómic, búsqueda global, filtros, barra inferior, guía de gestos ----------
-open_book "Cómic de prueba" Cómic
+open_book "Cómic de prueba" Comic
 shot 80_comic 6
 swipe_left
 shot 81_comic_pag2 3
@@ -432,6 +433,7 @@ sleep 3
 tap "Filtros"
 shot 83_filtros 2
 back 2
+shot 83b_filtros_cerrados 1
 tap "Estudiar"
 shot 84_barra_estudiar 3
 back 2

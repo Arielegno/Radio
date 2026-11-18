@@ -227,9 +227,10 @@ fun LibraryScreen(vm: HiloViewModel) {
         }
     }
     val dueToday = vm.study.due().size
-    BackHandler(enabled = drawer.isOpen || section.kind != "all" || searching || selecting) {
+    BackHandler(enabled = drawer.isOpen || section.kind != "all" || searching || selecting || showFilters) {
         when {
             selecting -> selected = emptySet()
+            showFilters -> showFilters = false
             drawer.isOpen -> scope.launch { drawer.close() }
             searching -> { searching = false; query = "" }
             else -> section = Section("all")

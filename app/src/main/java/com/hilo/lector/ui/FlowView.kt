@@ -342,9 +342,9 @@ fun FlowView(
                     flow = true, pos = para, source = "párrafo ${para + 1}",
                     onHighlight = { kind ->
                         val col = com.hilo.lector.data.MARK_KINDS.firstOrNull { it.first == kind }?.third ?: 0xFFFFD54F.toInt()
-                        vm.study.addMark(
-                            TextMark(vm.study.newId(), book.id, para, a, b, sentence, col, System.currentTimeMillis(), kind)
-                        )
+                        val mk = TextMark(vm.study.newId(), book.id, para, a, b, sentence, col, System.currentTimeMillis(), kind)
+                        vm.study.addMark(mk)
+                        vm.undoable(if (kind.isBlank()) "Resaltado" else "Subrayado: " + (com.hilo.lector.data.MARK_KINDS.firstOrNull { it.first == kind }?.second ?: "")) { vm.study.deleteMark(mk.id) }
                     },
                 )
             )

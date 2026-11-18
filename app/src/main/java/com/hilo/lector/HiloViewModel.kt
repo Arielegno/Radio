@@ -43,6 +43,7 @@ sealed interface Screen {
     data class Reader(val id: String) : Screen
     data object Guide : Screen
     data object News : Screen
+    data object Welcome : Screen
     /** Estudio: de un documento, o de todos si [bookId] es null. */
     data class Study(val bookId: String?) : Screen
 }
@@ -65,7 +66,9 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
     val timer = FocusTimer(app, viewModelScope)
     val study = StudyStore(app)
     /** Motor de estudio: registro de repasos, ruta de estudio, escritos y estadísticas. */
-    val motor = com.hilo.lector.data.Motor(app).also { m -> study.onReview = { c, g, conf -> m.log(c, g, conf) }; study.onRemoveBook = { id -> m.removeBook(id) } }
+    /** Búsqueda en el texto de toda la biblioteca. */
+    val search = com.hilo.lector.data.SearchIndex(app)
+    val motor = com.hilo.lector.data.Motor(app).also { m -> study.onReview = { c, g, conf -> m.log(c, g, conf) }; study.onRemoveBook = { id -> m.removeBook(id); runCatching { search.remove(id) } } }
 
     /** Documentos nuevos encontrados en el celular en la última revisión (para el aviso "Ver"). */
     var newFound by mutableStateOf(0)
@@ -135,6 +138,9 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
     /** Mensaje de trabajo en curso ("Abriendo…"); null si no hay nada. */
     var busy by mutableStateOf<String?>(null)
     var toast by mutableStateOf<String?>(null)
+    /** Aviso con «Deshacer» (borrar, mandar a la papelera, resaltar…). */
+    var undo by mutableStateOf<Pair<String, () -> Unit>?>(null)
+    fun undoable(text: String, revert: () -> Unit) { undo = text to revert }
     var sheet by mutableStateOf<String?>(null)   // "settings" | "timer"
     var pasteDraft by mutableStateOf<String?>(null)
     /** Modo Feynman abierto: explicar un concepto con tus palabras. */
@@ -154,6 +160,24 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
             }
             busy = null
             toast = if (r.isSuccess) "Copia guardada (${r.getOrNull()} archivos)." else "No pude guardar la copia. Prueba en otra carpeta."
+        }
+    }
+
+    fun importAnki(uri: Uri) {
+        viewModelScope.launch {
+            busy = "Importando el mazo…"
+            val name = runCatching {
+                ctx.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+            }.getOrNull() ?: "Mazo.apkg"
+            val r = runCatching { withContext(Dispatchers.IO) { com.hilo.lector.data.AnkiImport.read(ctx, uri, name, System.currentTimeMillis() * 1000) } }
+            busy = null
+            r.onSuccess { res ->
+                study.addAll(res.cards)
+                toast = if (res.cards.isEmpty()) "El mazo no tenía tarjetas." else "Importé ${res.cards.size} tarjetas al mazo «${res.deck}»."
+            }.onFailure { e ->
+                toast = if (e.message == "nuevo") "Ese mazo viene en el formato nuevo de Anki. En Anki, al exportar, marca «Compatibilidad con versiones anteriores» y vuelve a intentarlo."
+                else "No pude leer ese mazo. Usa un archivo .apkg o .txt exportado desde Anki."
+            }
         }
     }
 
@@ -187,6 +211,11 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
             settings.lastBook?.let { id -> repo.get(id)?.takeIf { !it.trashed }?.let { screen = Screen.Reader(it.id) } }
         }
         scanDevice(quiet = true)
+        // Índice de búsqueda: de a poco y con baja prioridad
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(4000)
+            withContext(analysisThread) { runCatching { search.catchUp(repo.books.value, { repo.fileOf(it) }) } }
+        }
         // Versión 1.7: arreglar una vez los títulos que eran solo números o códigos
         val sp = ctx.getSharedPreferences("arreglos", android.content.Context.MODE_PRIVATE)
         if (!sp.getBoolean("titulos17", false)) {
@@ -294,6 +323,7 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
             if (paras.isNotEmpty()) {
                 cache.parentFile?.mkdirs()
                 cache.writeText(paras.joinToString("\n\n"))
+                runCatching { search.index(book.id, paras.filter { it.isNotBlank() }, cache.length() + cache.lastModified()) }
             }
             paras
         }

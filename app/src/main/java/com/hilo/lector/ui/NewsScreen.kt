@@ -2,6 +2,9 @@ package com.hilo.lector.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -75,17 +78,32 @@ private fun Bullet(text: String, mark: String) {
 @Composable
 fun NewsScreen(vm: HiloViewModel) {
     val c = LocalHilo.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    // Diagnóstico oculto: tocar 5 veces el título muestra datos para soporte
+    var taps by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var diag by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     BackHandler { vm.screen = Screen.Library }
     Box(Modifier.fillMaxSize().background(c.bg).windowInsetsPadding(WindowInsets.safeDrawing), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
                 IconButton(onClick = { vm.screen = Screen.Library }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Volver", tint = c.ink) }
-                Text("Novedades", style = MaterialTheme.typography.titleLarge, color = c.ink)
+                Text("Novedades", style = MaterialTheme.typography.titleLarge, color = c.ink,
+                    modifier = Modifier.clickable { taps++; if (taps >= 5) { taps = 0; diag = CrashLog.diagnostics(ctx, vm) } })
             }
             Column(
                 Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                diag?.let { d ->
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Modo diagnóstico", color = c.accent, fontWeight = FontWeight.Bold)
+                        Text(d.take(1500), color = c.ink, fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                        Row {
+                            TextButton(onClick = { shareText(ctx, "Diagnóstico de Hilo", d) }) { Text("Enviar a soporte") }
+                            TextButton(onClick = { diag = null }) { Text("Cerrar") }
+                        }
+                    }
+                }
                 Changelog.versions.forEachIndexed { i, v -> VersionCard(v, i == 0) }
             }
         }

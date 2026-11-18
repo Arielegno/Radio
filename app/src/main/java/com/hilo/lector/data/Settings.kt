@@ -41,6 +41,10 @@ data class ReaderSettings(
     val indent: Boolean = true,    // sangría al empezar cada párrafo, como en un libro
     val pdfCrop: Boolean = true,   // recortar los márgenes blancos del PDF
     val libraryView: Int = 0,      // 0 lista (como ReadEra), 1 cuadrícula de portadas
+    val focus: Boolean = false,    // modo enfoque: pantalla completa, sin porcentajes y con «No molestar»
+    val haptics: Boolean = true,   // vibración suave al pasar página y al responder tarjetas
+    val simple: Boolean = false,   // modo simple: oculta las herramientas avanzadas de estudio
+    val profile: String = "",      // perfil elegido al empezar: tdah, dislexia, vision, estudio
 )
 
 class SettingsStore(ctx: Context) {
@@ -59,7 +63,7 @@ class SettingsStore(ctx: Context) {
         save(n)
     }
 
-    fun reset() = update { ReaderSettings(theme = it.theme, colorMode = it.colorMode, pageMode = it.pageMode, libraryView = it.libraryView) }
+    fun reset() = update { ReaderSettings(theme = it.theme, colorMode = it.colorMode, pageMode = it.pageMode, libraryView = it.libraryView, profile = it.profile, simple = it.simple) }
 
     private fun load(): ReaderSettings {
         val d = ReaderSettings()
@@ -96,6 +100,10 @@ class SettingsStore(ctx: Context) {
             indent = sp.getBoolean("indent", d.indent),
             pdfCrop = sp.getBoolean("pdfCrop", d.pdfCrop),
             libraryView = sp.getInt("libraryView", d.libraryView),
+            focus = sp.getBoolean("focus", d.focus),
+            haptics = sp.getBoolean("haptics", d.haptics),
+            simple = sp.getBoolean("simple", d.simple),
+            profile = sp.getString("profile", d.profile).orEmpty(),
         ).let { r ->
             // Versión 1.7: el texto pasa a verse como la página de un libro (justificado, sangría, sin huecos entre párrafos)
             if (!sp.getBoolean("formatoLibro", false)) {
@@ -140,6 +148,10 @@ class SettingsStore(ctx: Context) {
             .putBoolean("indent", s.indent)
             .putBoolean("pdfCrop", s.pdfCrop)
             .putInt("libraryView", s.libraryView)
+            .putBoolean("focus", s.focus)
+            .putBoolean("haptics", s.haptics)
+            .putBoolean("simple", s.simple)
+            .putString("profile", s.profile)
             .apply()
     }
 }

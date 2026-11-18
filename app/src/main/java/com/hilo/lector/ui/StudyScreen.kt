@@ -253,6 +253,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
     var vocabOnly by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf("ruta") }
     var practice by remember { mutableStateOf<String?>(null) }
+    var moreTabs by remember { mutableStateOf(false) }
     var cross by rememberSaveable { mutableStateOf(false) }
     var ficha by remember { mutableStateOf<Ficha?>(null) }
     var editing by remember { mutableStateOf<StudyCard?>(null) }
@@ -339,6 +340,15 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                     // Todas las barajas: una por documento, más la de idiomas
                     val withCards = books.filter { b -> study.cards.any { it.bookId == b.id } }
                     val vocab = study.cards.filter { it.kind == "vocab" }
+                    // Mazos importados de Anki
+                    val decks = study.cards.map { it.bookId }.filter { it.startsWith("mazo:") }.distinct().sorted()
+                    if (decks.isNotEmpty()) items(decks, key = { it }) { d ->
+                        val all = study.cards.filter { it.bookId == d }
+                        DeckRow("Mazo · " + d.removePrefix("mazo:"), all.count { it.due <= today() }, all.size) {
+                            val l = mixQueue(all.filter { it.due <= today() }).take(SESSION)
+                            if (l.isEmpty()) vm.toast = "Ese mazo está al día." else review = l
+                        }
+                    }
                     if (withCards.isEmpty()) {
                         item { EmptyStudyHint() }
                     } else {
@@ -367,13 +377,27 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                     }
                     item { HubTools(vm, onCrossMap = { cross = true }, onDeck = { id -> deck = id; tab = "ruta" }) }
                 } else if (vocabOnly) {
-                    val vocab = study.cards.filter { it.kind == "vocab" }.sortedBy { it.due }
+                    val vocab = study.cards.filter { it.kind == "vocab" }
+                    // Mazos importados de Anki
+                    val decks = study.cards.map { it.bookId }.filter { it.startsWith("mazo:") }.distinct().sorted()
+                    if (decks.isNotEmpty()) items(decks, key = { it }) { d ->
+                        val all = study.cards.filter { it.bookId == d }
+                        DeckRow("Mazo · " + d.removePrefix("mazo:"), all.count { it.due <= today() }, all.size) {
+                            val l = mixQueue(all.filter { it.due <= today() }).take(SESSION)
+                            if (l.isEmpty()) vm.toast = "Ese mazo está al día." else review = l
+                        }
+                    }.sortedBy { it.due }
                     items(vocab, key = { it.id }) { card -> CardRow(card, speaker) { editing = card } }
                 } else if (current != null) {
-                    val tabs = tabsFor(analysis)
+                    val simple = vm.settings.value.simple && !moreTabs
+                    val tabs = tabsFor(analysis).filter { !simple || it.first in setOf("ruta", "tarjetas", "resaltados", "apuntes") }
                     if (analysis != null && tabs.none { it.first == tab }) tab = "ruta"
                     item {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (simple) Text(
+                                "Más herramientas…", color = c.accent, fontSize = 14.sp,
+                                modifier = Modifier.clip(RoundedCornerShape(50)).background(c.surface).clickable { moreTabs = true }.padding(horizontal = 14.dp, vertical = 8.dp),
+                            )
                             tabs.forEach { (k, t) ->
                                 val on = k == tab
                                 Text(
@@ -449,7 +473,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                 editing = null
                 vm.toast = "Tarjeta guardada."
             },
-            onDelete = if (card.id != 0L) ({ study.delete(card.id); editing = null }) else null,
+            onDelete = if (card.id != 0L) ({ study.delete(card.id); editing = null; vm.undoable("Tarjeta borrada") { study.add(card) } }) else null,
         )
     }
 
@@ -624,7 +648,7 @@ private fun MarksTab(vm: HiloViewModel, book: Book, onCard: (text: String, flow:
             cur?.let { add(it) }
         }
         vm.study.marksOf(book.id).sortedBy { it.para }.forEach { m ->
-            add(Item(m.text, true, m.para, "párrafo ${m.para + 1}", Color(m.color), { vm.study.deleteMark(m.id) }))
+            add(Item(m.text, true, m.para, "párrafo ${m.para + 1}", Color(m.color), { vm.study.deleteMark(m.id); vm.undoable("Resaltado borrado") { vm.study.addMark(m) } }))
         }
         annots?.notes?.sortedBy { it.page }?.forEach { n ->
             add(Item("Nota: " + n.text, false, n.page, "pág. ${n.page + 1}", Color(0xFFFFC94D), null))
@@ -771,6 +795,7 @@ private fun ReviewSession(
     val again = remember(cards) { HashMap<Long, Int>() }
     val start = remember(cards) { mutableLongStateOf(System.currentTimeMillis()) }
     var done by remember(cards) { mutableIntStateOf(0) }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     var oral by rememberSaveable { mutableStateOf(false) }
     var spoken by remember(cards) { mutableStateOf("") }
     // Calibración: antes de ver la respuesta dices si la sabes; Hilo compara con tu acierto
@@ -932,6 +957,7 @@ private fun ReviewSession(
                         Column(
                             Modifier.weight(1f).height(64.dp).clip(RoundedCornerShape(14.dp)).background(col)
                                 .clickable {
+                                    if (vm.settings.value.haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                                     vm.study.grade(card, g, conf)
                                     if (conf == 1 && g == Grade.AGAIN) overconf++
                                     conf = 0
@@ -1023,7 +1049,7 @@ fun StudySheet(vm: HiloViewModel, req: StudyRequest, onDismiss: () -> Unit) {
                             label, fontSize = 13.sp, color = Color(0xFF1B1B1B),
                             modifier = Modifier.clip(RoundedCornerShape(50)).background(Color(col)).clickable {
                                 req.onHighlight.invoke(k)
-                                vm.toast = if (k == "duda") "Marcada como duda: la verás en tu ruta de estudio." else "Subrayado como ${label.lowercase()}."
+                                if (k == "duda") vm.toast = "Marcada como duda: la verás en tu ruta de estudio."
                                 onDismiss()
                             }.padding(horizontal = 12.dp, vertical = 6.dp),
                         )
@@ -1053,7 +1079,7 @@ fun StudySheet(vm: HiloViewModel, req: StudyRequest, onDismiss: () -> Unit) {
                 else -> {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (req.onHighlight != null) {
-                            OutlinedButton(onClick = { req.onHighlight.invoke(""); vm.toast = "Resaltado."; onDismiss() }) { Text("Resaltar", color = c.ink) }
+                            OutlinedButton(onClick = { req.onHighlight.invoke(""); onDismiss() }) { Text("Resaltar", color = c.ink) }
                         }
                         Button(
                             onClick = { create(base("cloze").copy(front = clozeFront(req.sentence, answer), back = answer, context = req.sentence)) },

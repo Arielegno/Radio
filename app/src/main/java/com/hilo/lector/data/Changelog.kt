@@ -6,6 +6,36 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            20, "2.0", "18 nov 2026", "Estudiar con método",
+            added = listOf(
+                "Ruta de estudio en 6 pasos (prueba previa, lectura guiada, notas Cornell, dudas, resumen con tus palabras, mapa propio, recuerdo libre, preguntas Bloom, aplicar, simulacro y cierre). Es la primera pestaña de la sala de estudio y un semáforo te dice qué toca.",
+                "Repaso con FSRS: el mismo método de Anki moderno, que calcula cuándo vas a olvidar cada tarjeta. Las tarjetas que te cuestan se marcan como frágiles.",
+                "Calibración: antes de ver la respuesta dices qué tan seguro estás, y Hilo te muestra si te sobreestimas.",
+                "Repaso intercalado: las tarjetas de varios temas se mezclan para que el cerebro aprenda a distinguirlos.",
+                "Simulacro de examen con tiempo y estadísticas de lectura, repaso, aciertos y retención por día.",
+                "Subrayado con tipo: definición, tesis, ejemplo, crítica, dato o duda, cada uno con su color.",
+                "Importar mazos de Anki (.apkg) o listas .txt/.csv.",
+                "Derecho: fichas IRAC, de sentencia, norma y caso; pirámide normativa; calculadora de plazos con feriados de Honduras.",
+                "Sociología: fichas de autor, concepto, método y clásico; 18 autores clave, paradigmas, escuelas y línea de tiempo; comparador de autores.",
+                "Exportar citas en BibTeX y apuntes a Word.",
+                "Cómics y mangas CBZ y CBR, con zoom y lectura de derecha a izquierda.",
+                "Buscar una palabra en todos tus libros a la vez, aunque escribas sin tildes.",
+                "Filtros combinados en la biblioteca (formato, estado, favoritos, colección) y aviso de libros duplicados.",
+                "Bienvenida con perfiles de lectura (atención, dislexia, letra grande, estudio). Cámbialo en Ajustes → Perfil de lectura.",
+                "Modo simple: solo lo esencial a la vista; lo demás en «Más herramientas».",
+                "Modo enfoque: pantalla completa, sin porcentaje y con las notificaciones silenciadas mientras lees.",
+                "Barra inferior en la biblioteca: Biblioteca, Leyendo, Estudiar y Ajustes.",
+                "Deshacer al borrar tarjetas, subrayados, notas y libros.",
+                "Vibración suave al pasar de página y al responder tarjetas.",
+                "Guía de gestos la primera vez que abres un libro.",
+            ),
+            fixed = listOf(
+                "Si el celular tiene las animaciones desactivadas, Hilo tampoco anima las burbujas de palabras.",
+                "Si Hilo se cierra de golpe, al volver a abrirlo te ofrece enviar el informe. Toca 5 veces el título de Novedades para ver el diagnóstico.",
+                "Los PDF preparan la página siguiente antes de que llegues.",
+            ),
+        ),
+        Version(
             17, "1.7", "18 nov 2026", "Leer como en un libro",
             added = listOf(
                 "EPUB, MOBI, Word y los demás formatos se ven como la página de un libro: texto justificado, guiones al cortar palabras, sangría y sin huecos entre párrafos. Puedes volver a los párrafos separados en Ajustes → Forma del texto.",

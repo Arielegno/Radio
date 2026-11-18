@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Recordatorio diario para repasar -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Modo enfoque: activar «No molestar» mientras lees (lo apruebas tú en Ajustes de Android) -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Para encontrar tus documentos en todo el celular, como ReadEra -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />

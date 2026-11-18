@@ -13,6 +13,7 @@ import java.util.Locale
 class HiloApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        com.hilo.lector.ui.CrashLog.install(applicationContext)
         PDFBoxResourceLoader.init(applicationContext)
         // Modo de depuración: registra en el log el trabajo lento en la pantalla y los archivos sin cerrar.
         // Solo se activa si existe el archivo files/depurar (lo crea la prueba automática).

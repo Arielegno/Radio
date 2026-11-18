@@ -267,7 +267,7 @@ class LibraryRepo(private val ctx: Context) {
             val known = HashSet<String>()
             _books.value.forEach { known.add(it.srcKey); known.add(it.file) }
             known.addAll(ignoreSp.getStringSet("keys", emptySet()).orEmpty())
-            val exts = listOf("pdf", "epub", "mobi", "azw3", "azw", "docx", "odt", "fb2", "md", "markdown", "txt", "html", "htm")
+            val exts = listOf("pdf", "epub", "mobi", "azw3", "azw", "cbz", "cbr", "docx", "odt", "fb2", "md", "markdown", "txt", "html", "htm")
             val col = MediaStore.Files.FileColumns.DATA
             val sel = exts.joinToString(" OR ") { "$col LIKE ?" }
             val args = exts.map { "%.$it" }.toTypedArray()
@@ -331,6 +331,35 @@ class LibraryRepo(private val ctx: Context) {
             }
             found.size
         }
+    }
+
+    // ---------- duplicados ----------
+
+    private val hashSp = ctx.getSharedPreferences("huellas", Context.MODE_PRIVATE)
+
+    /** Huella rápida del archivo: tamaño + SHA-1 del principio y del final (no hace falta leerlo entero). */
+    fun fingerprint(b: Book): String? {
+        val f = fileOf(b)
+        if (!f.exists()) return null
+        val stamp = "${f.length()}:${f.lastModified()}"
+        hashSp.getString(b.id, null)?.let { if (it.startsWith("$stamp|")) return it.substringAfter('|') }
+        val md = java.security.MessageDigest.getInstance("SHA-1")
+        java.io.RandomAccessFile(f, "r").use { r ->
+            val n = 65536
+            val buf = ByteArray(n)
+            val a = r.read(buf, 0, minOf(n.toLong(), f.length()).toInt()); if (a > 0) md.update(buf, 0, a)
+            if (f.length() > n * 2) { r.seek(f.length() - n); val b2 = r.read(buf); if (b2 > 0) md.update(buf, 0, b2) }
+        }
+        val h = f.length().toString() + "-" + md.digest().joinToString("") { "%02x".format(it) }
+        hashSp.edit().putString(b.id, "$stamp|$h").apply()
+        return h
+    }
+
+    /** Grupos de libros que son el mismo archivo (aunque tengan otro nombre). */
+    suspend fun duplicates(): List<List<Book>> = withContext(Dispatchers.IO) {
+        _books.value.filter { !it.trashed && it.type != "text" }
+            .mapNotNull { b -> runCatching { fingerprint(b) }.getOrNull()?.let { it to b } }
+            .groupBy({ it.first }, { it.second }).values.filter { it.size > 1 }
     }
 
     // ---------- carpetas que no se leen ----------

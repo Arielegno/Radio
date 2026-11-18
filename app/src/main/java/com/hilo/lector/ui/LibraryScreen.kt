@@ -20,6 +20,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.NewReleases
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.DoneAll
@@ -184,8 +186,12 @@ fun LibraryScreen(vm: HiloViewModel) {
     var editFor by remember { mutableStateOf<Book?>(null) }
     var collFor by remember { mutableStateOf<List<Book>?>(null) }
     var selected by remember { mutableStateOf(setOf<String>()) }
+    // Filtros combinables: estado, formato, etiqueta (colección) y fecha de examen
+    var filters by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var showFilters by rememberSaveable { mutableStateOf(false) }
     val selecting = selected.isNotEmpty()
     var bulkDelete by remember { mutableStateOf(false) }
+    var dupOpen by remember { mutableStateOf(false) }
     val rs by vm.settings.state.collectAsStateWithLifecycle()
     val listView = rs.libraryView == 0
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -241,7 +247,17 @@ fun LibraryScreen(vm: HiloViewModel) {
     val q = fold(query.trim())
     val list = books
         .filter { it.inSection(section) }
-        .filter { q.isEmpty() || fold(it.title + " " + it.author).contains(q) }
+        .filter { q.isEmpty() || fold(it.title + " " + it.author + " " + it.collections.joinToString(" ")).contains(q) }
+        .filter { b ->
+            val st = filters.filter { it.startsWith("st:") }
+            val fm = filters.filter { it.startsWith("fmt:") }.map { it.removePrefix("fmt:") }
+            val tg = filters.filter { it.startsWith("tag:") }.map { it.removePrefix("tag:") }
+            st.all { f -> when (f) {
+                "st:reading" -> b.reading(); "st:toread" -> b.toRead; "st:done" -> b.done; "st:fav" -> b.favorite
+                "st:new" -> b.isNew; "st:exam" -> vm.study.exams[b.id]?.let { it >= com.hilo.lector.data.today() } == true
+                else -> true
+            } } && (fm.isEmpty() || b.type in fm) && (tg.isEmpty() || tg.any { it in b.collections })
+        }
         .sortedByDescending { maxOf(it.updated, it.added) }
     val current = if (section.kind == "all" && q.isEmpty()) books.filter { it.reading() }.maxByOrNull { it.updated } else null
 
@@ -283,6 +299,7 @@ fun LibraryScreen(vm: HiloViewModel) {
                 onSettings = { vm.sheet = "settings"; scope.launch { drawer.close() } },
                 onGuide = { vm.screen = Screen.Guide },
                 onNews = { vm.screen = Screen.News },
+                onDuplicates = { dupOpen = true; scope.launch { drawer.close() } },
             )
         },
     ) {
@@ -311,12 +328,14 @@ fun LibraryScreen(vm: HiloViewModel) {
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                     )
                     IconButton(onClick = { searching = !searching; if (!searching) query = "" }) { Icon(Icons.Rounded.Search, "Buscar", tint = c.ink) }
+                    IconButton(onClick = { showFilters = !showFilters }) {
+                        Icon(Icons.Rounded.FilterList, "Filtros", tint = if (filters.isNotEmpty()) c.accent else c.ink)
+                    }
                     val t = vm.timer
                     IconButton(onClick = { vm.sheet = "timer" }) {
                         if (t.running) Text(formatClock(t.remaining), color = c.accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         else Icon(Icons.Rounded.Timer, "Temporizador", tint = c.ink)
                     }
-                    IconButton(onClick = { vm.sheet = "settings" }) { Icon(Icons.Rounded.Tune, "Ajustes", tint = c.ink) }
                 }
             }
             LazyVerticalGrid(
@@ -344,6 +363,8 @@ fun LibraryScreen(vm: HiloViewModel) {
                                 modifier = Modifier.fillMaxWidth().focusRequester(focus),
                             )
                         }
+                        if (searching && query.trim().length >= 3) GlobalResults(vm, query.trim())
+                        if (showFilters || filters.isNotEmpty()) FilterBar(vm, books, filters) { filters = it }
                         if (!access && !hideAccess && section.kind == "all") {
                             Column(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).padding(16.dp),
@@ -426,11 +447,39 @@ fun LibraryScreen(vm: HiloViewModel) {
                     )
                 }
             }
+            // Barra inferior: lo principal siempre a un toque
+            if (!selecting) Row(
+                Modifier.fillMaxWidth().background(c.surface).padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                @Composable
+                fun NavItem(icon: ImageVector, label: String, on: Boolean, badge: Int = 0, onClick: () -> Unit) {
+                    Column(
+                        Modifier.clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Box {
+                            Box(Modifier.clip(RoundedCornerShape(50)).background(if (on) c.band else Color.Transparent).padding(horizontal = 14.dp, vertical = 3.dp)) {
+                                Icon(icon, null, tint = if (on) c.accent else c.ink)
+                            }
+                            if (badge > 0) Box(Modifier.align(Alignment.TopEnd).size(8.dp).clip(CircleShape).background(c.lines[0]))
+                        }
+                        Text(label, color = if (on) c.accent else c.ink, fontSize = 12.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal)
+                    }
+                }
+                NavItem(Icons.Rounded.LibraryBooks, "Biblioteca", true) { section = Section("all"); searching = false }
+                NavItem(Icons.Rounded.AutoStories, "Leyendo", false) {
+                    val last = books.filter { it.reading() }.maxByOrNull { it.updated }
+                    if (last != null) vm.open(last) else vm.toast = "Todavía no empezaste ningún libro."
+                }
+                NavItem(Icons.Rounded.School, "Estudiar", false, dueToday) { vm.openStudy(null) }
+                NavItem(Icons.Rounded.Tune, "Ajustes", false) { vm.sheet = "settings" }
+            }
           }
 
             if (vm.newFound > 0 && !selecting) {
                 Row(
-                    Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 150.dp, bottom = 24.dp)
+                    Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 150.dp, bottom = 92.dp)
                         .clip(RoundedCornerShape(12.dp)).background(c.ink).padding(start = 16.dp, end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -466,12 +515,14 @@ fun LibraryScreen(vm: HiloViewModel) {
                         }
                         BulkAction(Icons.Rounded.Delete, "Papelera", danger = true) {
                             chosen.forEach { b -> vm.repo.update(b.id) { it.copy(trashed = true) } }
-                            vm.toast = "${chosen.size} a la papelera."; selected = emptySet()
+                            val ids = chosen.map { it.id }
+                            vm.undoable("${chosen.size} a la papelera") { ids.forEach { id -> vm.repo.update(id) { it.copy(trashed = false) } } }
+                            selected = emptySet()
                         }
                     }
                 }
             }
-            if (!selecting) Box(Modifier.align(Alignment.BottomEnd).padding(20.dp)) {
+            if (!selecting) Box(Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 88.dp)) {
                 ExtendedFloatingActionButton(
                     onClick = { addMenu = true },
                     icon = { Icon(Icons.Rounded.Add, null) },
@@ -548,14 +599,17 @@ fun LibraryScreen(vm: HiloViewModel) {
                                     vm.toast = "¡Un libro más!"
                                 }
                             }
-                            MenuLine("Colecciones") { menuFor = null; collFor = listOf(b) }
+                            if (b.type == "comic") MenuLine(if (vm.motor.flag("manga:${b.id}")) "Leer de izquierda a derecha" else "Leer como manga (derecha a izquierda)") {
+                                menuFor = null; vm.motor.setFlag("manga:${b.id}", !vm.motor.flag("manga:${b.id}"))
+                            }
+                            MenuLine("Etiquetas y colecciones") { menuFor = null; collFor = listOf(b) }
                             MenuLine("Elegir varios") { menuFor = null; selected = setOf(b.id) }
                             MenuLine("Editar título y autor") { menuFor = null; editFor = b }
                             MenuLine("Compartir archivo") { menuFor = null; share(b) }
                             MenuLine("Mover a la papelera", danger = true) {
                                 menuFor = null
                                 vm.repo.update(b.id) { it.copy(trashed = true) }
-                                vm.toast = "Movido a la papelera."
+                                vm.undoable("«${b.title.take(30)}» a la papelera") { vm.repo.update(b.id) { it.copy(trashed = false) } }
                             }
                         }
                     }
@@ -684,8 +738,134 @@ fun LibraryScreen(vm: HiloViewModel) {
         )
     }
 
+    if (dupOpen) {
+        val groups by androidx.compose.runtime.produceState<List<List<Book>>?>(null) { value = runCatching { vm.repo.duplicates() }.getOrDefault(emptyList()) }
+        AlertDialog(
+            onDismissRequest = { dupOpen = false },
+            containerColor = c.surface,
+            title = { Text("Duplicados") },
+            text = {
+                Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val g = groups
+                    when {
+                        g == null -> Text("Comparando archivos…", color = c.muted)
+                        g.isEmpty() -> Text("No hay libros repetidos. ¡Todo en orden!", color = c.ink)
+                        else -> {
+                            Text("Son el mismo archivo aunque tengan otro nombre. Se queda el que más leíste; los demás salen de Hilo (los del celular no se borran).", color = c.muted, fontSize = 13.sp)
+                            g.forEach { grp ->
+                                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.band).padding(10.dp)) {
+                                    grp.forEach { b -> Text("• ${b.title}" + if (b.progress > 0) " (${(b.progress * 100).roundToInt()} %)" else "", color = c.ink, fontSize = 14.sp) }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                val g = groups
+                if (!g.isNullOrEmpty()) TextButton(onClick = {
+                    var n = 0
+                    g.forEach { grp ->
+                        val keep = grp.maxWith(compareBy<Book>({ it.progress }, { it.bookmarks.size }, { -it.added }))
+                        grp.filter { it.id != keep.id }.forEach { vm.study.removeBook(it.id); vm.repo.remove(it.id); n++ }
+                    }
+                    dupOpen = false; vm.toast = "Quité $n ${if (n == 1) "copia" else "copias"}."
+                }) { Text("Quitar copias") }
+            },
+            dismissButton = { TextButton(onClick = { dupOpen = false }) { Text("Cerrar") } },
+        )
+    }
+
     if (foldersOpen) {
         FoldersDialog(vm, onAdd = { foldersOpen = false; pickFolder.launch(null) }) { foldersOpen = false }
+    }
+}
+
+/** Filtros combinables de la biblioteca. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun FilterBar(vm: HiloViewModel, books: List<Book>, filters: List<String>, onChange: (List<String>) -> Unit) {
+    val c = LocalHilo.current
+    fun toggle(f: String) = onChange(if (f in filters) filters - f else filters + f)
+    val live = books.filter { !it.trashed }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Filtros", color = c.ink, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            if (filters.isNotEmpty()) TextButton(onClick = { onChange(emptyList()) }) { Text("Quitar filtros") }
+        }
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("st:reading" to "Leyendo", "st:toread" to "Por leer", "st:done" to "Leídos", "st:fav" to "Favoritos", "st:new" to "Nuevos", "st:exam" to "Con examen")
+                .forEach { (k, l) -> Pill(l, k in filters) { toggle(k) } }
+        }
+        val fmts = live.map { it.type }.distinct().sorted()
+        if (fmts.size > 1) androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            fmts.forEach { t -> Pill(Formats.label(t), "fmt:$t" in filters) { toggle("fmt:$t") } }
+        }
+        val tags = live.flatMap { it.collections }.distinct().sorted()
+        if (tags.isNotEmpty()) androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            tags.forEach { t -> Pill("# $t", "tag:$t" in filters) { toggle("tag:$t") } }
+        }
+        else Text("Agrega etiquetas o materias a tus libros desde el botón de colecciones.", color = c.muted, fontSize = 12.sp)
+    }
+}
+
+/** Búsqueda en el texto de todos los libros y en tus tarjetas, apuntes y escritos. */
+@Composable
+private fun GlobalResults(vm: HiloViewModel, query: String) {
+    val c = LocalHilo.current
+    val books by vm.repo.books.collectAsStateWithLifecycle()
+    val hits by androidx.compose.runtime.produceState<List<com.hilo.lector.data.Hit>?>(null, query) {
+        kotlinx.coroutines.delay(350)
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { vm.search.search(query, 120) }.getOrDefault(emptyList()) }
+    }
+    fun fold(t: String) = java.text.Normalizer.normalize(t.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+    val fq = fold(query)
+    val mine = remember(query) {
+        val out = ArrayList<Triple<String, String, String>>()   // tipo, texto, libro
+        vm.study.cards.filter { fold(it.front + " " + it.back).contains(fq) }.take(8).forEach { out.add(Triple("Tarjeta", it.front, it.bookId)) }
+        vm.study.notes.filter { fold(it.value).contains(fq) }.forEach { (b, t) -> out.add(Triple("Apuntes", t.lines().firstOrNull { l -> fold(l).contains(fq) } ?: t.take(80), b)) }
+        vm.study.marks.filter { fold(it.text).contains(fq) }.take(6).forEach { out.add(Triple("Resaltado", it.text, it.bookId)) }
+        vm.study.fichas.filter { f -> fold(f.title + f.fields.joinToString { it.second }).contains(fq) }.take(5).forEach { out.add(Triple("Ficha", it.title, it.bookId)) }
+        vm.motor.entries.filter { fold(it.title + " " + it.text).contains(fq) }.take(6).forEach { out.add(Triple("Escrito", it.title.ifBlank { it.text.take(60) }, it.book)) }
+        out
+    }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        val h = hits
+        Text("Dentro de tus libros", color = c.ink, fontWeight = FontWeight.Bold)
+        when {
+            h == null -> Text("Buscando…", color = c.muted, fontSize = 13.sp)
+            h.isEmpty() -> Text("No aparece en el texto de los libros que Hilo ya leyó. (Los PDF se suman después de abrirlos en modo Texto o en su sala de estudio.)", color = c.muted, fontSize = 13.sp)
+            else -> {
+                val byBook = h.groupBy { it.bookId }
+                Text("${h.size}${if (h.size >= 120) "+" else ""} resultados en ${byBook.size} ${if (byBook.size == 1) "libro" else "libros"}", color = c.muted, fontSize = 12.sp)
+                byBook.entries.take(12).forEach { (id, l) ->
+                    val b = books.firstOrNull { it.id == id } ?: return@forEach
+                    Text(b.title, color = c.accent, fontWeight = FontWeight.Medium, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    l.take(3).forEach { hit ->
+                        Text(
+                            hit.snippet, color = c.ink, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { vm.openAt(id, true, hit.para) }.padding(vertical = 4.dp, horizontal = 6.dp),
+                        )
+                    }
+                }
+            }
+        }
+        if (mine.isNotEmpty()) {
+            HorizontalDivider(color = c.line)
+            Text("En tus tarjetas, apuntes y escritos", color = c.ink, fontWeight = FontWeight.Bold)
+            mine.forEach { (kind, text, bookId) ->
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { vm.openStudy(bookId.takeIf { id -> books.any { it.id == id } }) }.padding(vertical = 4.dp)) {
+                    Text(kind.uppercase(), color = c.muted, fontSize = 10.sp, modifier = Modifier.width(76.dp).padding(top = 2.dp))
+                    Text(text, color = c.ink, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
     }
 }
 
@@ -770,6 +950,7 @@ private fun LibraryDrawer(
     onSettings: () -> Unit,
     onGuide: () -> Unit,
     onNews: () -> Unit,
+    onDuplicates: () -> Unit,
 ) {
     val c = LocalHilo.current
     var open by remember { mutableStateOf("") }
@@ -833,6 +1014,7 @@ private fun LibraryDrawer(
             }
             line(Icons.Rounded.Folder, "Carpetas", null, false, onFolders)
             line(Icons.Rounded.Search, "Buscar en el celular", null, false, onScan)
+            line(Icons.Rounded.ContentCopy, "Duplicados", null, false, onDuplicates)
             line(Icons.Rounded.Delete, "Papelera", books.count { it.trashed }, section.kind == "trash") { onSection(Section("trash")) }
 
             HorizontalDivider(Modifier.padding(vertical = 10.dp), color = c.line)

@@ -62,7 +62,11 @@ adb shell settings put system user_rotation 0
 adb logcat -c
 
 adb shell am start -W -n $PKG/.MainActivity
-shot 00_inicio 4
+shot 00_bienvenida 4
+tap "Necesito letra grande"
+shot 00b_perfil 2
+tap "Ahora no"
+shot 00c_inicio 3
 adb shell am force-stop $PKG
 
 # Biblioteca de prueba: PDF, EPUB, Word, Markdown y FB2
@@ -75,6 +79,14 @@ put $F/muestra.fb2 files/books/t5.fb2
 put $F/muestra_ley.txt files/books/t6.txt
 put $F/muestra_teoria.txt files/books/t7.txt
 put $F/muestra.mobi files/books/t8.mobi
+put $F/muestra.cbz files/books/t9.cbz
+# La guía de gestos ya vista (se prueba aparte al final)
+cat > /tmp/guias.xml <<'X'
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map><boolean name="gestos" value="true" /></map>
+X
+adb shell "run-as $PKG mkdir -p shared_prefs"
+put /tmp/guias.xml shared_prefs/guias.xml
 cat > /tmp/lib.json <<'J'
 [{"id":"t1","title":"La sociología del conocimiento","author":"Berger y Luckmann","type":"pdf","file":"t1.pdf","added":5,"updated":9,"progress":0.1,"pages":2,"favorite":true},
  {"id":"t2","title":"Libro EPUB de prueba","author":"Berger y Luckmann","type":"epub","file":"t2.epub","added":4},
@@ -83,7 +95,8 @@ cat > /tmp/lib.json <<'J'
  {"id":"t5","title":"Libro FB2 de prueba","author":"Peter Berger","type":"fb2","file":"t5.fb2","added":1,"collections":["Sociología"]},
  {"id":"t6","title":"Código Procesal de prueba","type":"txt","file":"t6.txt","added":0},
  {"id":"t7","title":"Teoría sociológica de prueba","author":"Varios","type":"txt","file":"t7.txt","added":0},
- {"id":"t8","title":"Libro MOBI de prueba","author":"Émile Durkheim","type":"mobi","file":"t8.mobi","added":0}]
+ {"id":"t8","title":"Libro MOBI de prueba","author":"Émile Durkheim","type":"mobi","file":"t8.mobi","added":0},
+ {"id":"t9","title":"Cómic de prueba","type":"comic","file":"t9.cbz","added":0}]
 J
 put /tmp/lib.json files/library.json
 
@@ -212,7 +225,10 @@ seek EPUB
 tap "Opciones de Libro EPUB de prueba"
 sleep 1
 tap "Estudiar: tarjetas y resaltados"
-shot 26_sala_estudio 3
+shot 26_sala_ruta 3
+tap "Prueba previa" parcial
+shot 26b_prueba_previa 3
+back 2
 tap "Resaltados"
 shot 27_resaltados 2
 tap "Apuntes"
@@ -391,7 +407,39 @@ tap "Menú"
 sleep 2
 tap "Estudio"
 shot 34_estudio_general 3
+tap "Estadísticas"
+shot 35_estadisticas 3
+back 2
+tap "Simulacro"
+shot 36_simulacro 3
+back 2
 back
+
+# ---------- Versión 2.0: cómic, búsqueda global, filtros, barra inferior, guía de gestos ----------
+open_book "Cómic de prueba" Cómic
+shot 80_comic 6
+swipe_left
+shot 81_comic_pag2 3
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 8
+tap "Buscar"; sleep 1; adb shell input text "sociedad"; sleep 3
+shot 82_busqueda_global 2
+back 1
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 3
+tap "Filtros"
+shot 83_filtros 2
+back 2
+tap "Estudiar"
+shot 84_barra_estudiar 3
+back 2
+adb shell "run-as $PKG rm -f shared_prefs/guias.xml"
+open_book "Libro FB2 de prueba" FB2
+shot 85_guia_gestos 6
+adb shell input tap 540 1300
+shot 86_tras_guia 3
 
 timeout 60 adb logcat -d > $OUT/logcat.txt
 grep -n -A 40 "FATAL EXCEPTION" $OUT/logcat.txt > $OUT/crashes.txt || echo "Sin cierres inesperados" > $OUT/crashes.txt

@@ -12,8 +12,8 @@ android {
         applicationId = "com.hilo.lector"
         minSdk = 26
         targetSdk = 35
-        versionCode = 17
-        versionName = "1.7"
+        versionCode = 20
+        versionName = "2.0"
     }
 
     buildTypes {
@@ -72,6 +72,7 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
     // Leer EPUB
     implementation("org.jsoup:jsoup:1.18.1")
+    implementation("com.github.junrar:junrar:7.5.5")
 
     testImplementation("junit:junit:4.13.2")
 }

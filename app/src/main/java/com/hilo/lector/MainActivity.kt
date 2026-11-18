@@ -27,11 +27,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.core.content.IntentCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hilo.lector.ui.GuideScreen
@@ -104,6 +111,10 @@ fun HiloRoot(vm: HiloViewModel) {
             is Screen.Reader -> ReaderScreen(vm, sc.id)
             Screen.Guide -> GuideScreen(vm)
             Screen.News -> com.hilo.lector.ui.NewsScreen(vm)
+            Screen.Welcome -> com.hilo.lector.ui.WelcomeScreen(vm) {
+                if (vm.settings.value.profile.isBlank()) vm.settings.update { it.copy(profile = "ninguno") }
+                vm.screen = Screen.Library
+            }
             is Screen.Study -> StudyScreen(vm, sc.bookId)
         }
 
@@ -128,6 +139,25 @@ fun HiloRoot(vm: HiloViewModel) {
     when (vm.sheet) {
         "settings" -> SettingsSheet(vm) { vm.sheet = null }
         "timer" -> TimerSheet(vm) { vm.sheet = null }
+    }
+
+    // Bienvenida por perfil: solo la primera vez que se instala Hilo
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (vm.settings.value.profile.isBlank() && !java.io.File(ctx.filesDir, "library.json").exists() && vm.screen == Screen.Library) vm.screen = Screen.Welcome
+    }
+    // Si Hilo se cerró la última vez, ofrece enviar el informe
+    var crash by remember { mutableStateOf(com.hilo.lector.ui.CrashLog.file(ctx).takeIf { it.exists() }?.readText()) }
+    crash?.let { text ->
+        AlertDialog(
+            onDismissRequest = { crash = null },
+            title = { Text("Hilo se cerró la última vez") },
+            text = { Text("Perdón por eso. Si envías el informe (solo datos técnicos, sin tus libros), es más fácil arreglarlo.") },
+            confirmButton = { TextButton(onClick = {
+                com.hilo.lector.ui.shareText(ctx, "Informe de Hilo", text)
+                com.hilo.lector.ui.CrashLog.file(ctx).delete(); crash = null
+            }) { Text("Enviar informe") } },
+            dismissButton = { TextButton(onClick = { com.hilo.lector.ui.CrashLog.file(ctx).delete(); crash = null }) { Text("Descartar") } },
+        )
     }
 
     // Novedades: una vez después de actualizar (no en la primera instalación)
@@ -189,6 +219,20 @@ fun HiloRoot(vm: HiloViewModel) {
                 TextButton(onClick = { vm.timer.finished = null }) { Text(if (wasBreak) "Ahora no" else "Terminar por hoy") }
             },
         )
+    }
+
+    // Barra de «Deshacer» durante unos segundos
+    vm.undo?.let { (text, revert) ->
+        LaunchedEffect(vm.undo) { kotlinx.coroutines.delay(6000); vm.undo = null }
+        androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(16.dp), contentAlignment = Alignment.BottomCenter) {
+            androidx.compose.foundation.layout.Row(
+                androidx.compose.ui.Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).background(androidx.compose.ui.graphics.Color(0xFF263238)).padding(start = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(text, color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, modifier = androidx.compose.ui.Modifier.weight(1f, fill = false))
+                TextButton(onClick = { revert(); vm.undo = null }) { Text("DESHACER", color = androidx.compose.ui.graphics.Color(0xFFFFC94D), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) }
+            }
+        }
     }
 
     LaunchedEffect(vm.toast) {

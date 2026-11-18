@@ -189,6 +189,7 @@ fun PdfView(
                     annots.addStroke(
                         InkStroke(annots.newId(), p, true, col, (ln.b - ln.t) * asp * 1.05f, floatArrayOf(ln.l, cy, ln.r, cy), ln.text)
                     )
+                    vm.undoable("Resaltado") { annots.undo() }
                     // Las dudas también quedan en el motor de estudio, para resolverlas después
                     if (kind == "duda") vm.motor.add(com.hilo.lector.data.Entry(vm.motor.newId(), book.id, "duda", "pág. ${p + 1}", ln.text, System.currentTimeMillis()))
                 },
@@ -451,6 +452,18 @@ fun PdfView(
                     zoom, (hScroll.value + o.x) / contentPx(zoom), o.x,
                     listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset, o.y,
                 )
+            }
+            // Prepara las dos páginas siguientes mientras lees la actual
+            LaunchedEffect(renderW, s.pdfCrop) {
+                if (s.pdfCrop) return@LaunchedEffect
+                snapshotFlow { listState.firstVisibleItemIndex }.collectLatest { first ->
+                    kotlinx.coroutines.delay(250)
+                    for (p in (first + 1)..(first + 2)) {
+                        if (p >= count) break
+                        val rk = engine.rawKey(p, renderW)
+                        if (engine.bitmaps.get(rk) == null) runCatching { engine.render(p, renderW) }.getOrNull()?.let { engine.bitmaps.put(rk, it) }
+                    }
+                }
             }
             LaunchedEffect(zoom) {
                 val a = anchor ?: return@LaunchedEffect

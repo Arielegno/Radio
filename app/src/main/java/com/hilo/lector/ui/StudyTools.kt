@@ -1136,6 +1136,7 @@ fun HubTools(vm: HiloViewModel, onCrossMap: () -> Unit, onDeck: (String) -> Unit
     }
     val saveZip = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri -> uri?.let { vm.backup(it, withBooks) } }
     val openZip = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> confirmRestore = uri }
+    val pickAnki = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.importAnki(it) } }
 
     val t = today()
     val exams = vm.study.exams.entries.filter { it.value >= t }.sortedBy { it.value }
@@ -1183,8 +1184,9 @@ fun HubTools(vm: HiloViewModel, onCrossMap: () -> Unit, onDeck: (String) -> Unit
             }
         }
         Panel {
-            Text("Exportar a Anki", fontWeight = FontWeight.Bold, color = c.ink, fontSize = 16.sp)
-            Text("Crea un archivo con todas tus tarjetas. En Anki: Archivo → Importar.", color = c.muted, fontSize = 13.sp)
+            Text("Anki", fontWeight = FontWeight.Bold, color = c.ink, fontSize = 16.sp)
+            Text("Importa tus mazos (.apkg o .txt) para repasarlos en Hilo, o exporta tus tarjetas para usarlas en Anki.", color = c.muted, fontSize = 13.sp)
+            OutlinedButton(onClick = { pickAnki.launch(arrayOf("*/*")) }) { Text("Importar un mazo", color = c.ink) }
             OutlinedButton(onClick = {
                 val cards = vm.study.cards.toList()
                 if (cards.isEmpty()) vm.toast = "Todavía no tienes tarjetas."

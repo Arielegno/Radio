@@ -270,6 +270,11 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             SliderRow("Intensidad del color", "${(s.intensity * 100).roundToInt()}%", s.intensity, 0.4f..1f, 11) { v ->
                 vm.settings.update { it.copy(intensity = (v * 20).roundToInt() / 20f) }
             }
+            // Modo simple: lo esencial a la vista y el resto a un toque
+            var showAll by remember { mutableStateOf(!s.simple) }
+            if (!showAll) {
+                OutlinedButton(onClick = { showAll = true }, modifier = Modifier.fillMaxWidth()) { Text("Más ajustes (PDF, biblioteca, toques, voz…)", color = c.ink) }
+            } else {
             SectionTitle("PDF")
             SwitchRow("Recortar márgenes", "Quita el borde blanco de la página para que la letra se vea más grande. El fondo toma el color del papel.", s.pdfCrop) { on ->
                 vm.settings.update { it.copy(pdfCrop = on) }
@@ -293,6 +298,24 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
                 vm.settings.update { it.copy(keepOn = on) }
             }
             SectionTitle("Toques y pantalla")
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            SwitchRow("Modo enfoque", "Pantalla completa, sin porcentajes y con «No molestar» mientras lees.", s.focus) { on ->
+                vm.settings.update { it.copy(focus = on) }
+                val nm = ctx.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+                if (on && !nm.isNotificationPolicyAccessGranted) {
+                    vm.toast = "Para silenciar notificaciones, permite a Hilo usar «No molestar»."
+                    runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) }
+                }
+            }
+            SwitchRow("Vibración suave", "Al pasar de página y al responder tarjetas.", s.haptics) { on -> vm.settings.update { it.copy(haptics = on) } }
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable { vm.screen = com.hilo.lector.Screen.Welcome }.padding(vertical = 10.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("Perfil de lectura", color = c.ink)
+                    Text("Atención, dislexia, letra grande o estudio intensivo: ajusta todo de una vez.", color = c.muted, fontSize = 13.sp)
+                }
+                Text("Cambiar ›", color = c.accent)
+            }
+            SwitchRow("Modo simple", "Muestra solo lo esencial; las herramientas avanzadas quedan a un toque.", s.simple) { on -> vm.settings.update { it.copy(simple = on) } }
             SwitchRow("Pantalla completa", "Oculta la barra de estado y la de navegación al leer.", s.fullScreen) { on ->
                 vm.settings.update { it.copy(fullScreen = on) }
             }
@@ -310,6 +333,7 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             }
             SliderRow("Velocidad de la voz", "%.1f×".format(s.ttsRate), s.ttsRate, 0.5f..2f, 14) { v ->
                 vm.settings.update { it.copy(ttsRate = (v * 10).roundToInt() / 10f) }
+            }
             }
             OutlinedButton(onClick = { vm.settings.reset() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Restablecer ajustes", color = c.ink)

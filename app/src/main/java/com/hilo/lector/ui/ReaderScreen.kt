@@ -85,6 +85,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -222,10 +223,20 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
         onDispose { view.keepScreenOn = false }
     }
     val window = (ctx as? Activity)?.window
-    LaunchedEffect(chrome, s.fullScreen) {
+    // Modo enfoque: «No molestar» mientras lees (si diste el permiso) y pantalla completa
+    DisposableEffect(s.focus) {
+        val nm = ctx.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        var prev = -1
+        if (s.focus && nm.isNotificationPolicyAccessGranted) {
+            prev = nm.currentInterruptionFilter
+            runCatching { nm.setInterruptionFilter(android.app.NotificationManager.INTERRUPTION_FILTER_PRIORITY) }
+        }
+        onDispose { if (prev > 0) runCatching { nm.setInterruptionFilter(prev) } }
+    }
+    LaunchedEffect(chrome, s.fullScreen, s.focus) {
         val w = window ?: return@LaunchedEffect
         val ctl = WindowCompat.getInsetsController(w, w.decorView)
-        if (chrome && !s.fullScreen) {
+        if (chrome && !s.fullScreen && !s.focus) {
             ctl.show(WindowInsetsCompat.Type.systemBars())
         } else {
             ctl.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -289,6 +300,7 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
                 Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout))
             ) {
                 when {
+                    book.type == "comic" -> ComicView(vm, book, s, mode, bridge, toggleChrome)
                     !isPdf -> FlowView(vm, book, null, s, mode, bridge, toggleChrome, null, onStudy = { studyReq = it })
                     engineState is EngineState.Ready && flow ->
                         FlowView(
@@ -437,6 +449,22 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
 
     rsvp?.let { words ->
         RsvpOverlay(words, s, onSpeed = { v -> vm.settings.update { it.copy(wpm = v) } }, onClose = { rsvp = null })
+    }
+
+    // Guía de gestos: solo la primera vez
+    val coachSp = remember { ctx.getSharedPreferences("guias", android.content.Context.MODE_PRIVATE) }
+    var coach by remember { mutableStateOf(!coachSp.getBoolean("gestos", false)) }
+    if (coach) GestureCoach { coach = false; coachSp.edit().putBoolean("gestos", true).apply() }
+
+    // Vibración suave al pasar de página
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    LaunchedEffect(bridge, s.haptics) {
+        if (!s.haptics) return@LaunchedEffect
+        var first = true
+        snapshotFlow { bridge.position }.collect {
+            if (!first && bridge.unit == "Pág.") haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+            first = false
+        }
     }
 }
 
@@ -732,7 +760,8 @@ private fun TopBars(
                 Text(book.title, color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (!compact) {
                     Text(
-                        if (flow) "Texto fluido · ${(book.progress * 100).toInt()}%" else "Página original · ${(book.progress * 100).toInt()}%",
+                        if (s.focus) (if (flow) "Texto fluido" else "Página original")
+                        else if (flow) "Texto fluido · ${(book.progress * 100).toInt()}%" else "Página original · ${(book.progress * 100).toInt()}%",
                         color = c.muted, fontSize = 12.sp, maxLines = 1,
                     )
                 }

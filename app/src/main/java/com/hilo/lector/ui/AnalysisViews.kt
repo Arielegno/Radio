@@ -172,7 +172,8 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
             }
             val tr = rememberInfiniteTransition(label = "flotar")
             val t by tr.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(7000, easing = LinearEasing)), label = "t")
-            val amp = with(density) { 4.dp.toPx() }
+            val still = reduceMotion(androidx.compose.ui.platform.LocalContext.current)
+            val amp = if (still) 0f else with(density) { 4.dp.toPx() }
             if (bubbles.isEmpty()) {
                 Text(
                     if (phrases) "No encontré frases que se repitan lo suficiente." else "No hay palabras para mostrar.",

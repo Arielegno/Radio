@@ -25,6 +25,7 @@ object Formats {
             "docx" -> "docx"
             "odt" -> "odt"
             "mobi", "azw", "azw3", "prc", "pdb" -> "mobi"
+            "cbz", "cbr" -> "comic"
             "jpg", "jpeg", "png", "webp", "heic", "heif" -> "img"
             else -> null
         }
@@ -40,13 +41,14 @@ object Formats {
         mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> "docx"
         mime == "application/vnd.oasis.opendocument.text" -> "odt"
         mime.contains("mobipocket") || mime.contains("amazon.ebook") || mime.contains("kindle") -> "mobi"
+        mime.contains("comicbook") || mime.contains("cbz") || mime.contains("cbr") -> "comic"
         mime == "text/plain" -> "txt"
         else -> null
     }
 
     fun label(type: String) = when (type) {
         "pdf" -> "PDF"; "epub" -> "EPUB"; "md" -> "Markdown"; "html" -> "HTML"
-        "fb2" -> "FB2"; "docx" -> "Word"; "odt" -> "ODT"; "mobi" -> "MOBI"; else -> "Texto"
+        "fb2" -> "FB2"; "docx" -> "Word"; "odt" -> "ODT"; "mobi" -> "MOBI"; "comic" -> "Cómic"; else -> "Texto"
     }
 
     class Meta(val title: String, val author: String, val cover: ByteArray?)
@@ -57,6 +59,7 @@ object Formats {
             "fb2" -> fb2Meta(f)
             "docx" -> docxMeta(f)
             "mobi" -> Mobi.read(f, withText = false).let { Meta(it.title, it.author, it.cover) }
+            "comic" -> Meta("", "", Comic.cover(f))
             "html" -> Jsoup.parse(f, null).title().takeIf { it.isNotBlank() }?.let { Meta(it, "", null) }
             else -> null
         }
@@ -72,6 +75,7 @@ object Formats {
         "docx" -> docx(f)
         "odt" -> odt(f)
         "mobi" -> html(Jsoup.parse(Mobi.read(f).html))
+        "comic" -> emptyList()
         else -> TextTools.smartParas(f.readText())
     }
 

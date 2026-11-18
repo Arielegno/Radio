@@ -89,14 +89,29 @@ data class Ficha(
 )
 
 val FICHA_KINDS = listOf(
-    "caso" to "Ficha de caso o sentencia",
+    "irac" to "Caso con método IRAC",
+    "sentencia" to "Ficha de sentencia",
+    "norma" to "Ficha de norma",
+    "caso" to "Ficha de caso",
     "lectura" to "Ficha de lectura",
     "autor" to "Ficha de autor",
+    "concepto" to "Ficha de concepto",
+    "metodo" to "Ficha de método",
+    "clasico" to "Análisis de texto clásico",
 )
 
+/** Fichas de Derecho y de Sociología, para mostrarlas agrupadas. */
+val FICHAS_DERECHO = setOf("irac", "sentencia", "norma", "caso")
+
 fun fichaFields(kind: String): List<String> = when (kind) {
+    "irac" -> listOf("Problema jurídico (Issue): ¿qué hay que decidir?", "Norma (Rule): artículos, principios y jurisprudencia", "Aplicación (Application): la norma a estos hechos", "Conclusión (Conclusion)", "Hechos relevantes")
+    "sentencia" -> listOf("Tribunal, fecha y número", "Partes", "Hechos", "Problema jurídico", "Ratio decidendi (la razón que decide)", "Obiter dicta (lo dicho de paso)", "Decisión o fallo", "Precedente: ¿vinculante o no?", "Comentario crítico")
+    "norma" -> listOf("Artículo y texto", "Bien jurídico protegido", "Sujetos (activo y pasivo)", "Conducta o verbo rector", "Elementos o requisitos", "Sanción o consecuencia", "Remisiones", "Concordancias", "Reformas")
     "caso" -> listOf("Datos (tribunal, fecha, partes)", "Hechos", "Problema jurídico", "Norma aplicable", "Argumentos", "Decisión o fallo", "Mi comentario")
-    "autor" -> listOf("Autor", "Contexto y época", "Conceptos clave", "Ideas principales", "Obras y fechas", "Citas")
+    "autor" -> listOf("Autor", "Contexto histórico", "Obra clave", "Conceptos centrales", "Método", "Críticas recibidas", "Influencia posterior", "Citas")
+    "concepto" -> listOf("Concepto", "Definición del autor", "Mi definición", "Ejemplo actual", "Autores relacionados", "Debate o crítica")
+    "metodo" -> listOf("Método o técnica", "Tipo (cualitativo, cuantitativo o mixto)", "Muestra", "Validez y confiabilidad", "Límites", "Ejemplo de investigación")
+    "clasico" -> listOf("Texto y autor", "Pregunta que responde", "Tesis", "Argumentos", "Evidencia que usa", "Crítica")
     else -> listOf("Referencia", "Tesis central", "Argumentos principales", "Conceptos clave", "Citas importantes", "Crítica personal")
 }
 

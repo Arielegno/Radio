@@ -65,6 +65,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -556,9 +557,20 @@ fun TimelineTab(vm: HiloViewModel, book: Book, a: Analysis) {
     val c = LocalHilo.current
     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
         Text("Fechas y siglos del texto, en orden. Toca «Tarjeta» para memorizar una fecha.", color = c.muted, fontSize = 13.sp,
-            modifier = Modifier.padding(bottom = 12.dp))
+            modifier = Modifier.padding(bottom = 8.dp))
+        // Contexto: hechos históricos y obras de los autores, en paralelo con las fechas del texto
+        var show by remember { mutableIntStateOf(0) }
+        ChoiceRow(listOf("Del texto", "Con contexto", "Solo contexto"), show) { show = it }
+        Spacer(Modifier.height(10.dp))
+        val minY = (a.timeline.minOfOrNull { it.year } ?: 1750) - 30
+        val maxY = (a.timeline.maxOfOrNull { it.year } ?: 2030) + 30
+        val ctxEvents = com.hilo.lector.text.SocioKb.history.filter { it.year in minY..maxY }.map { com.hilo.lector.text.TimeEvent(it.year, it.year.toString(), it.text, -1, it.place) } +
+            com.hilo.lector.text.SocioKb.authors.filter { au -> a.authors.any { it.key == au.key } }.mapNotNull { au ->
+                Regex("\\((\\d{4})").find(au.works)?.let { m -> com.hilo.lector.text.TimeEvent(m.groupValues[1].toInt(), m.groupValues[1], au.works.substringBefore(";"), -1, au.name) }
+            }
+        val events = when (show) { 0 -> a.timeline; 1 -> (a.timeline + ctxEvents).sortedBy { it.year }; else -> ctxEvents.sortedBy { it.year } }
         var prev = ""
-        a.timeline.forEach { ev ->
+        events.forEach { ev ->
             val same = ev.label == prev
             prev = ev.label
             Row(Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
@@ -571,13 +583,14 @@ fun TimelineTab(vm: HiloViewModel, book: Book, a: Analysis) {
                     Text(ev.text, color = c.ink, fontSize = 14.sp, lineHeight = 19.sp, maxLines = 5, overflow = TextOverflow.Ellipsis)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         ev.author?.let { Text(it, color = c.muted, fontSize = 12.sp, modifier = Modifier.weight(1f)) } ?: Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { vm.openAt(book.id, true, ev.para) }) { Text("Ir", fontSize = 13.sp) }
+                        if (ev.para >= 0) TextButton(onClick = { vm.openAt(book.id, true, ev.para) }) { Text("Ir", fontSize = 13.sp) }
+                        else Text("contexto", color = c.lines[3], fontSize = 12.sp, modifier = Modifier.padding(end = 8.dp))
                         TextButton(onClick = {
                             val front = ev.text.replace(ev.label, "[ … ]").replace(ev.label.lowercase(), "[ … ]")
                             if (vm.study.cards.any { it.bookId == book.id && it.front == front }) vm.toast = "Ya tenía tarjeta."
                             else {
                                 vm.study.add(StudyCard(vm.study.newId(), book.id, "cloze", front, ev.label, context = ev.text,
-                                    source = "párrafo ${ev.para + 1}", sourcePos = ev.para, sourceFlow = true, due = today(), created = System.currentTimeMillis()))
+                                    source = if (ev.para >= 0) "párrafo ${ev.para + 1}" else "contexto", sourcePos = ev.para, sourceFlow = true, due = today(), created = System.currentTimeMillis()))
                                 vm.toast = "Tarjeta creada."
                             }
                         }) { Text("Tarjeta", fontSize = 13.sp) }
@@ -603,7 +616,7 @@ internal fun newFicha(vm: HiloViewModel, book: Book, kind: String, a: Analysis?)
             else -> ""
         }
     }
-    val title = when (kind) { "caso" -> "Caso: "; "autor" -> ""; else -> book.title }
+    val title = when (kind) { "caso", "irac", "sentencia" -> "Caso: "; "norma" -> "Art. "; "autor", "concepto", "metodo" -> ""; else -> book.title }
     return Ficha(0, book.id, kind, title, names.zip(values), System.currentTimeMillis())
 }
 
@@ -781,7 +794,13 @@ fun CitesTab(vm: HiloViewModel, book: Book) {
             OutlinedTextField(url, { url = it; store() }, label = { Text("Enlace (opcional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Text(ref, color = c.ink, fontSize = 15.sp, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.band).padding(12.dp))
             Row {
-                TextButton(onClick = { copyText(ctx, ref); vm.toast = "Referencia copiada." }) { Text("Copiar referencia") }
+                TextButton(onClick = { copyText(ctx, ref); vm.toast = "Referencia copiada." }) { Text("Copiar") }
+                TextButton(onClick = {
+                    runCatching { com.hilo.lector.data.DocExport.shareBib(ctx, title.ifBlank { book.title }, com.hilo.lector.data.DocExport.bibtex(BookRef(authors, year, title, publisher, url), book.title)) }
+                }) { Text("BibTeX") }
+                if (quotes.isNotEmpty()) TextButton(onClick = {
+                    runCatching { com.hilo.lector.data.DocExport.share(ctx, "Citas de " + book.title, quotes.map { Apa.quote(it.text, authors, year, it.loc) } + listOf("Referencia", ref)) }
+                }) { Text("Word") }
                 if (quotes.isNotEmpty()) TextButton(onClick = {
                     copyText(ctx, quotes.joinToString("\n\n") { Apa.quote(it.text, authors, year, it.loc) } + "\n\nReferencia\n" + ref)
                     vm.toast = "Citas y referencia copiadas."
@@ -792,15 +811,38 @@ fun CitesTab(vm: HiloViewModel, book: Book) {
         if (quotes.isEmpty()) {
             Text("Para guardar una cita, mantén el dedo sobre el texto mientras lees y toca «Citar». Queda con su página o párrafo.", color = c.muted, fontSize = 14.sp)
         }
-        quotes.forEach { q ->
+        // Banco de citas por tema
+        val themes = quotes.mapNotNull { vm.motor["qtag:${it.id}"].ifBlank { null } }.distinct().sorted()
+        var theme by remember(book.id) { mutableStateOf("") }
+        if (themes.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Pill("Todas", theme.isEmpty()) { theme = "" }
+            themes.forEach { t -> Pill(t, t == theme) { theme = t } }
+        }
+        var tagFor by remember { mutableStateOf<Quote?>(null) }
+        quotes.filter { theme.isEmpty() || vm.motor["qtag:${it.id}"] == theme }.forEach { q ->
             Panel {
+                vm.motor["qtag:${q.id}"].takeIf { it.isNotBlank() }?.let { Text(it.uppercase(), color = c.accent, fontSize = 11.sp, letterSpacing = 0.8.sp) }
                 Text(Apa.quote(q.text, authors, year, q.loc), color = c.ink, fontSize = 15.sp, lineHeight = 21.sp)
                 Row {
                     TextButton(onClick = { copyText(ctx, Apa.quote(q.text, authors, year, q.loc)); vm.toast = "Cita copiada." }) { Text("Copiar") }
                     if (q.pos >= 0) TextButton(onClick = { vm.openAt(book.id, q.flow, q.pos) }) { Text("Ir") }
+                    TextButton(onClick = { tagFor = q }) { Text("Tema") }
                     TextButton(onClick = { vm.study.deleteQuote(q.id) }) { Text("Borrar", color = c.lines[0]) }
                 }
             }
+        }
+        tagFor?.let { q ->
+            var t by remember(q.id) { mutableStateOf(vm.motor["qtag:${q.id}"]) }
+            AlertDialog(
+                onDismissRequest = { tagFor = null }, containerColor = c.surface, title = { Text("Tema de la cita") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(t, { t = it }, singleLine = true, label = { Text("Por ejemplo: anomia, poder, contratos") }, modifier = Modifier.fillMaxWidth())
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { themes.forEach { th -> Pill(th) { t = th } } }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { vm.motor.put("qtag:${q.id}", t.trim()); tagFor = null }) { Text("Guardar") } },
+            )
         }
     }
 }
@@ -1059,6 +1101,15 @@ fun CrossMapView(vm: HiloViewModel, onOpenDeck: (String) -> Unit) {
                             .mapNotNull { di -> d.per[di].sentencesWith(t.key, 3).firstOrNull()?.text }.joinToString(" ")
                         vm.feynman = FeynmanReq(d.docs.first().id, t.label, ref, emptyList())
                     }) { Text("Explícalo con tus palabras") }
+                    TextButton(onClick = {
+                        val parts = neighbors.mapNotNull { j -> d.analysis.mapTerms[j].key.removePrefix("#doc").toIntOrNull() }
+                            .mapNotNull { di -> d.per[di].sentencesWith(t.key, 3).firstOrNull()?.let { s -> d.docs[di].title + ": " + s.text } }
+                        if (parts.size >= 2) {
+                            vm.study.add(StudyCard(vm.study.newId(), d.docs.first().id, "qa", "¿Cómo tratan «${t.label}» tus distintos textos? ¿En qué coinciden y en qué no?", parts.joinToString("\n\n"),
+                                source = "pregunta cruzada", due = today(), created = System.currentTimeMillis()))
+                            vm.toast = "Pregunta cruzada creada."
+                        }
+                    }) { Text("Crear pregunta cruzada") }
                     LookupRow(t.label, "")
                 }
             }

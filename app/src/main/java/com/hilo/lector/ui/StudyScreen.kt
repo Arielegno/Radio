@@ -406,9 +406,15 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                             tab == "palabras" -> item { WordsTab(vm, current, an) { editing = it } }
                             tab == "glosario" -> item { GlossaryTab(vm, current, an) }
                             tab == "mapa" -> item { ConceptMapTab(vm, current, an) }
-                            tab == "ley" -> item { LawTab(vm, current, an) }
+                            tab == "ley" -> {
+                                item { OutlinedButton(onClick = { practice = "derecho" }, modifier = Modifier.fillMaxWidth()) { Text("Métodos para Derecho: silogismo, casos, plazos, interpretación…", color = c.ink) } }
+                                item { LawTab(vm, current, an) }
+                            }
                             tab == "plazos" -> item { DeadlinesTab(vm, current, an) }
-                            tab == "autores" -> item { AuthorsTab(vm, current, an) { ficha = it } }
+                            tab == "autores" -> {
+                                item { OutlinedButton(onClick = { practice = "sociologia" }, modifier = Modifier.fillMaxWidth()) { Text("Métodos para Sociología: paradigmas, Mills, diario, ensayo…", color = c.ink) } }
+                                item { AuthorsTab(vm, current, an) { ficha = it } }
+                            }
                             tab == "tiempo" -> item { TimelineTab(vm, current, an) }
                         }
                     }

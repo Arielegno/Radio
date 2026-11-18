@@ -913,6 +913,19 @@ fun StatsView(vm: HiloViewModel, onClose: () -> Unit) {
                 Text("${java.text.SimpleDateFormat("d MMM", java.util.Locale.forLanguageTag("es")).format(java.util.Date(e.time))}: nota ${"%.1f".format(e.score / 10f)} (${e.text})", color = c.ink, fontSize = 14.sp)
             }
         }
+        val bloom = m.entriesOf("bloom")
+        if (bloom.isNotEmpty()) Panel {
+            Text("Niveles de pensamiento (Bloom)", color = c.ink, fontWeight = FontWeight.Bold)
+            listOf("Recordar", "Entender", "Aplicar", "Analizar", "Evaluar", "Crear").forEach { lv ->
+                val l = bloom.filter { it.title == lv }
+                val avg = if (l.isEmpty()) 0f else l.map { it.score }.average().toFloat() / 100f
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(lv, color = c.ink, fontSize = 13.sp, modifier = Modifier.width(80.dp))
+                    LinearProgressIndicator(progress = { avg }, color = c.accent, trackColor = c.chip, modifier = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)))
+                    Text("  ${l.size}", color = c.muted, fontSize = 12.sp)
+                }
+            }
+        }
         val recalls = m.entriesOf("recuerdo").take(5)
         if (recalls.isNotEmpty()) Panel {
             Text("Recuerdo libre", color = c.ink, fontWeight = FontWeight.Bold)

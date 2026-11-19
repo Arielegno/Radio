@@ -249,7 +249,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
     val books by vm.repo.books.collectAsStateWithLifecycle()
     val book = bookId?.let { id -> books.firstOrNull { it.id == id } }
     var review by remember { mutableStateOf<List<StudyCard>?>(null) }
-    var deck by rememberSaveable { mutableStateOf<String?>(bookId) }
+    var deck by rememberSaveable(bookId) { mutableStateOf<String?>(bookId) }
     var vocabOnly by rememberSaveable { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf("ruta") }
     var practice by remember { mutableStateOf<String?>(null) }

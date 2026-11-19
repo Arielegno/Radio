@@ -80,9 +80,14 @@ object Analyzer {
         realiza realizan muestra muestran lleva llevan sigue siguen encuentra encuentran trata tratan refiere considera
         consideran concepto conceptos estudia estudió señala señalan plantea plantean afirma afirman cabe tiene tenían hacia ejemplo general
         de la que el en y a los se del las un por con no una su para es al lo como más pero sus le ya o este sí porque esta
+        véase vease cfr ibid ibíd ídem idem op cit loc etc pp vol ed eds trad nota notas cita supra infra
+        allí ahí acá cuyo dónde aquél aquélla aquéllos ése ésa ésos ésas sino quizá quizás acaso apenas
+        hubo había hubiera hubiese habría tenido tuvo sean fuera fuese sería serían estaría estuvo
+        dijo decía dice dicen digo cree creo creía queda quedan
     """.trim().split(Regex("\\s+")).toSet()
 
-    private fun isStop(k: String) = k.length < 3 || k in STOP || k.all { it.isDigit() }
+    /** Palabras que no aportan contenido: artículos, conectores, adverbios en «-mente» (claramente, precisamente), números. */
+    private fun isStop(k: String) = k.length < 3 || k in STOP || k.all { it.isDigit() } || (k.length > 7 && k.endsWith("mente"))
 
     private fun splitSentences(p: String): List<String> = p.split(SENT_SPLIT).map { it.trim() }.filter { it.isNotEmpty() }
 

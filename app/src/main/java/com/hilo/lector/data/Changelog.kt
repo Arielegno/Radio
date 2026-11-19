@@ -6,6 +6,18 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            21, "2.0.1", "19 nov 2026", "Mapa de conceptos con cifras",
+            added = listOf(
+                "Cada círculo del mapa muestra cuántas veces aparece la palabra en el documento.",
+                "Tabla de frecuencias debajo del mapa: veces y porcentaje del texto, como en los programas de análisis cualitativo.",
+                "Al tocar un concepto: «Quitar del mapa» si no es un concepto (se puede deshacer).",
+            ),
+            fixed = listOf(
+                "La sala de estudio mostraba el mapa del primer libro que abriste aunque entraras desde otro. Ahora cada documento tiene el suyo.",
+                "El mapa ya no cuenta palabras de relleno como «Véase», «precisamente» o «claramente».",
+            ),
+        ),
+        Version(
             20, "2.0", "18 nov 2026", "Estudiar con método",
             added = listOf(
                 "Ruta de estudio en 6 pasos (prueba previa, lectura guiada, notas Cornell, dudas, resumen con tus palabras, mapa propio, recuerdo libre, preguntas Bloom, aplicar, simulacro y cierre). Es la primera pestaña de la sala de estudio y un semáforo te dice qué toca.",

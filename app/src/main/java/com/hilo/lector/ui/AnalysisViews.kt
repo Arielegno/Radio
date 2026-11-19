@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -297,7 +298,7 @@ fun ConceptMapTab(
     vm: HiloViewModel,
     book: Book?,
     a: Analysis,
-    intro: String = "Los conceptos que más se repiten, unidos cuando aparecen en la misma oración. Pellizca para acercar, arrastra para moverte y toca un concepto para ver sus relaciones.",
+    intro: String = "Los conceptos que más se repiten en este documento. El número es cuántas veces aparece; las líneas unen los que salen en la misma oración (más gruesa, más veces juntos). Pellizca para acercar y toca un concepto para ver sus relaciones o quitarlo.",
     panel: (@Composable (sel: Int, neighbors: List<Int>, select: (Int) -> Unit) -> Unit)? = null,
 ) {
     val c = LocalHilo.current
@@ -425,6 +426,13 @@ fun ConceptMapTab(
                     val col = if (t.phrase) c.accent else pal[i % pal.size]
                     drawCircle(col, r, sp(i), alpha = if (near) 1f else 0.2f)
                     if (on) drawCircle(c.ink, r + 4f, sp(i), alpha = 0.8f, style = androidx.compose.ui.graphics.drawscope.Stroke(3f))
+                    // Cuántas veces aparece, dentro del círculo (si cabe)
+                    if (r >= 9f * density) {
+                        val num = "${t.count}"
+                        val fs = (r / density * (if (num.length >= 4) 0.62f else 0.8f)).coerceIn(9f, 18f)
+                        val nl = measurer.measure(num, TextStyle(fontSize = fs.sp, fontWeight = FontWeight.Bold, color = Color(0xFF14161C).copy(alpha = if (near) 0.9f else 0.25f)))
+                        drawText(nl, topLeft = sp(i) - Offset(nl.size.width / 2f, nl.size.height / 2f))
+                    }
                     val style = TextStyle(fontSize = (if (on) 14 else 11).sp, color = c.ink.copy(alpha = if (near) 1f else 0.25f), fontWeight = if (on) FontWeight.Bold else FontWeight.Medium)
                     val lay = measurer.measure(t.label, style)
                     drawText(lay, topLeft = sp(i) + Offset(-lay.size.width / 2f, r + 3f))
@@ -458,7 +466,16 @@ fun ConceptMapTab(
                         }
                     }
                 }
+                Text(
+                    "${"%.1f".format(t.count * 100f / max(1, a.totalWords))} % de las ${"%,d".format(a.totalWords).replace(',', '.')} palabras del documento" +
+                        (if (neighbors.isNotEmpty()) " · aparece junto a ${neighbors.size} conceptos" else ""),
+                    color = c.muted, fontSize = 13.sp,
+                )
                 LookupRow(t.label, vm.study.langs[book.id].orEmpty())
+                TextButton(onClick = {
+                    vm.study.removeWord(book.id, t.key, false); sel = null
+                    vm.undoable("«${t.label}» quitado del mapa") { vm.study.restoreWord(book.id, t.key) }
+                }) { Text("Quitar del mapa (no es un concepto)") }
                 TextButton(onClick = {
                     vm.feynman = FeynmanReq(book.id, t.label, a.sentencesWith(t.key, 3).joinToString(" ") { it.text }, neighbors.take(3).map { a.mapTerms[it].label })
                 }) { Text("Explícalo con tus palabras") }
@@ -471,6 +488,37 @@ fun ConceptMapTab(
                         TextButton(onClick = { vm.openAt(book.id, true, st.para) }) { Text("Ir") }
                     }
                 }
+            }
+        }
+        // Tabla de frecuencias, como en los programas de análisis cualitativo
+        if (n > 0) {
+            var all by remember(a) { mutableStateOf(false) }
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Frecuencias", color = c.ink, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text("veces · % del texto", color = c.muted, fontSize = 12.sp)
+                }
+                val order = a.mapTerms.indices.sortedByDescending { a.mapTerms[it].count }
+                order.take(if (all) order.size else 10).forEach { i ->
+                    val t = a.mapTerms[i]
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (sel == i) c.band else Color.Transparent)
+                            .clickable { sel = if (sel == i) null else i }.padding(vertical = 3.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(t.label, color = c.ink, fontSize = 14.sp, maxLines = 1, modifier = Modifier.width(120.dp))
+                        Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(50)).background(c.line)) {
+                            Box(Modifier.fillMaxWidth(t.count / maxC).fillMaxHeight().clip(RoundedCornerShape(50)).background(if (t.phrase) c.accent else c.palette(0)[i % c.palette(0).size]))
+                        }
+                        Text("${t.count}", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 14.sp, textAlign = TextAlign.End, modifier = Modifier.width(44.dp))
+                        Text("${"%.1f".format(t.count * 100f / max(1, a.totalWords))}%", color = c.muted, fontSize = 12.sp, textAlign = TextAlign.End, modifier = Modifier.width(46.dp))
+                    }
+                }
+                if (order.size > 10) TextButton(onClick = { all = !all }) { Text(if (all) "Ver menos" else "Ver los ${order.size}") }
+                Text("Se cuentan juntos el singular y el plural (sociedad y sociedades). No se cuentan artículos, conectores ni palabras como «precisamente».", color = c.muted, fontSize = 12.sp)
             }
         }
     }

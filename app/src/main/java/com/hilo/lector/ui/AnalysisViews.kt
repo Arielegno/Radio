@@ -92,6 +92,7 @@ import com.hilo.lector.text.ChapterGuide
 import com.hilo.lector.text.Gloss
 import com.hilo.lector.text.Question
 import com.hilo.lector.text.Term
+import com.hilo.lector.text.Sent
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.max

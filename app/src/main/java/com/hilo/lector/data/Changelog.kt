@@ -16,6 +16,7 @@ object Changelog {
                 "Unir con…: junta variantes (trabajo, trabajador, laboral) para que cuenten como una sola.",
                 "Exportar la lista de palabras con sus veces y porcentaje (para Excel o tus trabajos).",
             ),
+            fixed = listOf("Las burbujas mostraban solo las 45 palabras más repetidas y las demás no se podían ver."),
         ),
         Version(
             23, "2.1.1", "19 nov 2026", "Elige qué formatos ver",

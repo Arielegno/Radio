@@ -135,7 +135,9 @@ fun bionic(text: String): AnnotatedString = buildAnnotatedString {
 private fun paraText(body: String, heading: Boolean, s: ReaderSettings): AnnotatedString =
     if (s.bionic && !heading) bionic(body) else AnnotatedString(body)
 
-internal fun paraStyle(heading: Boolean, s: ReaderSettings, ink: androidx.compose.ui.graphics.Color): TextStyle {
+internal fun paraStyle(heading: Boolean, s: ReaderSettings, ink: androidx.compose.ui.graphics.Color, length: Int = 0): TextStyle {
+    // En párrafos enormes, los guiones y el corte equilibrado tardan segundos: ahí se usa el corte simple
+    val heavy = length > 2500
     val fs = if (heading) s.fontSize * 1.25f else s.fontSize
     val justify = !heading && s.align >= 1
     return TextStyle(
@@ -147,8 +149,8 @@ internal fun paraStyle(heading: Boolean, s: ReaderSettings, ink: androidx.compos
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None),
         // Como la página de un libro: justificado, con guiones al cortar palabras y sangría al empezar el párrafo
         textAlign = if (justify) TextAlign.Justify else TextAlign.Start,
-        hyphens = if (!heading && s.align == 1) Hyphens.Auto else Hyphens.None,
-        lineBreak = if (justify) LineBreak.Paragraph else LineBreak.Simple,
+        hyphens = if (!heading && s.align == 1 && !heavy) Hyphens.Auto else Hyphens.None,
+        lineBreak = if (justify && !heavy) LineBreak.Paragraph else LineBreak.Simple,
         textIndent = if (!heading && s.indent) TextIndent(firstLine = (fs * 1.4f).sp) else TextIndent.None,
     )
 }
@@ -186,7 +188,7 @@ fun FlowParagraph(
 
     Text(
         annotated,
-        style = paraStyle(heading, s, ink),
+        style = paraStyle(heading, s, ink, body.length),
         onTextLayout = { layout = it; onLayout(it) },
         modifier = modifier
             .fillMaxWidth()
@@ -626,7 +628,7 @@ private fun rememberPagination(list: List<String>, s: ReaderSettings, mode: Read
             // Medir fuera del hilo principal: con guiones y cortes de párrafo, un párrafo enorme tarda segundos
             val lay = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                 measurer.measure(
-                    paraText(body, heading, s), paraStyle(heading, s, mode.ink),
+                    paraText(body, heading, s), paraStyle(heading, s, mode.ink, body.length),
                     constraints = Constraints(maxWidth = widthPx),
                 )
             }

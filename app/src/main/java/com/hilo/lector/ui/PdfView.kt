@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -377,6 +378,12 @@ fun PdfView(
                 val start = after?.plus(1) ?: (ruler?.first ?: currentPage())
                 (start until min(count, start + 4)).map { p -> p to engine.pageText(p, s.ocr) }.filter { it.second.isNotBlank() }
             }
+            bridge.textBefore = { n ->
+                val cp = currentPage()
+                ((cp - n + 1).coerceAtLeast(0)..cp).map { p -> engine.pageText(p, s.ocr) }.filter { it.isNotBlank() }
+            }
+            bridge.scrollBy = if (paged) null else { px -> listState.scrollBy(px) }
+            bridge.chapterEnd = null
             bridge.words = {
                 val start = ruler
                 val p0 = start?.first ?: currentPage()
@@ -1019,6 +1026,7 @@ private fun PdfSelectionOverlay(
             },
             onParagraph = null,
             onDone = { psel.sel = null },
+            onHelp = { vm.help = "menu-sel" },
         ),
     )
 }

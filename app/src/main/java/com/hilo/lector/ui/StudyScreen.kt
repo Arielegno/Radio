@@ -333,6 +333,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                     )
                     if (current != null && !vocabOnly) Text("Sala de estudio", color = c.muted, fontSize = 13.sp)
                 }
+                HelpButton(vm, if (current != null) "sala" else "repaso", tint = c.ink)
                 if (current != null) TextButton(onClick = { vm.open(current) }) { Text("Abrir") }
             }
 
@@ -344,6 +345,30 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                 if (cross && current == null) {
                     item { CrossMapView(vm) { id -> cross = false; deck = id; tab = "ruta" } }
                     return@LazyColumn
+                }
+                if (current == null && !vocabOnly) item {
+                    // Racha y plan según cómo está tu energía hoy
+                    var energy by remember { mutableStateOf(false) }
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StreakCard(vm)
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.band).clickable { energy = true }.padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("🔋", fontSize = 20.sp)
+                            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                                Text("¿Cómo está tu energía?", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text("Te propongo qué hacer hoy según cómo te sientes.", color = c.muted, fontSize = 13.sp)
+                            }
+                            HelpButton(vm, "energia", size = 18.dp)
+                        }
+                    }
+                    if (energy) EnergyDialog(
+                        vm,
+                        onReview = { startReview(10) },
+                        onSimulacro = { practice = "simulacro" },
+                        onDismiss = { energy = false },
+                    )
                 }
                 item { TodayCard(due.size, study.streak, study.todayCount, onStart = { startReview(SESSION) }, onQuick = { startReview(5) }) }
                 if (current != null && !vocabOnly) item { ExamCard(vm, current, analysis) }
@@ -385,6 +410,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             OutlinedButton(onClick = { practice = "stats" }, modifier = Modifier.weight(1f).height(52.dp)) { Text("Estadísticas", color = c.ink) }
                             OutlinedButton(onClick = { practice = "simulacro" }, modifier = Modifier.weight(1f).height(52.dp)) { Text("Simulacro", color = c.ink) }
+                            HelpButton(vm, "stats")
                         }
                     }
                     item { HubTools(vm, onCrossMap = { cross = true }, onDeck = { id -> deck = id; tab = "ruta" }) }
@@ -410,6 +436,12 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                                 "Más herramientas…", color = c.accent, fontSize = 14.sp,
                                 modifier = Modifier.clip(RoundedCornerShape(50)).background(c.surface).clickable { moreTabs = true }.padding(horizontal = 14.dp, vertical = 8.dp),
                             )
+                            // «?» de la pestaña que estás viendo
+                            HelpButton(vm, when (tab) {
+                                "ruta" -> "ruta"; "guia" -> "guia-tab"; "palabras" -> "palabras"; "glosario" -> "glosario"; "mapa" -> "mapa"
+                                "ley" -> "ley"; "plazos" -> "plazos"; "autores", "tiempo" -> "autores"; "fichas" -> "fichas"; "citas" -> "citas"
+                                "tarjetas", "resaltados", "apuntes" -> "tarjetas-tab"; else -> "sala"
+                            }, tint = c.accent)
                             tabs.forEach { (k, t) ->
                                 val on = k == tab
                                 Text(
@@ -836,6 +868,7 @@ private fun ReviewSession(
                     modifier = Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)),
                 )
                 Text("  ${minOf(idx + 1, queue.size)} / ${queue.size}", color = c.muted, fontSize = 14.sp)
+                HelpButton(vm, "repaso", size = 18.dp)
                 IconButton(onClick = { oral = !oral; if (!oral) speaker.stop(); vm.toast = if (oral) "Examen oral: escucha la pregunta y responde hablando." else "Examen oral apagado." }) {
                     Icon(if (oral) Icons.Rounded.Mic else Icons.Rounded.MicOff, "Examen oral", tint = if (oral) c.accent else c.muted)
                 }
@@ -1042,7 +1075,10 @@ fun StudySheet(vm: HiloViewModel, req: StudyRequest, onDismiss: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Estudiar este fragmento", fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = c.ink)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Estudiar este fragmento", fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = c.ink, modifier = Modifier.weight(1f))
+                    HelpButton(vm, "fragmento")
+                }
                 Text(listOf(bookTitle, req.source).filter { it.isNotBlank() }.joinToString(" · "), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
 

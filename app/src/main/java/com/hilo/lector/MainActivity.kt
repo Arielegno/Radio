@@ -195,9 +195,19 @@ fun HiloRoot(vm: HiloViewModel) {
         )
     }
 
-    vm.timer.finished?.let { wasBreak ->
+    // Terminó un bloque empezado con «Solo 2 minutos»: lo más difícil ya pasó
+    if (vm.timer.finished == false && vm.twoMin) {
+        AlertDialog(
+            onDismissRequest = { vm.timer.finished = null; vm.twoMin = false },
+            title = { Text("¡Empezaste! 🎉") },
+            text = { Text("Lo más difícil ya pasó. ¿Sigues 10 minutos más? Si no, también está bien: hoy leíste.") },
+            confirmButton = { TextButton(onClick = { vm.timer.finished = null; vm.twoMin = false; vm.timer.start(10) }) { Text("Sigo 10 min") } },
+            dismissButton = { TextButton(onClick = { vm.timer.finished = null; vm.twoMin = false }) { Text("Basta por ahora") } },
+        )
+    } else vm.timer.finished?.let { wasBreak ->
         val s = vm.settings.value
         val today = Stats.today(ctx)
+        val friendMsg = if (!wasBreak) vm.friendDone else null
         AlertDialog(
             onDismissRequest = { vm.timer.finished = null },
             title = { Text(if (wasBreak) "Se acabó el descanso" else "¡Lo lograste!") },
@@ -216,9 +226,30 @@ fun HiloRoot(vm: HiloViewModel) {
                 }) { Text(if (wasBreak) "Leer ${s.timerMin} min" else "Descanso de 5 min") }
             },
             dismissButton = {
-                TextButton(onClick = { vm.timer.finished = null }) { Text(if (wasBreak) "Ahora no" else "Terminar por hoy") }
+                androidx.compose.foundation.layout.Row {
+                    if (friendMsg != null) TextButton(onClick = {
+                        com.hilo.lector.ui.share(ctx, friendMsg); vm.friendDone = null
+                    }) { Text("Avisar a mi amigo") }
+                    TextButton(onClick = { vm.timer.finished = null }) { Text(if (wasBreak) "Ahora no" else "Terminar por hoy") }
+                }
             },
         )
+    }
+
+    // Ayuda de cada apartado, celebración y sonidos de fondo
+    vm.help?.let { com.hilo.lector.ui.HelpSheet(vm, it) }
+    com.hilo.lector.ui.Celebration(vm)
+    val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            when (e) {
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> com.hilo.lector.ui.NoisePlayer.stop()
+                androidx.lifecycle.Lifecycle.Event.ON_START -> if (vm.noise.isNotEmpty()) com.hilo.lector.ui.NoisePlayer.play(vm.noise, vm.noiseVol)
+                else -> {}
+            }
+        }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
     }
 
     // Barra de «Deshacer» durante unos segundos

@@ -175,6 +175,7 @@ class SelMenu(
     val onParagraph: (() -> Unit)?,
     val onSpeak: (() -> Unit)? = null,
     val onDone: () -> Unit,
+    val onHelp: (() -> Unit)? = null,
 )
 
 /** Menú pequeño que flota junto al texto elegido (arriba si hay lugar; si no, abajo). */
@@ -232,6 +233,7 @@ fun SelectionToolbar(anchor: Rect, menu: SelMenu) {
                     menu.onSpeak?.let { sp -> MoreItem(Icons.Rounded.Style, "Leer en voz alta desde aquí") { sp(); menu.onDone() } }
                     menu.onSentence?.let { f -> MoreItem(Icons.AutoMirrored.Rounded.ShortText, "Elegir toda la oración") { f(); panel = "main" } }
                     menu.onParagraph?.let { f -> MoreItem(Icons.Rounded.Notes, "Elegir todo el párrafo") { f(); panel = "main" } }
+                    menu.onHelp?.let { h -> MoreItem(Icons.AutoMirrored.Rounded.MenuBook, "¿Cómo funciona este menú?") { h(); menu.onDone() } }
                 }
                 else -> Row(Modifier.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     ToolItem(Icons.Rounded.ContentCopy, "Copiar") { copyText(ctx, menu.text); menu.onDone() }

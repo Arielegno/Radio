@@ -356,6 +356,23 @@ fun cardsFromMarks(vm: HiloViewModel, book: Book): Int {
 /** Abre la práctica [mode] a pantalla completa. */
 @Composable
 fun PracticeOverlay(vm: HiloViewModel, book: Book?, a: Analysis?, mode: String, onReview: (List<StudyCard>) -> Unit, onClose: () -> Unit) {
+    Box(Modifier.fillMaxSize()) {
+        PracticeBody(vm, book, a, mode, onReview, onClose)
+        // «?» de esta actividad, arriba a la derecha
+        Box(Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(4.dp)) {
+            HelpButton(vm, when (mode) {
+                "stats", "simulacro" -> "stats"
+                "derecho" -> "ley"
+                "plazo-calc" -> "plazos"
+                "sociologia", "kb-autores" -> "autores"
+                else -> "actividades"
+            }, tint = LocalHilo.current.ink)
+        }
+    }
+}
+
+@Composable
+private fun PracticeBody(vm: HiloViewModel, book: Book?, a: Analysis?, mode: String, onReview: (List<StudyCard>) -> Unit, onClose: () -> Unit) {
     when (mode) {
         "pretest" -> if (book != null && a != null) Pretest(vm, book, a, onClose)
         "guia" -> if (book != null && a != null) GuideQuestions(a, onClose)

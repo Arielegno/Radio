@@ -80,18 +80,19 @@ import com.hilo.lector.Screen
 import java.text.Normalizer
 
 /** Un tema de la guía: para qué sirve, cómo se usa paso a paso y consejos. */
-private class Topic(
+internal class Topic(
     val group: String,
     val icon: ImageVector,
     val title: String,
     val what: String,
     val steps: List<String>,
     val tips: List<String> = emptyList(),
+    val key: String = "",
 )
 
-private val GROUPS = listOf("Empezar", "Leer", "Elegir texto y subrayar", "Estudiar", "Derecho", "Sociología", "Biblioteca", "Ajustes y ayudas")
+internal val GROUPS = listOf("Empezar", "Ayudas TDAH", "Leer", "Elegir texto y subrayar", "Estudiar", "Derecho", "Sociología", "Biblioteca", "Ajustes y ayudas")
 
-private val TOPICS = listOf(
+private val BASE_TOPICS = listOf(
     // ---------------- Empezar ----------------
     Topic(
         "Empezar", Icons.Rounded.TouchApp, "Primeros pasos (léelo primero)",
@@ -486,9 +487,9 @@ fun GuideScreen(vm: HiloViewModel) {
     BackHandler { vm.screen = Screen.Library }
     var query by rememberSaveable { mutableStateOf("") }
     var group by rememberSaveable { mutableStateOf("") }
-    var open by rememberSaveable { mutableStateOf(setOf(TOPICS.first().title)) }
+    var open by rememberSaveable { mutableStateOf(setOf(BASE_TOPICS.first().title)) }
     val q = fold(query.trim())
-    val shown = TOPICS.filter { t ->
+    val shown = ALL_TOPICS.filter { t ->
         (group.isEmpty() || t.group == group) &&
             (q.isEmpty() || fold(t.title + " " + t.what + " " + t.steps.joinToString(" ") + " " + t.tips.joinToString(" ")).contains(q))
     }
@@ -546,7 +547,7 @@ fun GuideScreen(vm: HiloViewModel) {
 }
 
 @Composable
-private fun TopicCard(t: Topic, expanded: Boolean, onToggle: () -> Unit) {
+internal fun TopicCard(t: Topic, expanded: Boolean, onToggle: () -> Unit) {
     val c = LocalHilo.current
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface)
@@ -591,3 +592,7 @@ private fun TopicCard(t: Topic, expanded: Boolean, onToggle: () -> Unit) {
         }
     }
 }
+
+
+/** Todos los temas, ordenados por sección. */
+internal val ALL_TOPICS: List<Topic> by lazy { (BASE_TOPICS + EXTRA_TOPICS).sortedBy { GROUPS.indexOf(it.group).let { i -> if (i < 0) 99 else i } } }

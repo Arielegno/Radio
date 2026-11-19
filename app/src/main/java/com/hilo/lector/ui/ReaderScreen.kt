@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
 import androidx.compose.foundation.layout.union
 import androidx.compose.ui.zIndex
+import androidx.compose.material.icons.rounded.Psychology
 import android.provider.Settings
 import android.view.WindowManager
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -177,6 +178,16 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
     var goTo by remember { mutableStateOf(false) }
     var brightnessHint by remember { mutableStateOf<Int?>(null) }
     var studyReq by remember { mutableStateOf<StudyRequest?>(null) }
+    // Ayudas TDAH
+    var adhd by remember { mutableStateOf(false) }
+    var notebook by remember { mutableStateOf(false) }
+    var recap by remember { mutableStateOf<Triple<String, List<String>, List<String>>?>(null) }
+    var recapFrom by remember { mutableStateOf(-1) }
+    var check by remember { mutableStateOf<List<String>?>(null) }
+    var checkFrom by remember { mutableStateOf(-1) }
+    var hyper by remember { mutableStateOf(0) }
+    var hyperSnooze by remember { mutableStateOf(0) }
+    val lastSeen = remember(bookId) { book.updated }
     val bridge = remember { ReaderBridge() }
     val scope = rememberCoroutineScope()
     val compact = LocalConfiguration.current.screenHeightDp < 500
@@ -202,6 +213,96 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
         }
     }
     LaunchedEffect(flow) { speaker.stop() }
+    // La palabra que dice la voz se marca en el texto
+    LaunchedEffect(speaker, flow, s.ttsHighlight) {
+        snapshotFlow { speaker.word }.collect { vm.ttsWord = if (flow && s.ttsHighlight) it else null }
+    }
+    DisposableEffect(Unit) { onDispose { vm.ttsWord = null; vm.autoScroll = 0 } }
+    // Plan según energía: «escuchar el libro» empieza a leer solo
+    LaunchedEffect(bookId) {
+        if (vm.pendingSpeak) { kotlinx.coroutines.delay(1500); vm.pendingSpeak = false; speakFrom(null) }
+    }
+
+    // «¿Dónde me quedé?»: ideas de lo último leído y tus subrayados de esa parte
+    fun showRecap(auto: Boolean) {
+        scope.launch {
+            val n = if (bridge.unit == "Pág.") 2 else 10
+            val texts = bridge.textBefore?.invoke(n).orEmpty().filter { it.isNotBlank() }
+            if (texts.isEmpty()) { if (!auto) vm.toast = "Todavía no hay texto leído para resumir."; return@launch }
+            val pos = bridge.position
+            val marks = if (flow) vm.study.marks.filter { it.bookId == book.id && it.para in (pos - n)..pos }.map { it.text }
+            else annots?.strokes?.filter { it.highlight && it.page in (pos - n)..pos && it.text.isNotBlank() }?.map { it.text }.orEmpty()
+            recap = Triple(agoText(if (auto) lastSeen else book.updated), Adhd.keySentences(texts, 3), marks.distinct())
+            recapFrom = (pos - n).coerceAtLeast(0)
+        }
+    }
+    LaunchedEffect(bookId, flow) {
+        kotlinx.coroutines.delay(1600)
+        if (lastSeen > 0 && System.currentTimeMillis() - lastSeen > 4 * 3_600_000L && book.progress > 0.01f) showRecap(auto = true)
+    }
+
+    // Preguntas de control cada cierto tramo
+    LaunchedEffect(bookId, flow, s.checkEvery) {
+        if (s.checkEvery <= 0) return@LaunchedEffect
+        kotlinx.coroutines.delay(1500)
+        var from = bridge.position
+        snapshotFlow { bridge.position }.collect { p ->
+            val step = if (bridge.unit == "Pág.") s.checkEvery else s.checkEvery * 6
+            if (p < from) from = p
+            if (p - from >= step && check == null && recap == null) {
+                val texts = bridge.textBefore?.invoke(p - from).orEmpty().filter { it.isNotBlank() }
+                if (texts.isNotEmpty()) { check = Adhd.keySentences(texts, 2); checkFrom = from }
+                from = p
+            }
+        }
+    }
+
+    // Minutos leídos, meta del día, velocidad y aviso de pausa
+    LaunchedEffect(bookId) {
+        var lastMove = System.currentTimeMillis()
+        var lastPos = bridge.position
+        var cont = 0
+        launch { snapshotFlow { bridge.position }.collect { lastMove = System.currentTimeMillis() } }
+        while (true) {
+            kotlinx.coroutines.delay(60_000)
+            val now = System.currentTimeMillis()
+            val reading = now - lastMove < 180_000 || speaker.speaking || vm.autoScroll > 0
+            if (reading) {
+                val before = Adhd.minutes(vm)
+                val n = Adhd.addMinute(vm)
+                val goal = vm.settings.value.goalMin
+                if (before < goal && n >= goal) vm.celebrate = "🎉 ¡Meta de hoy cumplida! $n minutos"
+                Adhd.learnSpeed(vm, book.id, bridge.unit, bridge.position - lastPos)
+                cont++
+                val hm = vm.settings.value.hyperMin
+                if (hm > 0 && cont >= hm + hyperSnooze && hyper == 0) hyper = cont
+            } else if (now - lastMove > 600_000) { cont = 0; hyperSnooze = 0 }
+            lastPos = bridge.position
+        }
+    }
+
+    // Desplazamiento automático (teleprompter)
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    LaunchedEffect(vm.autoScroll, flow) {
+        val lvl = vm.autoScroll
+        if (lvl <= 0) return@LaunchedEffect
+        val by = bridge.scrollBy
+        if (by != null) {
+            val pxPerSec = lvl * 9f * density.density
+            var last = 0L
+            while (true) {
+                val t = androidx.compose.runtime.withFrameNanos { it }
+                if (last != 0L) by(pxPerSec * (t - last) / 1e9f)
+                last = t
+            }
+        } else {
+            while (true) {
+                kotlinx.coroutines.delay(60_000L / lvl)
+                if (bridge.position >= bridge.total - 1) { vm.autoScroll = 0; break }
+                bridge.seek?.invoke(bridge.position + 1)
+            }
+        }
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
         if (uri != null && annots != null) vm.exportPdf(book, annots.strokes.toList(), annots.notes.toList(), uri)
@@ -292,6 +393,7 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
                             if (w.isEmpty()) vm.toast = "No encontré texto en esta parte." else rsvp = w
                         }
                     },
+                    onAdhd = { adhd = true },
                 )
             }
 
@@ -360,6 +462,31 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
                         modifier = Modifier.align(Alignment.Center).clip(RoundedCornerShape(12.dp))
                             .background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 16.dp, vertical = 10.dp),
                     )
+                }
+
+                // Temporizador visual: el círculo que se vacía
+                if (vm.timer.running && s.visualTimer && !chrome) {
+                    VisualTimer(vm.timer, 30.dp, Modifier.align(Alignment.TopEnd).padding(top = 10.dp, end = 12.dp))
+                }
+                // Libreta de distracciones, a mano mientras están los menús
+                if (chrome && !annotating && book.type != "comic") {
+                    Box(
+                        Modifier.align(Alignment.BottomStart).padding(start = 14.dp, bottom = 132.dp).size(46.dp).clip(CircleShape)
+                            .background(c.surface).border(1.dp, c.line, CircleShape).clickable { notebook = true },
+                        contentAlignment = Alignment.Center,
+                    ) { Text("💭", fontSize = 20.sp) }
+                }
+                if (vm.autoScroll > 0) {
+                    AutoScrollBar(vm, Modifier.align(Alignment.BottomCenter).padding(bottom = if (chrome) 132.dp else 24.dp))
+                }
+                Box(Modifier.align(Alignment.TopCenter).padding(top = if (chrome) 110.dp else 24.dp).zIndex(3f)) {
+                    when {
+                        recap != null -> recap?.let { (ago, ideas, marks) ->
+                            RecapCard(vm, ago, ideas, marks, onBack = { val f = recapFrom; recap = null; scope.launch { bridge.seek?.invoke(f) } }, onClose = { recap = null })
+                        }
+                        check != null -> CheckCard(vm, book.id, check.orEmpty(), onReread = { val f = checkFrom; check = null; scope.launch { bridge.seek?.invoke(f) } }, onClose = { check = null })
+                        hyper > 0 -> HyperCard(vm, hyper, onSnooze = { hyperSnooze += 30; hyper = 0 }, onClose = { hyper = 0 })
+                    }
                 }
 
                 if (s.ruler && tool == Tool.NONE) {
@@ -446,6 +573,14 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
     }
 
     studyReq?.let { r -> StudySheet(vm, r) { studyReq = null } }
+    if (adhd) AdhdSheet(
+        vm, book, bridge, flow = flow || !isPdf, speaking = speaker.speaking,
+        onSpeak = { if (speaker.speaking) speaker.stop() else speakFrom(null) },
+        onRecap = { showRecap(auto = false) },
+        onNotebook = { notebook = true },
+        onDismiss = { adhd = false },
+    )
+    if (notebook) NotebookDialog(vm, book.id) { notebook = false }
 
     rsvp?.let { words ->
         RsvpOverlay(words, s, onSpeed = { v -> vm.settings.update { it.copy(wpm = v) } }, onClose = { rsvp = null })
@@ -715,6 +850,7 @@ private fun TopBars(
     onFlow: (Boolean) -> Unit,
     onAnnotate: () -> Unit,
     onRsvp: () -> Unit,
+    onAdhd: () -> Unit,
 ) {
     val c = LocalHilo.current
     val s by vm.settings.state.collectAsStateWithLifecycle()
@@ -728,6 +864,7 @@ private fun TopBars(
                 if (due > 0) Box(Modifier.align(Alignment.TopEnd).size(8.dp).clip(CircleShape).background(c.lines[0]))
             }
         }
+        if (book.type != "comic") IconButton(onClick = onAdhd) { Icon(Icons.Rounded.Psychology, "Ayudas para concentrarte", tint = c.ink) }
         IconButton(onClick = { vm.sheet = "settings" }) { Icon(Icons.Rounded.TextFields, "Ajustes de lectura", tint = c.ink) }
         if (isPdf && !flow) {
             IconButton(onClick = onAnnotate) {
@@ -748,6 +885,7 @@ private fun TopBars(
             if (!s.ruler) vm.toast = "Toca una línea para enfocarla, o usa las flechas."
         }
         if (isPdf) ModeToggle(flow, onFlow)
+        HelpButton(vm, "ayudas-lectura", size = 18.dp)
     }
 
     Column(

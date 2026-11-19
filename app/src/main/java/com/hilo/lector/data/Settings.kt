@@ -41,7 +41,14 @@ data class ReaderSettings(
     val indent: Boolean = true,    // sangría al empezar cada párrafo, como en un libro
     val pdfCrop: Boolean = true,   // recortar los márgenes blancos del PDF
     val libraryView: Int = 0,      // 0 lista (como ReadEra), 1 cuadrícula de portadas
-    val hiddenTypes: Set<String> = emptySet(),   // formatos que no se muestran en la biblioteca (pdf, html…)
+    val hiddenTypes: Set<String> = emptySet(),
+    // Ayudas TDAH
+    val goalMin: Int = 15,          // meta de lectura diaria, en minutos
+    val paraFocus: Boolean = false, // foco de un párrafo (modo Texto)
+    val checkEvery: Int = 0,        // pregunta de control cada N páginas (0 apagado)
+    val hyperMin: Int = 90,         // aviso de pausa tras N minutos seguidos (0 apagado)
+    val visualTimer: Boolean = true,
+    val ttsHighlight: Boolean = true,   // formatos que no se muestran en la biblioteca (pdf, html…)
     val focus: Boolean = false,    // modo enfoque: pantalla completa, sin porcentajes y con «No molestar»
     val haptics: Boolean = true,   // vibración suave al pasar página y al responder tarjetas
     val simple: Boolean = false,   // modo simple: oculta las herramientas avanzadas de estudio
@@ -64,7 +71,7 @@ class SettingsStore(ctx: Context) {
         save(n)
     }
 
-    fun reset() = update { ReaderSettings(theme = it.theme, colorMode = it.colorMode, pageMode = it.pageMode, libraryView = it.libraryView, hiddenTypes = it.hiddenTypes, profile = it.profile, simple = it.simple) }
+    fun reset() = update { ReaderSettings(theme = it.theme, colorMode = it.colorMode, pageMode = it.pageMode, libraryView = it.libraryView, hiddenTypes = it.hiddenTypes, goalMin = it.goalMin, profile = it.profile, simple = it.simple) }
 
     private fun load(): ReaderSettings {
         val d = ReaderSettings()
@@ -102,6 +109,12 @@ class SettingsStore(ctx: Context) {
             pdfCrop = sp.getBoolean("pdfCrop", d.pdfCrop),
             libraryView = sp.getInt("libraryView", d.libraryView),
             hiddenTypes = sp.getString("hiddenTypes", "").orEmpty().split(',').filter { it.isNotBlank() }.toSet(),
+            goalMin = sp.getInt("goalMin", d.goalMin),
+            paraFocus = sp.getBoolean("paraFocus", d.paraFocus),
+            checkEvery = sp.getInt("checkEvery", d.checkEvery),
+            hyperMin = sp.getInt("hyperMin", d.hyperMin),
+            visualTimer = sp.getBoolean("visualTimer", d.visualTimer),
+            ttsHighlight = sp.getBoolean("ttsHighlight", d.ttsHighlight),
             focus = sp.getBoolean("focus", d.focus),
             haptics = sp.getBoolean("haptics", d.haptics),
             simple = sp.getBoolean("simple", d.simple),
@@ -151,6 +164,12 @@ class SettingsStore(ctx: Context) {
             .putBoolean("pdfCrop", s.pdfCrop)
             .putInt("libraryView", s.libraryView)
             .putString("hiddenTypes", s.hiddenTypes.joinToString(","))
+            .putInt("goalMin", s.goalMin)
+            .putBoolean("paraFocus", s.paraFocus)
+            .putInt("checkEvery", s.checkEvery)
+            .putInt("hyperMin", s.hyperMin)
+            .putBoolean("visualTimer", s.visualTimer)
+            .putBoolean("ttsHighlight", s.ttsHighlight)
             .putBoolean("focus", s.focus)
             .putBoolean("haptics", s.haptics)
             .putBoolean("simple", s.simple)

@@ -54,7 +54,7 @@ private val PROFILES = listOf(
 )
 
 fun applyProfile(s: ReaderSettings, p: String): ReaderSettings = when (p) {
-    "tdah" -> s.copy(profile = p, colors = true, intensity = 0.85f, lineHeight = 1.35f, align = 1, indent = true, paraSpacing = 0.15f, timerMin = 15, font = 0, fontSize = 18f, weight = 400)
+    "tdah" -> s.copy(profile = p, colors = true, intensity = 0.85f, lineHeight = 1.35f, align = 1, indent = true, paraSpacing = 0.15f, timerMin = 15, font = 0, fontSize = 18f, weight = 400, checkEvery = 5, goalMin = 15, hyperMin = 90)
     "dislexia" -> s.copy(profile = p, font = 6, fontSize = 20f, lineHeight = 1.7f, align = 0, indent = false, paraSpacing = 0.7f, colors = true, intensity = 0.6f, weight = 400, margin = 22)
     "vision" -> s.copy(profile = p, fontSize = 26f, weight = 550, lineHeight = 1.5f, colorMode = 2, lastNightMode = 2, margin = 14, align = 0, indent = false)
     "estudio" -> s.copy(profile = p, simple = false, colors = true)

@@ -148,6 +148,43 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
     /** La copia se restauró: hay que reiniciar Hilo. */
     var restored by mutableStateOf(false)
 
+    // ---------- Ayudas TDAH ----------
+    /** Tema de ayuda abierto con el botón «?». */
+    var help by mutableStateOf<String?>(null)
+    /** Palabra que dice la voz ahora: (párrafo, caracteres), para marcarla en el texto. */
+    var ttsWord by mutableStateOf<Pair<Int, IntRange>?>(null)
+    /** Desplazamiento automático: 0 apagado, 1 a 10 velocidad. */
+    var autoScroll by mutableStateOf(0)
+    /** Se empezó con «Solo 2 minutos». */
+    var twoMin by mutableStateOf(false)
+    /** Sesión con un amigo: mensaje para avisarle al terminar. */
+    var friendDone by mutableStateOf<String?>(null)
+    /** Empezar a leer en voz alta apenas se abra el libro (plan según energía). */
+    var pendingSpeak by mutableStateOf(false)
+    /** Sonido de fondo que está sonando ("" ninguno). */
+    var noise by mutableStateOf("")
+    var noiseVol by mutableStateOf(0.35f)
+    /** Celebración en pantalla (meta cumplida). */
+    var celebrate by mutableStateOf<String?>(null)
+
+    /** Empieza el temporizador dentro de [waitMin] minutos (sesión con un amigo). */
+    fun startLater(waitMin: Int, min: Int) {
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(waitMin * 60_000L)
+            timer.start(min)
+            toast = "¡A leer! Tu amigo también empieza ahora."
+        }
+    }
+
+    /** Abre el último libro con un temporizador corto. */
+    fun startSmall(min: Int, speak: Boolean = false) {
+        val b = repo.books.value.filter { !it.trashed }.maxByOrNull { it.updated } ?: run { toast = "Primero agrega un libro."; return }
+        twoMin = min <= 2
+        pendingSpeak = speak
+        open(b)
+        timer.start(min)
+    }
+
     fun backup(uri: Uri, withBooks: Boolean) {
         viewModelScope.launch {
             busy = "Guardando la copia de seguridad…"

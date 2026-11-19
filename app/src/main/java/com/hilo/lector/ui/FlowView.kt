@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -57,6 +58,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -176,6 +178,7 @@ fun FlowParagraph(
     gap: Boolean = true,
     selection: IntRange? = null,
     onPlaced: ((androidx.compose.ui.layout.LayoutCoordinates, TextLayoutResult) -> Unit)? = null,
+    spoken: IntRange? = null,
 ) {
     val heading = text.startsWith("# ")
     val longPress by rememberUpdatedState(onLongPress)
@@ -198,6 +201,13 @@ fun FlowParagraph(
             )
             .drawBehind {
                 val l = layout
+                // La palabra que está diciendo la voz (como un karaoke)
+                if (l != null && spoken != null) {
+                    val n = l.layoutInput.text.length
+                    val a = spoken.first.coerceIn(0, n)
+                    val b = (spoken.last + 1).coerceIn(a, n)
+                    if (b > a) drawPath(l.getPathForRange(a, b), Color(0xFFFFB300).copy(alpha = if (mode.dark) 0.55f else 0.45f))
+                }
                 // Texto elegido con las manijas
                 if (l != null && selection != null) {
                     val n = l.layoutInput.text.length
@@ -459,6 +469,7 @@ private fun FlowSelectionOverlay(
             },
             onParagraph = { fsel.sel = TextSel(sel.para, lo, hi) },
             onDone = { fsel.sel = null },
+            onHelp = { vm.help = "menu-sel" },
         ),
     )
 }
@@ -498,6 +509,8 @@ private fun ScrollFlow(
     LaunchedEffect(s.ruler) {
         if (s.ruler && ruler == null) ruler = listState.firstVisibleItemIndex.coerceAtMost(list.size - 1) to 0
     }
+    var focusPara by remember(book.id) { mutableIntStateOf(-1) }
+    LaunchedEffect(s.paraFocus) { if (s.paraFocus) focusPara = (listState.firstVisibleItemIndex + if (listState.firstVisibleItemScrollOffset > 40) 1 else 0).coerceAtMost(list.size - 1) }
 
     suspend fun ensureVisible(p: Int, l: Int) {
         var item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == p }
@@ -534,6 +547,17 @@ private fun ScrollFlow(
     fun tapAt(frac: Float) {
         if (fsel.consumeTap()) return
         val vp = listState.layoutInfo.viewportSize.height.toFloat()
+        // Foco de un párrafo: el centro avanza, el borde izquierdo vuelve y el derecho muestra los menús
+        if (s.paraFocus) {
+            when {
+                frac > 0.72f -> onTapPlain()
+                else -> {
+                    focusPara = (focusPara + if (frac < 0.28f) -1 else 1).coerceIn(0, list.size - 1)
+                    scope.launch { listState.animateScrollToItem(focusPara, -(vp * 0.22f).toInt()) }
+                }
+            }
+            return
+        }
         when {
             s.tapTurn && frac < 0.28f -> scope.launch { listState.animateScrollBy(-vp * 0.85f) }
             s.tapTurn && frac > 0.72f -> scope.launch { listState.animateScrollBy(vp * 0.85f) }
@@ -565,6 +589,15 @@ private fun ScrollFlow(
             val start = ruler?.first ?: listState.firstVisibleItemIndex
             TextTools.words(list.drop(start).take(400))
         }
+        bridge.textBefore = { n ->
+            val p = listState.firstVisibleItemIndex
+            (maxOf(0, p - n)..minOf(p, list.size - 1)).map { list[it].removePrefix("# ") }
+        }
+        bridge.scrollBy = { px -> listState.scrollBy(px) }
+        bridge.chapterEnd = {
+            val p = listState.firstVisibleItemIndex
+            ((p + 1) until list.size).firstOrNull { list[it].startsWith("# ") }
+        }
     }
 
     Box(Modifier.fillMaxSize().background(mode.paper), contentAlignment = Alignment.TopCenter) {
@@ -586,6 +619,8 @@ private fun ScrollFlow(
                     onLongPress = { off -> study(i, off) },
                     selection = fsel.sel?.takeIf { it.para == i }?.let { it.start..it.end },
                     onPlaced = { co, l -> fsel.place(i, co, l) },
+                    spoken = vm.ttsWord?.takeIf { it.first == i }?.second,
+                    modifier = if (s.paraFocus && focusPara >= 0 && i != focusPara) Modifier.alpha(0.16f) else Modifier,
                 )
             }
             item {
@@ -680,6 +715,7 @@ private fun PagedFlow(
     val layouts = remember(book.id) { HashMap<Int, TextLayoutResult>() }
     var ruler by remember(book.id) { mutableStateOf<PagedRuler?>(null) }
     var curPara by remember(book.id) { mutableIntStateOf(book.flowPos.coerceIn(0, list.size - 1)) }
+    var pFocus by remember(book.id) { mutableIntStateOf(-1) }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(mode.paper)) {
         // Con el celular acostado y «Dos páginas», se ven dos columnas como un libro abierto
@@ -773,6 +809,17 @@ private fun PagedFlow(
 
         fun tapAt(frac: Float) {
             if (fsel.consumeTap()) return
+            if (s.paraFocus) {
+                if (frac > 0.72f) { onTapPlain(); return }
+                val onPage = (curPage() until curPage() + per).flatMap { pg -> pag.pages.getOrNull(pg).orEmpty().map { it.para } }.distinct()
+                val next = (pFocus + if (frac < 0.28f) -1 else 1).coerceIn(0, list.size - 1)
+                pFocus = next
+                if (onPage.isNotEmpty() && next !in onPage) scope.launch {
+                    val target = pag.pages.indexOfFirst { pg -> pg.any { it.para == next } }
+                    if (target >= 0) pagerState.animateScrollToPage(target / per)
+                }
+                return
+            }
             when {
                 s.tapTurn && frac < 0.28f -> scope.launch { pagerState.animateScrollToPage((pagerState.currentPage - 1).coerceAtLeast(0)) }
                 s.tapTurn && frac > 0.72f -> scope.launch {
@@ -783,6 +830,7 @@ private fun PagedFlow(
             }
         }
 
+        LaunchedEffect(s.paraFocus) { if (s.paraFocus) pFocus = pag.pages.getOrNull(curPage())?.firstOrNull { it.start == 0 }?.para ?: pag.pages.getOrNull(curPage())?.firstOrNull()?.para ?: 0 }
         val cur = pagerState.currentPage
         SideEffect {
             bridge.position = cur
@@ -804,6 +852,16 @@ private fun PagedFlow(
             bridge.words = {
                 val start = pag.pages.getOrNull(curPage())?.firstOrNull()?.para ?: curPara
                 TextTools.words(list.drop(start).take(400))
+            }
+            bridge.textBefore = { n ->
+                val cp = curPage()
+                ((cp - n).coerceAtLeast(0)..cp).flatMap { pg -> pag.pages.getOrNull(pg).orEmpty().map { it.para } }.distinct()
+                    .mapNotNull { list.getOrNull(it)?.removePrefix("# ") }
+            }
+            bridge.scrollBy = null
+            bridge.chapterEnd = {
+                val cp = pagerState.currentPage
+                ((cp + 1) until spreads).firstOrNull { sp -> pag.pages.getOrNull(sp * per)?.any { ch -> ch.start == 0 && list.getOrNull(ch.para)?.startsWith("# ") == true } == true }
             }
         }
 
@@ -836,10 +894,12 @@ private fun PagedFlow(
                             marks = marksFor(ch.para, 0, raw.length + 1),
                             onLongPress = { off -> study(ch.para, off) },
                             selection = fsel.sel?.takeIf { it.para == ch.para }?.let { it.start..it.end },
+                            spoken = vm.ttsWord?.takeIf { it.first == ch.para }?.second,
                             onPlaced = { co, l -> if (pi / per == pagerState.currentPage) fsel.place(ch.para, co, l, ch.start..ch.end) },
                             gap = false,
                             modifier = Modifier.wrapContentHeight(Alignment.Top, unbounded = true)
-                                .offset { androidx.compose.ui.unit.IntOffset(0, -ch.top.roundToInt()) },
+                                .offset { androidx.compose.ui.unit.IntOffset(0, -ch.top.roundToInt()) }
+                                .then(if (s.paraFocus && pFocus >= 0 && ch.para != pFocus) Modifier.alpha(0.16f) else Modifier),
                         )
                     }
                     if (ch.endsPara && k < chunks.size - 1) Spacer(Modifier.height(paraGap(heading, s)))

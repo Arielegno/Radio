@@ -191,7 +191,7 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
                 )
             }
 
-            SectionTitle("Página")
+            SectionTitle("Página", vm, "paginas")
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Label("Modo de color", mode.name)
                 ModeSwatches(s.colorMode) { i ->
@@ -238,7 +238,7 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
                 }
             }
 
-            SectionTitle("Letra")
+            SectionTitle("Letra", vm, "letra")
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Label("Tipo de letra", Fonts.notes.getOrElse(s.font) { "" })
                 FontPicker(s.font) { i -> vm.settings.update { it.copy(font = i) } }
@@ -262,7 +262,7 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
                 vm.settings.update { it.copy(paraSpacing = (v * 20).roundToInt() / 20f) }
             }
 
-            SectionTitle("Ayudas para no perder el hilo")
+            SectionTitle("Ayudas para no perder el hilo", vm, "ayudas-lectura")
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Label("Colores de línea")
                 ChoiceRow(listOf("Arcoíris", "Frío", "Cálido"), s.palette) { i -> vm.settings.update { it.copy(palette = i) } }
@@ -275,7 +275,7 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             if (!showAll) {
                 OutlinedButton(onClick = { showAll = true }, modifier = Modifier.fillMaxWidth()) { Text("Más ajustes (PDF, biblioteca, toques, voz…)", color = c.ink) }
             } else {
-            SectionTitle("PDF")
+            SectionTitle("PDF", vm, "modo")
             SwitchRow("Recortar márgenes", "Quita el borde blanco de la página para que la letra se vea más grande. El fondo toma el color del papel.", s.pdfCrop) { on ->
                 vm.settings.update { it.copy(pdfCrop = on) }
             }
@@ -285,7 +285,7 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             SliderRow("Palabra a palabra", "${s.wpm} ppm", s.wpm.toFloat(), 120f..600f, 23) { v ->
                 vm.settings.update { it.copy(wpm = (v / 20).roundToInt() * 20) }
             }
-            SectionTitle("Biblioteca y menús")
+            SectionTitle("Biblioteca y menús", vm, "filtros")
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Label("Vista de la biblioteca")
                 ChoiceRow(listOf("Lista", "Portadas"), s.libraryView) { i -> vm.settings.update { it.copy(libraryView = i) } }
@@ -314,7 +314,7 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             SwitchRow("Mantener pantalla encendida", "Mientras estás leyendo.", s.keepOn) { on ->
                 vm.settings.update { it.copy(keepOn = on) }
             }
-            SectionTitle("Toques y pantalla")
+            SectionTitle("Toques y pantalla", vm, "simple")
             val ctx = androidx.compose.ui.platform.LocalContext.current
             SwitchRow("Modo enfoque", "Pantalla completa, sin porcentajes y con «No molestar» mientras lees.", s.focus) { on ->
                 vm.settings.update { it.copy(focus = on) }
@@ -360,11 +360,14 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun SectionTitle(text: String) {
+fun SectionTitle(text: String, vm: HiloViewModel? = null, help: String? = null) {
     val c = LocalHilo.current
     Column(Modifier.fillMaxWidth().padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
-        Text(text, color = c.accent, fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(text, color = c.accent, fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+            if (vm != null && help != null) HelpButton(vm, help, size = 18.dp)
+        }
     }
 }
 
@@ -405,7 +408,12 @@ fun TimerSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("Temporizador", style = MaterialTheme.typography.titleLarge, color = c.ink)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Temporizador", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f))
+                HelpButton(vm, "timer-visual")
+            }
+            // El tiempo se ve: un círculo que se vacía
+            if (t.running) VisualTimer(t, 120.dp, Modifier.align(Alignment.CenterHorizontally))
             if (!t.running) {
                 Text("Lee en un bloque corto. Cuando suene, descansa 5 minutos y vuelve.", color = c.muted, fontFamily = Fonts.inter)
                 ChoiceRow(opts.map { "$it min" }, opts.indexOf(s.timerMin)) { i -> vm.settings.update { it.copy(timerMin = opts[i]) } }

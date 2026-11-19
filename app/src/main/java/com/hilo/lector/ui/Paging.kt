@@ -41,6 +41,13 @@ class ReaderBridge {
     /** Lectura en voz alta: bloques de texto desde la posición actual o después de [after]. */
     var speakFrom: (suspend (after: Int?) -> List<Pair<Int, String>>)? = null
     var follow: (suspend (Int) -> Unit)? = null
+
+    /** Texto de las [n] unidades anteriores a la posición (para «¿Dónde me quedé?» y las preguntas de control). */
+    var textBefore: (suspend (n: Int) -> List<String>)? = null
+    /** Desplazar unos píxeles (solo en modo vertical; null si se pasa por páginas). */
+    var scrollBy: (suspend (Float) -> Unit)? = null
+    /** Dónde termina el capítulo actual (en las mismas unidades), si se sabe. */
+    var chapterEnd: (() -> Int?)? = null
 }
 
 /**
@@ -77,6 +84,10 @@ class Speaker(ctx: Context) : TextToSpeech.OnInitListener {
     private var onItem: ((Int) -> Unit)? = null
     private var onEnd: (() -> Unit)? = null
     private var lastId = ""
+    /** Palabra que se está diciendo: (bloque, caracteres dentro del bloque). */
+    var word by mutableStateOf<Pair<Int, IntRange>?>(null)
+        private set
+    private val base = java.util.concurrent.ConcurrentHashMap<String, Pair<Int, Int>>()
 
     override fun onInit(status: Int) {
         ready = status == TextToSpeech.SUCCESS
@@ -89,8 +100,13 @@ class Speaker(ctx: Context) : TextToSpeech.OnInitListener {
                 main.post { onItem?.invoke(p) }
             }
 
+            override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                val b = base[utteranceId ?: return] ?: return
+                main.post { if (speaking) word = b.first to ((b.second + start) until (b.second + end)) }
+            }
+
             override fun onDone(utteranceId: String?) {
-                if (utteranceId == lastId) main.post { speaking = false; onEnd?.invoke() }
+                if (utteranceId == lastId) main.post { speaking = false; word = null; onEnd?.invoke() }
             }
 
             @Deprecated("Deprecated in Java")
@@ -110,9 +126,15 @@ class Speaker(ctx: Context) : TextToSpeech.OnInitListener {
         this.onEnd = onEnd
         tts.setSpeechRate(rate)
         var first = true
+        base.clear()
         for ((pos, text) in items) {
+            var from = 0
             chunks(text).forEachIndexed { k, part ->
                 val id = "$pos:$k"
+                // Dónde empieza este trozo dentro del bloque, para marcar la palabra exacta
+                val at = if (part == text) 0 else text.indexOf(part.trim().take(40), from).let { if (it < 0) from else it }
+                base[id] = pos to at
+                from = at + part.trim().length
                 tts.speak(part, if (first) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, id)
                 first = false
                 lastId = id
@@ -142,6 +164,7 @@ class Speaker(ctx: Context) : TextToSpeech.OnInitListener {
         onItem = null
         tts.stop()
         speaking = false
+        word = null
     }
 
     fun shutdown() {

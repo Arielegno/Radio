@@ -336,6 +336,7 @@ fun LibraryScreen(vm: HiloViewModel) {
                     IconButton(onClick = { showFilters = !showFilters }) {
                         Icon(Icons.Rounded.FilterList, "Filtros", tint = if (filters.isNotEmpty()) c.accent else c.ink)
                     }
+                    HelpButton(vm, "primeros", tint = c.ink)
                     val t = vm.timer
                     IconButton(onClick = { vm.sheet = "timer" }) {
                         if (t.running) Text(formatClock(t.remaining), color = c.accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -386,6 +387,7 @@ fun LibraryScreen(vm: HiloViewModel) {
                                 }
                             }
                         }
+                        if (section.kind == "all" && q.isEmpty() && books.any { !it.trashed }) StreakCard(vm)
                         if (current != null) ContinueCard(vm, current)
                         if (dueToday > 0 && section.kind == "all" && q.isEmpty()) {
                             Row(
@@ -799,7 +801,9 @@ private fun FilterBar(vm: HiloViewModel, books: List<Book>, filters: List<String
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Filtros", color = c.ink, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Text("Filtros", color = c.ink, fontWeight = FontWeight.Bold)
+            HelpButton(vm, "filtros", size = 16.dp)
+            Spacer(Modifier.weight(1f))
             if (filters.isNotEmpty()) TextButton(onClick = { onChange(emptyList()) }) { Text("Quitar filtros") }
         }
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1076,6 +1080,12 @@ private fun ContinueCard(vm: HiloViewModel, b: Book) {
             LinearProgressIndicator(
                 progress = { b.progress }, color = c.accent, trackColor = c.chip,
                 modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)),
+            )
+            // Para los días en que cuesta empezar
+            Text(
+                "▶ Solo 2 min", color = c.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(c.band)
+                    .clickable { vm.twoMin = true; vm.open(b); vm.timer.start(2) }.padding(horizontal = 12.dp, vertical = 5.dp),
             )
         }
         Box(Modifier.size(44.dp).clip(CircleShape).background(c.accent), contentAlignment = Alignment.Center) {

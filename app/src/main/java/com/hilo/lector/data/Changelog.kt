@@ -6,6 +6,18 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            24, "2.2", "19 nov 2026", "Todas las palabras",
+            added = listOf(
+                "Palabras: ahora están TODAS las palabras del documento en una lista con buscador, también las comunes (de, la, que…).",
+                "Toca el ojo de una palabra para ponerla o sacarla de las burbujas. Las fijadas quedan siempre, con borde blanco.",
+                "Elige cuántas burbujas ver (25, 45 u 80) y activa «Comunes» para incluir artículos y conectores.",
+                "«¿Cómo elige Hilo las palabras?»: la explicación de qué cuenta y qué deja aparte.",
+                "Al tocar una palabra: En contexto (cada aparición con lo que va antes y después), Va junto a… (palabras que salen en la misma oración), En el libro (dónde se concentra, del inicio al final) y Dónde aparece.",
+                "Unir con…: junta variantes (trabajo, trabajador, laboral) para que cuenten como una sola.",
+                "Exportar la lista de palabras con sus veces y porcentaje (para Excel o tus trabajos).",
+            ),
+        ),
+        Version(
             23, "2.1.1", "19 nov 2026", "Elige qué formatos ver",
             added = listOf(
                 "Ajustes → Formatos que se ven: oculta de la biblioteca los formatos que no quieres (por ejemplo HTML). No se borra nada; vuelven al tocarlos otra vez.",

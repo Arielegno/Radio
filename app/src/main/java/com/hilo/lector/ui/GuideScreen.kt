@@ -298,6 +298,20 @@ private val TOPICS = listOf(
         ),
     ),
     Topic(
+        "Estudiar", Icons.Rounded.Insights, "Burbujas de palabras",
+        "Las palabras que más se repiten, como burbujas: cuanto más grande, más veces aparece. Sirve para ver de un vistazo de qué trata un texto.",
+        listOf(
+            "Sala de estudio → Palabras.",
+            "Hilo cuenta todas las palabras, junta singular y plural, y deja aparte las comunes (el, la, de, que, ser, haber…) porque no dicen de qué trata el texto.",
+            "Arriba eliges cuántas burbujas ver (25, 45 u 80). «Comunes» las incluye.",
+            "Abajo está la lista de TODAS las palabras con su número. El ojo encendido = está en las burbujas; tócalo para ponerla o sacarla.",
+            "Toca una burbuja: «En contexto» muestra cada aparición con lo que va antes y después; «Va junto a…» las palabras de la misma oración; «En el libro» dónde se concentra.",
+            "«Unir con…» junta variantes (trabajo, trabajador) para que cuenten como una sola. «Ocultar» la saca de las burbujas.",
+            "«Exportar» comparte la lista con veces y porcentaje para usarla en Excel o en tu trabajo.",
+        ),
+        listOf("Para análisis de entrevistas o documentos: une las variantes, oculta lo que no es concepto y mira «En contexto» antes de interpretar una palabra."),
+    ),
+    Topic(
         "Estudiar", Icons.Rounded.Psychology, "Más herramientas de estudio",
         "Cada pestaña de la sala de estudio sirve para algo distinto.",
         listOf(

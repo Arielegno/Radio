@@ -273,8 +273,25 @@ frames palabras
 adb shell input swipe 540 2000 540 900 400
 sleep 2
 shot 44_lista_palabras 2
-adb shell input swipe 540 900 540 2000 400
+tap "¿Cómo elige Hilo las palabras?"
+shot 44b_como_elige 2
+tap "Comunes" parcial
+shot 44c_comunes 2
+adb shell input swipe 540 2000 540 600 400
 sleep 1
+shot 44d_todas 2
+tap "sociedad"
+sleep 1
+tap "En contexto"
+shot 44e_contexto 2
+tap "En el libro"
+shot 44f_distribucion 2
+tap "Va junto a…"
+shot 44g_junto 2
+for i in 1 2 3 4; do adb shell input swipe 540 700 540 2000 300; done
+sleep 1
+rm -f /tmp/ui.xml; ui
+G=$(xy "Glosario"); M=$(xy "Mapa")
 tapat "$G"
 shot 45_glosario 4
 frames glosario

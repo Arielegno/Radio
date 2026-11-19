@@ -237,7 +237,7 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
                 )
             }
             Spacer(Modifier.weight(1f))
-            Text("Comunes", color = c.muted, fontSize = 13.sp)
+            Text("Comunes", color = c.muted, fontSize = 13.sp, modifier = Modifier.clickable { withCommon = !withCommon })
             Switch(withCommon, { withCommon = it }, modifier = Modifier.padding(start = 4.dp))
         }
 

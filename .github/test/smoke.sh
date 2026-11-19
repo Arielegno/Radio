@@ -489,6 +489,58 @@ shot 89_guia_nueva 3
 tap "Elegir texto (selección)"
 shot 90_guia_tema 3
 
+# ---------- 2.3: ayudas TDAH y botones de ayuda ----------
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 3
+shot 94_biblioteca_racha 2
+tap "Ayuda: cómo se usa"
+shot 95_ayuda_hoja 2
+back 1
+open_book "Libro EPUB de prueba" EPUB
+sleep 4
+adb shell input tap 540 1300
+sleep 1
+tap "Ayudas para concentrarte"
+shot 96_panel_tdah 2
+adb shell input swipe 540 1800 540 700 400
+sleep 1
+shot 97_panel_tdah_2 2
+tap "Cada 3 pág."
+adb shell input swipe 540 1800 540 700 400
+sleep 1
+shot 98_panel_tdah_3 2
+tap "Iniciar"
+sleep 4
+shot 99_teleprompter 2
+tap "Detener desplazamiento"
+adb shell input tap 540 1300
+sleep 1
+tap "💭"
+sleep 1
+adb shell input text "pagar%sla%sluz"
+shot 100_libreta 2
+tap "Guardar y seguir"
+sleep 1
+tap "Ayudas para concentrarte"
+tap "Foco de un párrafo" parcial
+adb shell input tap 980 470
+back 1
+sleep 1
+adb shell input tap 540 1300
+sleep 1
+shot 101_foco_parrafo 2
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 3
+tap "Estudiar"
+sleep 2
+shot 102_estudiar_energia 2
+tap "¿Cómo está tu energía?"
+tap "Media" parcial
+shot 103_energia_media 2
+back 1
+
 # ---------- 2.1.1: ocultar formatos ----------
 adb shell am force-stop $PKG
 adb shell am start -W -n $PKG/.MainActivity

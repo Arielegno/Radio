@@ -101,7 +101,7 @@ internal val EXTRA_TOPICS = listOf(
         listOf(
             "Funciona en el modo Texto. Actívalo en el panel 🧠 → Foco de un párrafo.",
             "Toca el centro de la pantalla para pasar al párrafo siguiente; el borde izquierdo vuelve al anterior.",
-            "Para ver los menús con el foco activo, toca la parte de arriba de la pantalla.",
+            "Con el foco activo, el borde derecho de la pantalla muestra u oculta los menús.",
         ),
         key = "foco-parrafo",
     ),

@@ -285,7 +285,7 @@ fun AdhdSheet(
                 Switch(s.ttsHighlight, { on -> vm.settings.update { it.copy(ttsHighlight = on) } })
             }
             AdhdRow(vm, "Desplazamiento automático", "El texto avanza solo, como un teleprompter.", "teleprompter") {
-                SmallBtn(if (vm.autoScroll > 0) "Detener" else "Empezar") { vm.autoScroll = if (vm.autoScroll > 0) 0 else 3; if (vm.autoScroll > 0) onDismiss() }
+                SmallBtn(if (vm.autoScroll > 0) "Detener" else "Iniciar") { vm.autoScroll = if (vm.autoScroll > 0) 0 else 3; if (vm.autoScroll > 0) onDismiss() }
             }
             AdhdRow(vm, "Preguntas de control", "Cada cierto tramo: ¿de qué trataba? Para notar si leíste sin entender.", "control") {}
             ChipsRow(listOf(0, 3, 5, 10), s.checkEvery, { if (it == 0) "Apagado" else "Cada $it pág." }) { n -> vm.settings.update { it.copy(checkEvery = n) } }

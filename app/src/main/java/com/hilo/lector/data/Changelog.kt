@@ -6,6 +6,21 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            25, "2.3", "19 nov 2026", "Ayudas para concentrarte",
+            added = listOf(
+                "Botón del cerebro 🧠 en el lector: todas las ayudas para el TDAH en un solo panel, ordenadas en Empezar, Mientras lees, Tiempo, Ambiente y Motivación.",
+                "Empezar: «Solo 2 min» en Sigue leyendo; «¿Dónde me quedé?» con las ideas de lo último que leíste al volver a un libro; meta diaria en minutos con celebración.",
+                "Mientras lees: foco de un párrafo, voz que marca cada palabra (karaoke), desplazamiento automático tipo teleprompter, preguntas de control cada pocas páginas y libreta de distracciones (💭).",
+                "Tiempo: temporizador visual que se vacía, cuánto falta para terminar el capítulo y el libro según tu ritmo, y aviso suave de pausa tras mucho rato seguido.",
+                "Plan según tu energía: eliges poca, media o mucha y Hilo te propone qué hacer.",
+                "Ambiente: ruido marrón, rosa, blanco o lluvia hechos por el celular, sin internet; y «Leer con un amigo»: arma la invitación y empieza el temporizador a la misma hora.",
+                "Racha amable: días seguidos leyendo o repasando, con 2 días de descanso por semana que no la rompen.",
+                "Botón «?» en cada apartado (biblioteca, lector, ajustes, cada pestaña de la sala de estudio, repaso, actividades y menús) que abre la explicación de esa parte.",
+                "Guía: nueva sección «Ayudas TDAH» y temas para cada pestaña de estudio.",
+            ),
+            fixed = emptyList(),
+        ),
+        Version(
             24, "2.2", "19 nov 2026", "Todas las palabras",
             added = listOf(
                 "Palabras: ahora están TODAS las palabras del documento en una lista con buscador, también las comunes (de, la, que…).",

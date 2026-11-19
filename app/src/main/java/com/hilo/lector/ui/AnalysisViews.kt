@@ -2,6 +2,12 @@
 
 package com.hilo.lector.ui
 
+import androidx.compose.material3.Switch
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -147,33 +153,106 @@ private fun packBubbles(terms: List<Term>, w: Float, h: Float, minR: Float, maxR
 @Composable
 fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> Unit) {
     val c = LocalHilo.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val density = LocalDensity.current
     var phrases by remember { mutableStateOf(false) }
     var sel by remember(a) { mutableStateOf<Term?>(null) }
-    var showWhere by remember(a) { mutableStateOf(false) }
-    val list = if (phrases) a.phrases else a.terms
+    var detail by remember(a) { mutableStateOf("") }          // "", donde, contexto, junto, mapa
+    var howTo by remember { mutableStateOf(false) }
+    var howMany by rememberSaveable { mutableStateOf(1) }      // 0: 25, 1: 45, 2: 80
+    var withCommon by rememberSaveable { mutableStateOf(false) }
+    var joining by remember { mutableStateOf<Term?>(null) }
     val palette = c.palette(0) + c.lines[4]
     val removed = vm.study.removedFor(book.id)
 
+    // Palabras fijadas (siempre en burbujas) y unidas (alias → palabra principal), guardadas por libro
+    var pinned by remember(book.id) { mutableStateOf(vm.motor["pin:${book.id}"].split('\n').filter { it.isNotBlank() }.toSet()) }
+    var merged by remember(book.id) {
+        mutableStateOf(vm.motor["unir:${book.id}"].split('\n').mapNotNull { l -> l.split('=').takeIf { it.size == 2 }?.let { it[0] to it[1] } }.toMap())
+    }
+    fun savePins(p: Set<String>) { pinned = p; vm.motor.put("pin:${book.id}", p.joinToString("\n")) }
+    fun saveMerged(m: Map<String, String>) { merged = m; vm.motor.put("unir:${book.id}", m.entries.joinToString("\n") { "${it.key}=${it.value}" }) }
+
+    // Todas las palabras con las uniones aplicadas
+    val all = remember(a, merged, removed) {
+        val base = a.allWords.ifEmpty { a.terms }
+        val sum = LinkedHashMap<String, Term>()
+        for (t in base) {
+            val k = merged[t.key] ?: t.key
+            val cur = sum[k]
+            sum[k] = if (cur == null) Term(k, if (k == t.key) t.label else (base.firstOrNull { it.key == k }?.label ?: k), t.count, false)
+            else cur.copy(count = cur.count + t.count)
+        }
+        sum.values.sortedByDescending { it.count }
+    }
+    val byKey = remember(all) { all.associateBy { it.key } }
+    val n = listOf(25, 45, 80)[howMany]
+    val auto = remember(all, removed, withCommon, n) {
+        all.filter { it.key !in removed && (withCommon || it.key !in a.common) && it.count >= 2 }.take(n)
+    }
+    val bubbleList = if (phrases) a.phrases.filter { it.key !in removed }.take(24)
+    else (pinned.mapNotNull { byKey[it] } + auto).distinctBy { it.key }.take(n + pinned.size)
+    val inBubbles = remember(bubbleList) { bubbleList.map { it.key }.toHashSet() }
+
+    /** Dónde aparece una palabra (también las comunes), buscando en las oraciones del texto. */
+    fun hitsOf(t: Term, limit: Int = 60): List<Pair<Sent, IntRange>> {
+        val keys = listOf(t.key) + merged.filterValues { it == t.key }.keys
+        val rx = Regex("(?<![\\p{L}\\p{N}])(" + keys.joinToString("|") { Regex.escape(it) } + ")(e?s)?(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
+        val out = ArrayList<Pair<Sent, IntRange>>()
+        for (s in a.sentences) {
+            if (!t.phrase && t.key !in a.common && keys.none { it in s.keys } && !s.text.contains(t.key, true)) continue
+            rx.findAll(s.text).forEach { m -> if (out.size < limit) out.add(s to m.range) }
+            if (out.size >= limit) break
+        }
+        return out
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            "${"%,d".format(a.totalWords).replace(',', '.')} palabras · ${"%,d".format(a.distinct).replace(',', '.')} distintas. Toca una burbuja para ver cuántas veces aparece o quitarla si no es relevante.",
+            "${"%,d".format(a.totalWords).replace(',', '.')} palabras en total · ${"%,d".format(a.distinct).replace(',', '.')} distintas. Toca una burbuja para ver qué puedes hacer con esa palabra.",
             color = c.muted, fontSize = 13.sp,
         )
+        // Cómo elige Hilo las palabras
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.band).clickable { howTo = !howTo }.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text((if (howTo) "▾ " else "▸ ") + "¿Cómo elige Hilo las palabras?", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            if (howTo) Text(
+                "1. Cuenta todas las palabras del documento.\n" +
+                    "2. Junta el singular y el plural (sociedad y sociedades).\n" +
+                    "3. Deja aparte las palabras comunes que no dicen de qué trata el texto: artículos (el, la), preposiciones (de, en), conectores (que, pero), verbos muy usados (ser, haber) y adverbios en «-mente». No se borran: están en la lista de abajo como «comunes».\n" +
+                    "4. Muestra en burbujas las que más se repiten (al menos 2 veces). La burbuja más grande es la más repetida.\n\n" +
+                    "Abajo están TODAS las palabras. Toca el ojo de una oculta para fijarla en las burbujas, o activa «Incluir comunes».",
+                color = c.ink, fontSize = 13.sp, lineHeight = 18.sp,
+            )
+        }
         ChoiceRow(listOf("Palabras", "Frases clave"), if (phrases) 1 else 0) { phrases = it == 1; sel = null }
+        if (!phrases) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Burbujas", color = c.muted, fontSize = 13.sp)
+            listOf("25", "45", "80").forEachIndexed { i, l ->
+                Text(
+                    l, color = if (i == howMany) c.accentInk else c.ink, fontSize = 13.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(if (i == howMany) c.accent else c.chip).clickable { howMany = i }.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            Text("Comunes", color = c.muted, fontSize = 13.sp)
+            Switch(withCommon, { withCommon = it }, modifier = Modifier.padding(start = 4.dp))
+        }
 
         // Nube de burbujas que flotan
         BoxWithConstraints(
-            Modifier.fillMaxWidth().height(400.dp).clip(RoundedCornerShape(20.dp)).background(c.surface)
+            Modifier.fillMaxWidth().height(if (n >= 80 && !phrases) 480.dp else 400.dp).clip(RoundedCornerShape(20.dp)).background(c.surface)
         ) {
             val wPx = with(density) { maxWidth.toPx() }
             val hPx = with(density) { maxHeight.toPx() }
-            val bubbles = remember(list, wPx, hPx) {
-                packBubbles(list.take(if (phrases) 24 else 45), wPx, hPx, with(density) { 20.dp.toPx() }, with(density) { 54.dp.toPx() })
+            val bubbles = remember(bubbleList, wPx, hPx) {
+                packBubbles(bubbleList, wPx, hPx, with(density) { (if (bubbleList.size > 50) 15.dp else 20.dp).toPx() }, with(density) { 54.dp.toPx() })
             }
             val tr = rememberInfiniteTransition(label = "flotar")
             val t by tr.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(7000, easing = LinearEasing)), label = "t")
-            val still = reduceMotion(androidx.compose.ui.platform.LocalContext.current)
+            val still = reduceMotion(ctx)
             val amp = if (still) 0f else with(density) { 4.dp.toPx() }
             if (bubbles.isEmpty()) {
                 Text(
@@ -183,7 +262,8 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
             }
             bubbles.forEachIndexed { i, b ->
                 val on = sel?.key == b.term.key
-                val col = palette[i % palette.size]
+                val pin = b.term.key in pinned
+                val col = if (b.term.key in a.common) c.muted else palette[i % palette.size]
                 val size = with(density) { (b.r * 2).toDp() }
                 Box(
                     Modifier
@@ -195,11 +275,10 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
                         }
                         .size(size).clip(CircleShape)
                         .background(col.copy(alpha = if (sel == null || on) 0.9f else 0.35f))
-                        .border(if (on) 3.dp else 0.dp, if (on) c.ink else Color.Transparent, CircleShape)
-                        .clickable { sel = if (on) null else b.term; showWhere = false },
+                        .border(if (on) 3.dp else if (pin) 2.dp else 0.dp, if (on) c.ink else if (pin) Color.White else Color.Transparent, CircleShape)
+                        .clickable { sel = if (on) null else b.term; detail = "" },
                     contentAlignment = Alignment.Center,
                 ) {
-                    // Letra que cabe en una sola línea dentro de la burbuja
                     val rDp = b.r / density.density
                     val longest = b.term.label.split(' ').maxOf { it.length }.coerceAtLeast(3)
                     val lines = if (b.term.phrase && b.term.label.contains(' ')) 2 else 1
@@ -210,83 +289,249 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
                             maxLines = lines, softWrap = lines > 1, textAlign = TextAlign.Center, lineHeight = (fs * 1.05f).sp,
                             overflow = TextOverflow.Clip, modifier = Modifier.padding(horizontal = 2.dp),
                         )
-                        if (b.r > with(density) { 34.dp.toPx() }) Text("${b.term.count}", color = Color.White.copy(alpha = 0.85f), fontSize = (fs * 0.75f).sp)
+                        if (b.r > with(density) { 26.dp.toPx() }) Text("${b.term.count}", color = Color.White.copy(alpha = 0.9f), fontSize = (fs * 0.75f).coerceAtLeast(8f).sp)
                     }
                 }
             }
         }
 
-        // Palabra elegida
+        // ---------- La palabra elegida ----------
         sel?.let { term ->
+            val pct = term.count * 100f / max(1, a.totalWords)
+            val rank = all.indexOfFirst { it.key == term.key } + 1
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(term.label, fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = c.ink, modifier = Modifier.weight(1f))
-                    Text("${term.count} veces", color = c.accent, fontWeight = FontWeight.Bold)
+                    Column(Modifier.weight(1f)) {
+                        Text(term.label, fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = c.ink)
+                        val also = merged.filterValues { it == term.key }.keys
+                        Text(
+                            "${term.count} veces · ${"%.2f".format(pct)} % del texto" + (if (rank > 0 && !term.phrase) " · puesto $rank" else "") +
+                                (if (term.key in a.common) " · palabra común" else "") + (if (also.isNotEmpty()) " · incluye: ${also.joinToString(", ")}" else ""),
+                            color = c.muted, fontSize = 13.sp,
+                        )
+                    }
+                }
+                // Qué hacer con la palabra
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    WordAction("Dónde aparece", detail == "donde") { detail = if (detail == "donde") "" else "donde" }
+                    WordAction("En contexto", detail == "contexto") { detail = if (detail == "contexto") "" else "contexto" }
+                    WordAction("Va junto a…", detail == "junto") { detail = if (detail == "junto") "" else "junto" }
+                    WordAction("En el libro", detail == "mapa") { detail = if (detail == "mapa") "" else "mapa" }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedButton(onClick = { vm.study.removeWord(book.id, term.key, false); sel = null }) { Text("Quitar", color = c.lines[0]) }
-                    OutlinedButton(onClick = { vm.study.removeWord(book.id, term.key, true); sel = null }) { Text("Quitar en todos", color = c.lines[0]) }
-                    OutlinedButton(onClick = { showWhere = !showWhere }) { Text(if (showWhere) "Ocultar" else "Dónde aparece", color = c.ink) }
+                    if (!term.phrase) OutlinedButton(onClick = { savePins(if (term.key in pinned) pinned - term.key else pinned + term.key) }) {
+                        Text(if (term.key in pinned) "Soltar" else "Fijar en burbujas", color = c.ink)
+                    }
+                    if (!term.phrase) OutlinedButton(onClick = { joining = term }) { Text("Unir con…", color = c.ink) }
                     OutlinedButton(onClick = {
-                        val s = a.sentencesWith(term.key).firstOrNull()
+                        val s = hitsOf(term, 1).firstOrNull()?.first
+                        onCard(StudyCard(0, book.id, "qa", "¿Qué es «${term.label}»?", s?.text.orEmpty(), source = s?.let { "párrafo ${it.para + 1}" }.orEmpty(), sourcePos = s?.para ?: -1, sourceFlow = true, due = today()))
+                    }) { Text("Tarjeta", color = c.ink) }
+                    OutlinedButton(onClick = {
+                        val s = hitsOf(term, 1).firstOrNull()?.first
                         vm.study.putGloss(book.id, Gloss(term.label.replaceFirstChar { it.uppercase() }, s?.text.orEmpty(), s?.para ?: -1), null)
                         vm.toast = "Agregado al glosario."
                     }) { Text("Al glosario", color = c.ink) }
                     OutlinedButton(onClick = {
-                        val s = a.sentencesWith(term.key).firstOrNull()
-                        onCard(StudyCard(0, book.id, "qa", "¿Qué es «${term.label}»?", s?.text.orEmpty(), source = s?.let { "párrafo ${it.para + 1}" }.orEmpty(), sourcePos = s?.para ?: -1, sourceFlow = true, due = today()))
-                    }) { Text("Tarjeta", color = c.ink) }
-                    OutlinedButton(onClick = {
-                        vm.feynman = FeynmanReq(book.id, term.label, a.sentencesWith(term.key, 3).joinToString(" ") { it.text }, emptyList())
+                        vm.feynman = FeynmanReq(book.id, term.label, hitsOf(term, 3).joinToString(" ") { it.first.text }, emptyList())
                     }) { Text("Explícalo", color = c.ink) }
+                    OutlinedButton(onClick = {
+                        vm.study.removeWord(book.id, term.key, false); savePins(pinned - term.key); sel = null
+                        vm.undoable("«${term.label}» oculta") { vm.study.restoreWord(book.id, term.key) }
+                    }) { Text("Ocultar", color = c.lines[0]) }
+                    OutlinedButton(onClick = { vm.study.removeWord(book.id, term.key, true); savePins(pinned - term.key); sel = null }) { Text("Ocultar en todos", color = c.lines[0]) }
                 }
                 LookupRow(term.label, vm.study.langs[book.id].orEmpty())
-                if (showWhere) {
-                    a.sentencesWith(term.key, 8).forEach { s ->
+
+                when (detail) {
+                    "donde" -> hitsOf(term, 12).distinctBy { it.first }.forEach { (s, _) ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(s.text, color = c.ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
                             TextButton(onClick = { vm.openAt(book.id, true, s.para) }) { Text("Ir") }
                         }
                     }
+                    // Concordancia: la palabra al centro con lo que tiene a cada lado (como en AntConc o MAXQDA)
+                    "contexto" -> {
+                        Text("Cada línea es una aparición: lo que va antes, la palabra y lo que sigue. Toca para ir.", color = c.muted, fontSize = 12.sp)
+                        hitsOf(term, 40).forEach { (s, r) ->
+                            val left = s.text.substring(0, r.first).takeLast(34)
+                            val right = s.text.substring(r.last + 1).take(34)
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { vm.openAt(book.id, true, s.para) }.padding(vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(left, color = c.muted, fontSize = 13.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
+                                Text(" ${s.text.substring(r)} ", color = c.accent, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                                Text(right, color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Clip, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                    // Las palabras que más salen en la misma oración
+                    "junto" -> {
+                        val near = remember(term, a) {
+                            val cnt = HashMap<String, Int>()
+                            hitsOf(term, 400).map { it.first }.distinct().forEach { s -> s.keys.forEach { k -> if (k != term.key && k !in removed && !k.contains(' ')) cnt[k] = (cnt[k] ?: 0) + 1 } }
+                            cnt.entries.sortedByDescending { it.value }.take(14)
+                        }
+                        if (near.isEmpty()) Text("No aparece junto a otras palabras importantes.", color = c.muted, fontSize = 13.sp)
+                        else {
+                            Text("Palabras que salen en la misma oración (veces juntas). Toca una para verla.", color = c.muted, fontSize = 12.sp)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                near.forEach { (k, v) ->
+                                    Text(
+                                        "${byKey[k]?.label ?: k} · $v", color = c.ink, fontSize = 13.sp,
+                                        modifier = Modifier.clip(RoundedCornerShape(50)).background(c.chip)
+                                            .clickable { byKey[k]?.let { sel = it } }.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    // En qué partes del documento aparece
+                    "mapa" -> {
+                        val parts = 24
+                        val total = max(1, a.paraCount.takeIf { it > 0 } ?: (a.sentences.maxOfOrNull { it.para } ?: 0) + 1)
+                        val paras = remember(term, a, merged) { hitsOf(term, 5000).map { it.first.para } }
+                        val bins = remember(paras) {
+                            val b = IntArray(parts)
+                            paras.forEach { p -> b[(p * parts / total).coerceIn(0, parts - 1)]++ }
+                            b
+                        }
+                        val mx = max(1, bins.maxOrNull() ?: 1)
+                        Text("Dónde se concentra en el documento, del inicio al final. Toca una barra para ir a esa parte.", color = c.muted, fontSize = 12.sp)
+                        Row(Modifier.fillMaxWidth().height(90.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            bins.forEachIndexed { i, v ->
+                                Box(
+                                    Modifier.weight(1f).fillMaxHeight((v.toFloat() / mx).coerceAtLeast(0.03f))
+                                        .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                                        .background(if (v == 0) c.line else c.accent)
+                                        .clickable { vm.openAt(book.id, true, i * total / parts) },
+                                )
+                            }
+                        }
+                        Row { Text("Inicio", color = c.muted, fontSize = 11.sp, modifier = Modifier.weight(1f)); Text("Final", color = c.muted, fontSize = 11.sp) }
+                        val chs = a.guides.map { it.chapter }.filter { ch -> paras.any { it in ch.startPara until ch.endPara } }
+                        if (a.guides.size > 1 && chs.isNotEmpty()) Text("Aparece en: " + chs.take(8).joinToString(" · ") { it.title.take(40) }, color = c.ink, fontSize = 13.sp)
+                    }
                 }
             }
         }
 
-        // Lista ordenada para depurar rápido
-        Label(if (phrases) "Frases que más se repiten" else "Palabras que más se repiten")
-        val maxC = list.firstOrNull()?.count ?: 1
-        list.take(60).forEachIndexed { i, term ->
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { sel = term; showWhere = false }.padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("${i + 1}", color = c.muted, fontSize = 12.sp, modifier = Modifier.width(28.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(term.label, color = c.ink, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Box(Modifier.fillMaxWidth(term.count.toFloat() / maxC).height(4.dp).clip(RoundedCornerShape(2.dp)).background(palette[i % palette.size]))
-                }
-                Text("${term.count}", color = c.ink, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 10.dp))
-                IconButton(onClick = { vm.study.removeWord(book.id, term.key, false) }) {
-                    Icon(Icons.Rounded.Close, "Quitar ${term.label}", tint = c.muted, modifier = Modifier.size(18.dp))
-                }
+        // ---------- Todas las palabras ----------
+        if (!phrases) {
+            var q by rememberSaveable { mutableStateOf("") }
+            var show by rememberSaveable { mutableStateOf("todas") }
+            var limit by remember { mutableStateOf(80) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Label("Todas las palabras (${all.size})")
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = {
+                    val csv = "palabra;veces;porcentaje;común\n" + all.joinToString("\n") { "${it.label};${it.count};${"%.3f".format(it.count * 100f / max(1, a.totalWords))};${if (it.key in a.common) "sí" else "no"}" }
+                    share(ctx, csv)
+                }) { Text("Exportar") }
             }
-        }
-        if (removed.isNotEmpty()) {
-            Label("Quitadas (toca para devolver)")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                removed.sorted().forEach { k ->
+            OutlinedTextField(
+                q, { q = it; limit = 80 }, placeholder = { Text("Buscar una palabra") }, singleLine = true,
+                leadingIcon = { Icon(Icons.Rounded.Search, null, tint = c.muted) }, modifier = Modifier.fillMaxWidth(),
+            )
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("todas" to "Todas", "burbujas" to "En burbujas", "ocultas" to "No están", "comunes" to "Comunes", "quitadas" to "Ocultadas por ti").forEach { (k, l) ->
                     Text(
-                        "$k  ↺", color = c.ink, fontSize = 13.sp,
-                        modifier = Modifier.clip(RoundedCornerShape(50)).background(c.chip).clickable { vm.study.restoreWord(book.id, k) }
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                        l, color = if (show == k) c.accentInk else c.ink, fontSize = 13.sp,
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (show == k) c.accent else c.chip).clickable { show = k; limit = 80 }.padding(horizontal = 12.dp, vertical = 6.dp),
                     )
                 }
             }
+            val fq = q.trim().lowercase()
+            val rows = all.filter { t ->
+                (fq.isEmpty() || t.key.contains(fq) || t.label.lowercase().contains(fq)) && when (show) {
+                    "burbujas" -> t.key in inBubbles
+                    "ocultas" -> t.key !in inBubbles && t.key !in removed
+                    "comunes" -> t.key in a.common
+                    "quitadas" -> t.key in removed
+                    else -> true
+                }
+            }
+            Text("El ojo dice si la palabra está en las burbujas. Toca el ojo para ponerla o sacarla.", color = c.muted, fontSize = 12.sp)
+            val maxC = all.firstOrNull()?.count ?: 1
+            rows.take(limit).forEach { term ->
+                val rank = all.indexOf(term) + 1
+                val on = term.key in inBubbles
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { sel = term; detail = "" }.padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("$rank", color = c.muted, fontSize = 12.sp, modifier = Modifier.width(34.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            term.label + if (term.key in a.common) "  · común" else "", color = if (term.key in removed) c.muted else c.ink,
+                            fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        Box(Modifier.fillMaxWidth((term.count.toFloat() / maxC).coerceAtLeast(0.01f)).height(4.dp).clip(RoundedCornerShape(2.dp)).background(if (on) c.accent else c.line))
+                    }
+                    Text("${term.count}", color = c.ink, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 10.dp))
+                    IconButton(onClick = {
+                        when {
+                            term.key in removed -> { vm.study.restoreWord(book.id, term.key); savePins(pinned + term.key) }
+                            on -> { if (term.key in pinned) savePins(pinned - term.key) else vm.study.removeWord(book.id, term.key, false) }
+                            else -> savePins(pinned + term.key)
+                        }
+                    }) {
+                        Icon(
+                            if (on) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
+                            if (on) "Sacar ${term.label} de las burbujas" else "Poner ${term.label} en las burbujas",
+                            tint = if (on) c.accent else c.muted, modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+            }
+            if (rows.size > limit) TextButton(onClick = { limit += 200 }) { Text("Ver más (${rows.size - limit} quedan)") }
+            if (rows.isEmpty()) Text("No hay palabras aquí.", color = c.muted, fontSize = 13.sp)
         }
     }
+
+    // Unir una palabra con otra (por ejemplo «trabajador» con «trabajo»): cuentan juntas
+    joining?.let { from ->
+        var q by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { joining = null },
+            title = { Text("Unir «${from.label}» con…") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Las dos palabras se cuentan como una sola burbuja. Sirve para variantes: trabajo, trabajador, laboral.", color = c.muted, fontSize = 13.sp)
+                    OutlinedTextField(q, { q = it }, placeholder = { Text("Buscar la palabra principal") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    val opts = all.filter { it.key != from.key && it.key !in a.common && (q.isBlank() || it.key.contains(q.trim().lowercase())) }.take(8)
+                    opts.forEach { o ->
+                        Text(
+                            "${o.label} · ${o.count}", color = c.ink, fontSize = 15.sp,
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable {
+                                // Lo que estaba unido a «from» pasa a la nueva palabra principal
+                                val m = merged.mapValues { if (it.value == from.key) o.key else it.value } + (from.key to o.key)
+                                saveMerged(m); savePins(pinned - from.key); joining = null; sel = null
+                                vm.toast = "«${from.label}» ahora cuenta como «${o.label}»."
+                            }.padding(vertical = 8.dp, horizontal = 4.dp),
+                        )
+                    }
+                    val mine = merged.filterValues { it == from.key }.keys
+                    if (mine.isNotEmpty()) TextButton(onClick = { saveMerged(merged - mine); joining = null }) { Text("Separar las unidas a «${from.label}»") }
+                    if (from.key in merged) TextButton(onClick = { saveMerged(merged - from.key); joining = null }) { Text("Separar «${from.label}»") }
+                }
+            },
+            confirmButton = { TextButton(onClick = { joining = null }) { Text("Cerrar") } },
+        )
+    }
+}
+
+@Composable
+private fun WordAction(label: String, on: Boolean, onClick: () -> Unit) {
+    val c = LocalHilo.current
+    Text(
+        label, color = if (on) c.accentInk else c.ink, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) c.accent else c.band).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 7.dp),
+    )
 }
 
 // =====================================================================

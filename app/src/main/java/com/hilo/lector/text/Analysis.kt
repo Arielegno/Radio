@@ -41,6 +41,11 @@ class Analysis(
     val law: LawIndex = LawIndex(emptyList(), emptyList(), emptyList()),
     val authors: List<AuthorInfo> = emptyList(),
     val timeline: List<TimeEvent> = emptyList(),
+    /** Todas las palabras del documento con sus veces, también las comunes («de», «la», «que»). */
+    val allWords: List<Term> = emptyList(),
+    /** Las palabras comunes (artículos, conectores…) que no van a las burbujas salvo que las actives. */
+    val common: Set<String> = emptySet(),
+    val paraCount: Int = 0,
 ) {
     fun labelOf(key: String): String = (terms.firstOrNull { it.key == key } ?: phrases.firstOrNull { it.key == key })?.label ?: key
 
@@ -122,6 +127,7 @@ object Analyzer {
         val counts = HashMap<String, Int>()
         val labels = HashMap<String, HashMap<String, Int>>()
         val phraseCounts = HashMap<String, Int>()
+        val stopCounts = HashMap<String, Int>()
         val sentRaw = ArrayList<Pair<String, Int>>()
         var total = 0
         paras.forEachIndexed { pi, raw ->
@@ -132,7 +138,14 @@ object Analyzer {
                 total += toks.size
                 val low = toks.map { it.lowercase() }
                 for ((i, w) in low.withIndex()) {
-                    if (isStop(w)) continue
+                    if (isStop(w)) {
+                        if (w.isNotBlank() && !w.all { it.isDigit() }) {
+                            stopCounts[w] = (stopCounts[w] ?: 0) + 1
+                            val lm = labels.getOrPut(w) { HashMap() }
+                            lm[toks[i]] = (lm[toks[i]] ?: 0) + 1
+                        }
+                        continue
+                    }
                     counts[w] = (counts[w] ?: 0) + 1
                     val lm = labels.getOrPut(w) { HashMap() }
                     lm[toks[i]] = (lm[toks[i]] ?: 0) + 1
@@ -274,7 +287,14 @@ object Analyzer {
         val law = runCatching { Law.parse(paras) }.getOrElse { LawIndex(emptyList(), emptyList(), emptyList()) }
         val authors = runCatching { Social.authors(paras, sentences, terms, phrases) }.getOrDefault(emptyList())
         val timeline = runCatching { Social.timeline(sentences, authors) }.getOrDefault(emptyList())
-        return Analysis(total, distinct, terms, phrases, sentences, mapTerms, keep.toList(), glossary, guides, law, authors, timeline)
+        // Todas las palabras: las de contenido y las comunes, de la más a la menos repetida
+        val allWords = (counts.entries.map { Term(it.key, labelOf(it.key), it.value, false) } +
+            stopCounts.entries.map { Term(it.key, labelOf(it.key), it.value, false) })
+            .sortedByDescending { it.count }
+        return Analysis(
+            total, distinct + stopCounts.size, terms, phrases, sentences, mapTerms, keep.toList(), glossary, guides, law, authors, timeline,
+            allWords = allWords, common = stopCounts.keys.toHashSet(), paraCount = paras.size,
+        )
     }
 
     private val DEF1 = Regex(

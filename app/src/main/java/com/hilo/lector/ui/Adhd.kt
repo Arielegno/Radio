@@ -658,7 +658,7 @@ fun EnergyDialog(vm: HiloViewModel, onSpeak: (() -> Unit)? = null, onReview: (()
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("🪫 Poca", "🔋 Media", "⚡ Mucha").forEachIndexed { i, l ->
+                    listOf("Poca", "Media", "Mucha").forEachIndexed { i, l ->
                         Text(
                             l, color = if (level == i) c.accentInk else c.ink, fontSize = 14.sp, textAlign = TextAlign.Center,
                             modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(if (level == i) c.accent else c.chip).clickable { level = i }.padding(vertical = 12.dp),

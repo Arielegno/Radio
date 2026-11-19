@@ -427,8 +427,7 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
             var show by rememberSaveable { mutableStateOf("todas") }
             var limit by remember { mutableStateOf(80) }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Label("Todas las palabras (${all.size})")
-                Spacer(Modifier.weight(1f))
+                Text("TODAS LAS PALABRAS (${all.size})", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
                 TextButton(onClick = {
                     val csv = "palabra;veces;porcentaje;común\n" + all.joinToString("\n") { "${it.label};${it.count};${"%.3f".format(it.count * 100f / max(1, a.totalWords))};${if (it.key in a.common) "sí" else "no"}" }
                     share(ctx, csv)

@@ -273,7 +273,7 @@ frames palabras
 adb shell input swipe 540 2000 540 900 400
 sleep 2
 shot 44_lista_palabras 2
-tap "¿Cómo elige Hilo las palabras?"
+tap "¿Cómo elige Hilo las palabras?" parcial
 shot 44b_como_elige 2
 tap "Comunes" parcial
 shot 44c_comunes 2
@@ -499,8 +499,6 @@ shot 95_ayuda_hoja 2
 back 1
 open_book "Libro EPUB de prueba" EPUB
 sleep 4
-adb shell input tap 540 1300
-sleep 1
 tap "Ayudas para concentrarte"
 shot 96_panel_tdah 2
 adb shell input swipe 540 1800 540 700 400
@@ -514,7 +512,9 @@ tap "Iniciar"
 sleep 4
 shot 99_teleprompter 2
 tap "Detener desplazamiento"
-adb shell input tap 540 1300
+sleep 1
+rm -f /tmp/ui.xml; ui
+grep -q "Libreta\|💭" /tmp/ui.xml || adb shell input tap 540 1300
 sleep 1
 tap "💭"
 sleep 1

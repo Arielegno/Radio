@@ -187,6 +187,7 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
         sum.values.sortedByDescending { it.count }
     }
     val byKey = remember(all) { all.associateBy { it.key } }
+    val rankOf = remember(all) { HashMap<String, Int>(all.size * 2).also { m -> all.forEachIndexed { i, t -> m[t.key] = i + 1 } } }
     val n = listOf(25, 45, 80)[howMany]
     val auto = remember(all, removed, withCommon, n) {
         all.filter { it.key !in removed && (withCommon || it.key !in a.common) && it.count >= 2 }.take(n)
@@ -299,7 +300,7 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
         // ---------- La palabra elegida ----------
         sel?.let { term ->
             val pct = term.count * 100f / max(1, a.totalWords)
-            val rank = all.indexOfFirst { it.key == term.key } + 1
+            val rank = rankOf[term.key] ?: 0
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -446,7 +447,7 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
                 }
             }
             val fq = q.trim().lowercase()
-            val rows = all.filter { t ->
+            val rows = remember(all, fq, show, inBubbles, removed) { all.filter { t ->
                 (fq.isEmpty() || t.key.contains(fq) || t.label.lowercase().contains(fq)) && when (show) {
                     "burbujas" -> t.key in inBubbles
                     "ocultas" -> t.key !in inBubbles && t.key !in removed
@@ -454,11 +455,11 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
                     "quitadas" -> t.key in removed
                     else -> true
                 }
-            }
+            } }
             Text("El ojo dice si la palabra está en las burbujas. Toca el ojo para ponerla o sacarla.", color = c.muted, fontSize = 12.sp)
             val maxC = all.firstOrNull()?.count ?: 1
             rows.take(limit).forEach { term ->
-                val rank = all.indexOf(term) + 1
+                val rank = rankOf[term.key] ?: 0
                 val on = term.key in inBubbles
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { sel = term; detail = "" }.padding(vertical = 2.dp),

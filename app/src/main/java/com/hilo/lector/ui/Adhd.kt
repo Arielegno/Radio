@@ -606,9 +606,10 @@ fun Celebration(vm: HiloViewModel) {
 fun StreakCard(vm: HiloViewModel, modifier: Modifier = Modifier) {
     val c = LocalHilo.current
     var open by remember { mutableStateOf(false) }
-    val st = Adhd.streak(vm)
-    val goal = vm.settings.value.goalMin
     val today = Adhd.minutes(vm)
+    // La racha se recalcula solo cuando cambian los repasos o los minutos de hoy
+    val st = remember(vm.motor.reviews.size, today) { Adhd.streak(vm) }
+    val goal = vm.settings.value.goalMin
     Row(
         modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).clickable { open = true }.padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,

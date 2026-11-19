@@ -2,6 +2,15 @@
 
 package com.hilo.lector.ui
 
+import androidx.compose.material.icons.rounded.Style
+import androidx.compose.material.icons.rounded.QuestionMark
+import androidx.compose.material.icons.rounded.Lightbulb
+import androidx.compose.material.icons.rounded.FormatQuote
+import androidx.compose.material.icons.rounded.EditNote
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.ui.draw.alpha
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -140,6 +149,9 @@ data class StudyRequest(
     val pos: Int,
     val source: String,
     val onHighlight: ((kind: String) -> Unit)?,
+    /** Lo que estaba elegido con las manijas, en caracteres dentro de [sentence] (-1 si nada). */
+    val selStart: Int = -1,
+    val selEnd: Int = -1,
 )
 
 private val SENTENCE_END = Regex("[.!?…;:](?=[\\s»”\"')\\]]|$)")
@@ -994,19 +1006,26 @@ private fun ReviewSession(
 // Estudiar un fragmento desde el lector
 // =====================================================================
 
-/** Hoja que aparece al mantener el dedo sobre el texto: elegir palabras y crear tarjetas. */
+/** Panel para estudiar un fragmento: elegir palabras clave, crear tarjetas, subrayar, buscar y guardar. */
 @Composable
 fun StudySheet(vm: HiloViewModel, req: StudyRequest, onDismiss: () -> Unit) {
     val c = LocalHilo.current
     val ctx = LocalContext.current
-    val words = remember(req) { req.sentence.split(Regex("\\s+")).filter { it.isNotEmpty() } }
-    var sel by remember(req) { mutableStateOf(if (req.wordIndex in words.indices) setOf(req.wordIndex) else emptySet()) }
+    // Palabras con su posición en la oración, para marcar las que venían elegidas
+    val spans = remember(req) { Regex("\\S+").findAll(req.sentence).map { it.range }.toList() }
+    val words = remember(req) { spans.map { req.sentence.substring(it) } }
+    var sel by remember(req) {
+        val pre = if (req.selStart >= 0 && req.selEnd > req.selStart)
+            spans.indices.filter { spans[it].last >= req.selStart && spans[it].first < req.selEnd }.toSet() else emptySet()
+        mutableStateOf(pre.ifEmpty { if (req.wordIndex in words.indices) setOf(req.wordIndex) else emptySet() })
+    }
     var mode by remember(req) { mutableStateOf("") }   // "", "vocab", "qa"
     val answer = words.indices.filter { it in sel }.joinToString(" ") { core(words[it]) }
     var meaning by remember(req) { mutableStateOf("") }
     var question by remember(req) { mutableStateOf("") }
     var reply by remember(req) { mutableStateOf(req.sentence) }
     val lang = vm.study.langs[req.bookId].orEmpty()
+    val bookTitle = vm.repo.get(req.bookId)?.title.orEmpty()
 
     fun create(card: StudyCard) {
         vm.study.add(card.copy(id = vm.study.newId(), created = System.currentTimeMillis(), due = today()))
@@ -1020,97 +1039,174 @@ fun StudySheet(vm: HiloViewModel, req: StudyRequest, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.surface) {
         Column(
             Modifier.padding(horizontal = 18.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("Estudiar este fragmento", style = MaterialTheme.typography.titleLarge, color = c.ink)
-            Text("Toca las palabras clave.", color = c.muted, fontSize = 13.sp)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                words.forEachIndexed { i, w ->
-                    val on = i in sel
-                    Text(
-                        w, fontSize = 16.sp, color = if (on) c.accentInk else c.ink,
-                        modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                            .background(if (on) c.accent else c.bg)
-                            .border(1.dp, if (on) c.accent else c.line, RoundedCornerShape(8.dp))
-                            .clickable { sel = if (on) sel - i else sel + i }
-                            .padding(horizontal = 8.dp, vertical = 5.dp),
-                    )
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Estudiar este fragmento", fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = c.ink)
+                Text(listOf(bookTitle, req.source).filter { it.isNotBlank() }.joinToString(" · "), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
 
-            LookupRow(term = answer.ifBlank { words.getOrNull(req.wordIndex)?.let { core(it) }.orEmpty() }, lang = lang)
-            ArticleRefsRow(vm, req.bookId, req.sentence)
-            if (req.onHighlight != null) {
-                // Subrayado con código de colores (lectura activa)
-                Text("Subrayar como", color = c.muted, fontSize = 12.sp)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    com.hilo.lector.data.MARK_KINDS.forEach { (k, label, col) ->
+            // 1. El fragmento: se tocan las palabras clave
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.bg).padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (sel.isEmpty()) "Toca las palabras clave" else "Elegidas: «${answer.take(60)}»",
+                        color = if (sel.isEmpty()) c.muted else c.accent, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    if (sel.isNotEmpty()) Text("Limpiar", color = c.muted, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(50)).clickable { sel = emptySet() }.padding(horizontal = 8.dp, vertical = 2.dp))
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    words.forEachIndexed { i, w ->
+                        val on = i in sel
                         Text(
-                            label, fontSize = 13.sp, color = Color(0xFF1B1B1B),
-                            modifier = Modifier.clip(RoundedCornerShape(50)).background(Color(col)).clickable {
-                                req.onHighlight.invoke(k)
-                                if (k == "duda") vm.toast = "Marcada como duda: la verás en tu ruta de estudio."
-                                onDismiss()
-                            }.padding(horizontal = 12.dp, vertical = 6.dp),
+                            w, fontSize = 17.sp, lineHeight = 24.sp, color = if (on) c.accentInk else c.ink,
+                            fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                                .background(if (on) c.accent else Color.Transparent)
+                                .clickable { sel = if (on) sel - i else sel + i }
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
                         )
                     }
                 }
             }
 
+            // 2. Crear una tarjeta de repaso
             when (mode) {
-                "vocab" -> {
-                    Text("«$answer»", fontWeight = FontWeight.Bold, color = c.ink, fontSize = 17.sp)
+                "vocab" -> SheetSection("Tarjeta de vocabulario") {
+                    Text("«$answer»", fontWeight = FontWeight.Bold, color = c.ink, fontSize = 18.sp)
                     OutlinedTextField(meaning, { meaning = it }, label = { Text("Significado o traducción") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Button(
-                        onClick = { if (meaning.isNotBlank()) create(base("vocab").copy(front = answer, back = meaning.trim(), context = req.sentence)) },
-                        enabled = meaning.isNotBlank(), modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.accentInk),
-                    ) { Text("Guardar tarjeta de vocabulario") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { mode = "" }) { Text("Volver") }
+                        Button(
+                            onClick = { if (meaning.isNotBlank()) create(base("vocab").copy(front = answer, back = meaning.trim(), context = req.sentence)) },
+                            enabled = meaning.isNotBlank(), modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.accentInk),
+                        ) { Text("Guardar tarjeta") }
+                    }
                 }
-                "qa" -> {
+                "qa" -> SheetSection("Tarjeta de pregunta") {
                     OutlinedTextField(question, { question = it }, label = { Text("Pregunta") }, minLines = 2, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(reply, { reply = it }, label = { Text("Respuesta") }, minLines = 3, modifier = Modifier.fillMaxWidth())
-                    Button(
-                        onClick = { if (question.isNotBlank() && reply.isNotBlank()) create(base("qa").copy(front = question.trim(), back = reply.trim())) },
-                        enabled = question.isNotBlank() && reply.isNotBlank(), modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.accentInk),
-                    ) { Text("Guardar pregunta") }
-                }
-                else -> {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (req.onHighlight != null) {
-                            OutlinedButton(onClick = { req.onHighlight.invoke(""); onDismiss() }) { Text("Resaltar", color = c.ink) }
-                        }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { mode = "" }) { Text("Volver") }
                         Button(
-                            onClick = { create(base("cloze").copy(front = clozeFront(req.sentence, answer), back = answer, context = req.sentence)) },
-                            enabled = sel.isNotEmpty(),
+                            onClick = { if (question.isNotBlank() && reply.isNotBlank()) create(base("qa").copy(front = question.trim(), back = reply.trim())) },
+                            enabled = question.isNotBlank() && reply.isNotBlank(), modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.accentInk),
-                        ) { Text("Completar") }
-                        OutlinedButton(onClick = { mode = "vocab" }, enabled = sel.isNotEmpty()) { Text("Vocabulario", color = c.ink) }
-                        OutlinedButton(onClick = {
+                        ) { Text("Guardar tarjeta") }
+                    }
+                }
+                else -> SheetSection("Crear tarjeta de repaso") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SheetTile(
+                            Icons.Rounded.Style, "Completar",
+                            if (sel.isEmpty()) "Elige primero las palabras que quieres ocultar" else "Oculta «${answer.take(24)}» y tú lo recuerdas",
+                            sel.isNotEmpty(), Modifier.weight(1f), primary = true,
+                        ) { create(base("cloze").copy(front = clozeFront(req.sentence, answer), back = answer, context = req.sentence)) }
+                        SheetTile(Icons.Rounded.QuestionMark, "Pregunta", "Escribe tu pregunta y su respuesta", true, Modifier.weight(1f)) {
                             question = if (sel.isNotEmpty()) "¿Qué es o qué significa «$answer»?" else ""
                             mode = "qa"
-                        }) { Text("Pregunta", color = c.ink) }
-                        OutlinedButton(onClick = {
-                            // Cita: la oración completa, o las palabras elegidas si marcaste varias seguidas
-                            val idx = sel.sorted()
-                            val contiguous = idx.size >= 4 && idx.last() - idx.first() == idx.size - 1
-                            saveQuote(vm, req, if (contiguous) idx.joinToString(" ") { words[it] } else req.sentence)
-                            onDismiss()
-                        }) { Text("Citar", color = c.ink) }
-                        TextButton(onClick = {
-                            val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                            cm?.setPrimaryClip(ClipData.newPlainText("Hilo", if (sel.isEmpty()) req.sentence else answer))
-                            vm.toast = "Copiado."
-                            onDismiss()
-                        }) { Text("Copiar") }
+                        }
                     }
-                    Text(
-                        "Completar: oculta las palabras elegidas. Vocabulario: para idiomas, con su significado. Pregunta: escribe tú la pregunta. Citar: la guarda con su página para tus trabajos (formato APA).",
-                        color = c.muted, fontSize = 12.sp,
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SheetTile(Icons.Rounded.Translate, "Vocabulario", "Palabra y su significado (idiomas)", sel.isNotEmpty(), Modifier.weight(1f)) { mode = "vocab" }
+                        SheetTile(Icons.Rounded.Lightbulb, "Explícalo", "Con tus palabras, como a un niño (Feynman)", true, Modifier.weight(1f)) {
+                            val term = answer.ifBlank { words.getOrNull(req.wordIndex)?.let { core(it) }.orEmpty() }
+                            vm.feynman = FeynmanReq(req.bookId, term.ifBlank { req.sentence.take(60) }, req.sentence, emptyList())
+                            onDismiss()
+                        }
+                    }
+                }
+            }
+
+            // 3. Subrayar con su tipo (lectura activa con colores)
+            if (req.onHighlight != null && mode == "") SheetSection("Subrayar como") {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    (listOf(Triple("", "Resaltar", PLAIN_HL)) + com.hilo.lector.data.MARK_KINDS).forEach { (k, label, col) ->
+                        Row(
+                            Modifier.clip(RoundedCornerShape(50)).background(Color(col).copy(alpha = 0.22f))
+                                .border(1.dp, Color(col), RoundedCornerShape(50))
+                                .clickable { req.onHighlight.invoke(k); onDismiss() }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(Modifier.size(12.dp).clip(CircleShape).background(Color(col)))
+                            Text(label, color = c.ink, fontSize = 14.sp, modifier = Modifier.padding(start = 6.dp))
+                        }
+                    }
+                }
+                Text("Definición, tesis, ejemplo, crítica, dato o duda: cada color es un tipo de idea. Las dudas aparecen en tu ruta de estudio.", color = c.muted, fontSize = 12.sp)
+            }
+
+            if (mode == "") {
+                // 4. Buscar el término
+                LookupRow(term = answer.ifBlank { words.getOrNull(req.wordIndex)?.let { core(it) }.orEmpty() }, lang = lang)
+                ArticleRefsRow(vm, req.bookId, req.sentence)
+
+                // 5. Guardar
+                SheetSection("Guardar") {
+                    val chosen = run {
+                        val idx = sel.sorted()
+                        if (idx.size >= 4 && idx.last() - idx.first() == idx.size - 1) idx.joinToString(" ") { words[it] } else req.sentence
+                    }
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SheetChip(Icons.Rounded.FormatQuote, "Citar (APA)") { saveQuote(vm, req, chosen); onDismiss() }
+                        SheetChip(Icons.Rounded.EditNote, "A mis apuntes") {
+                            val old = vm.study.notes[req.bookId].orEmpty()
+                            val entry = "> «$chosen» (${req.source})"
+                            vm.study.setNote(req.bookId, if (old.isBlank()) entry else old.trimEnd() + "\n\n" + entry)
+                            vm.toast = "Guardado en Apuntes."
+                            onDismiss()
+                        }
+                        SheetChip(Icons.Rounded.ContentCopy, "Copiar") {
+                            copyText(ctx, if (sel.isEmpty()) req.sentence else answer); vm.toast = "Copiado."; onDismiss()
+                        }
+                        SheetChip(Icons.Rounded.Share, "Compartir") { share(ctx, "«${req.sentence}» — ${listOf(bookTitle, req.source).filter { it.isNotBlank() }.joinToString(", ")}") }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SheetSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    val c = LocalHilo.current
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title.uppercase(), color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        content()
+    }
+}
+
+@Composable
+private fun SheetTile(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, sub: String, enabled: Boolean, modifier: Modifier, primary: Boolean = false, onClick: () -> Unit) {
+    val c = LocalHilo.current
+    val bg = if (primary && enabled) c.accent else c.bg
+    val fg = if (primary && enabled) c.accentInk else c.ink
+    Column(
+        modifier.clip(RoundedCornerShape(16.dp)).background(bg).border(1.dp, if (primary && enabled) c.accent else c.line, RoundedCornerShape(16.dp))
+            .clickable(enabled = enabled, onClick = onClick).padding(12.dp)
+            .then(if (enabled) Modifier else Modifier.alpha(0.45f)),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(icon, null, tint = if (primary && enabled) fg else c.accent, modifier = Modifier.size(22.dp))
+        Text(title, color = fg, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        Text(sub, color = fg.copy(alpha = 0.75f), fontSize = 12.sp, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun SheetChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+    val c = LocalHilo.current
+    Row(
+        Modifier.clip(RoundedCornerShape(50)).border(1.dp, c.line, RoundedCornerShape(50)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = c.accent, modifier = Modifier.size(18.dp))
+        Text(label, color = c.ink, fontSize = 14.sp, modifier = Modifier.padding(start = 6.dp))
     }
 }

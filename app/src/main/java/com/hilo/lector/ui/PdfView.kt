@@ -70,6 +70,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -159,7 +160,7 @@ fun PdfView(
     val density = LocalDensity.current
 
     /** Mantener el dedo sobre una línea: estudiar la oración que la contiene. */
-    fun studyLine(p: Int, li: Int, x: Float) {
+    fun studyLine(p: Int, li: Int, x: Float, chosen: String? = null, hl: ((String) -> Unit)? = null) {
         val ls = engine.peekLines(p) ?: return
         val ln = ls.getOrNull(li) ?: return
         val from = (li - 3).coerceAtLeast(0)
@@ -176,13 +177,17 @@ fun PdfView(
         }
         val text = sb.toString()
         val (a, b) = sentenceAround(text, at)
-        val sentence = text.substring(a, b).trim()
+        var sentence = text.substring(a, b).trim()
         if (sentence.isEmpty()) return
+        // Si lo elegido es más largo que la oración, se estudia lo elegido
+        if (chosen != null && !sentence.contains(chosen) && chosen.length > sentence.length / 2) sentence = chosen
+        val si = if (chosen != null) sentence.indexOf(chosen) else -1
         onStudy(
             StudyRequest(
                 bookId = book.id, sentence = sentence, wordIndex = wordIndexAt(text.substring(a, b), at - a),
                 flow = false, pos = p, source = "pág. ${p + 1}",
-                onHighlight = { kind ->
+                selStart = si, selEnd = if (si >= 0) si + chosen!!.length else -1,
+                onHighlight = hl ?: { kind ->
                     val cy = (ln.t + ln.b) / 2
                     val asp = engine.aspects.getOrElse(p) { 1.41f }
                     val col = com.hilo.lector.data.MARK_KINDS.firstOrNull { it.first == kind }?.third ?: HL_YELLOW
@@ -224,6 +229,10 @@ fun PdfView(
     }
     val paper = mode.paper
     val needLines = s.colors || s.ruler || tool == Tool.HIGHLIGHT
+    val psel = remember(book.id) { PdfSelection() }
+    var pdfRoot by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+    // Al cambiar de herramienta (lápiz, resaltador) se suelta el texto elegido
+    LaunchedEffect(tool) { if (tool != Tool.NONE) psel.sel = null }
 
     fun currentPage(): Int =
         if (paged) (pagerState.currentPage * per).coerceIn(0, max(0, count - 1)) else listState.firstVisibleItemIndex
@@ -268,7 +277,7 @@ fun PdfView(
 
     // El fondo toma el color del papel (sin franjas negras); al desplazar, apenas más oscuro para separar las páginas
     val gapBg = if (style.dark) androidx.compose.ui.graphics.lerp(paper, Color.White, 0.06f) else androidx.compose.ui.graphics.lerp(paper, Color.Black, 0.07f)
-    BoxWithConstraints(Modifier.fillMaxSize().background(if (paged) paper else gapBg)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(if (paged) paper else gapBg).onGloballyPositioned { pdfRoot = it }) {
         val pad = 8.dp
         val vw = maxWidth
         val vh = maxHeight
@@ -390,7 +399,8 @@ fun PdfView(
                 tool = tool, penColor = penColor, hlColor = hlColor, annots = annots,
                 onRulerTap = { line -> ruler = p to line },
                 onTapPlain = { fx ->
-                    if (!paged) onTapPlain()
+                    if (psel.consumeTap()) Unit
+                    else if (!paged) onTapPlain()
                     else if (per == 2) tapAt(if (p % 2 == 0) fx / 2f else 0.5f + fx / 2f)
                     else tapAt(fx)
                 },
@@ -398,6 +408,7 @@ fun PdfView(
                 onNoteOpen = { editNote = it },
                 onLongLine = { li, x -> studyLine(p, li, x) },
                 cropOn = s.pdfCrop,
+                psel = psel,
             )
         }
 
@@ -503,6 +514,8 @@ fun PdfView(
                     .padding(horizontal = 12.dp, vertical = 7.dp),
             )
         }
+
+        PdfSelectionOverlay(vm, book, engine, annots, psel, pdfRoot, c.accent, onStudyLine = { p, li, x, chosen, hl -> studyLine(p, li, x, chosen, hl) })
     }
 
     // ---------- diálogos ----------
@@ -642,13 +655,14 @@ private fun PdfPage(
     onNoteOpen: (PdfNote) -> Unit,
     onLongLine: (line: Int, x: Float) -> Unit = { _, _ -> },
     cropOn: Boolean = false,
+    psel: PdfSelection? = null,
 ) {
     val box = if (cropOn) engine.crops[page] else CropBox.FULL
     if (cropOn && box == null) LaunchedEffect(page) { runCatching { engine.crop(page) } }
     val cb = box ?: CropBox.FULL
     if (cb == CropBox.FULL) {
         PdfPageFull(engine, page, width, renderW, style, paper, ocr, needLines, rulerOn, rulerLine, tool, penColor, hlColor, annots,
-            onRulerTap, onTapPlain, onNoteAdd, onNoteOpen, onLongLine)
+            onRulerTap, onTapPlain, onNoteAdd, onNoteOpen, onLongLine, psel)
         return
     }
     val aspect = engine.aspects.getOrElse(page) { 1.41f }.takeIf { it > 0.05f } ?: 1.41f
@@ -667,7 +681,7 @@ private fun PdfPage(
             }
         ) {
             PdfPageFull(engine, page, innerW, rw, style, paper, ocr, needLines, rulerOn, rulerLine, tool, penColor, hlColor, annots,
-                onRulerTap, onTapPlain, onNoteAdd, onNoteOpen, onLongLine)
+                onRulerTap, onTapPlain, onNoteAdd, onNoteOpen, onLongLine, psel)
         }
     }
 }
@@ -693,8 +707,10 @@ private fun PdfPageFull(
     onNoteAdd: (Float, Float) -> Unit,
     onNoteOpen: (PdfNote) -> Unit,
     onLongLine: (line: Int, x: Float) -> Unit = { _, _ -> },
+    psel: PdfSelection? = null,
 ) {
     val longLine by rememberUpdatedState(onLongLine)
+    val pageScope = rememberCoroutineScope()
     val c = LocalHilo.current
     val aspect = engine.aspects.getOrElse(page) { 1.41f }.takeIf { it > 0.05f } ?: 1.41f
 
@@ -759,9 +775,23 @@ private fun PdfPageFull(
             detectTapGestures(
                 onLongPress = { pos ->
                     val x = pos.x / size.width
-                    nearestLine(currentLines, x, pos.y / size.height)?.let { longLine(it, x) }
+                    val y = pos.y / size.height
+                    if (psel == null) {
+                        nearestLine(currentLines, x, y)?.let { longLine(it, x) }
+                    } else {
+                        // Elegir la palabra; si la página aún no tiene su texto, se lee primero
+                        pageScope.launch {
+                            val ls = currentLines.ifEmpty { runCatching { engine.lines(page, ocr) }.getOrDefault(emptyList()) }
+                            val li = nearestLine(ls, x, y) ?: return@launch
+                            val ln = ls[li]
+                            val (a, b) = wordRange(ln.text, lineCharAt(ln, x).coerceAtMost(ln.text.length - 1))
+                            psel.placed[page]?.let { (co, _) -> psel.place(page, co, ls) }
+                            psel.sel = PdfSel(page, li, a, li, b)
+                        }
+                    }
                 },
             ) { pos ->
+                if (psel?.consumeTap() == true) return@detectTapGestures
                 if (rulerOn) {
                     nearestLine(currentLines, pos.x / size.width, pos.y / size.height)?.let { rulerTap(it) }
                 } else tapPlain(pos.x / size.width)
@@ -796,6 +826,7 @@ private fun PdfPageFull(
 
     Box(
         Modifier.width(width).aspectRatio(1f / aspect).clip(RoundedCornerShape(3.dp)).background(paper)
+            .onGloballyPositioned { co -> psel?.place(page, co, currentLines.ifEmpty { psel.placed[page]?.second ?: emptyList() }) }
     ) {
         val b = bmp
         if (b != null) {
@@ -808,6 +839,16 @@ private fun PdfPageFull(
         val liveColor = if (tool == Tool.HIGHLIGHT) hlColor.copy(alpha = 0.4f) else penColor
         Canvas(Modifier.fillMaxSize().then(gestures)) {
             for (st in annots.strokes) if (st.page == page) drawInk(st)
+            // Texto elegido con las manijas
+            psel?.sel?.takeIf { it.page == page }?.ordered()?.let { sl ->
+                val ls = psel.placed[page]?.second ?: currentLines
+                for (i in sl.l1..sl.l2) {
+                    val ln = ls.getOrNull(i) ?: continue
+                    val x1 = if (i == sl.l1) lineCharX(ln, sl.c1) else ln.l
+                    val x2 = if (i == sl.l2) lineCharX(ln, sl.c2) else ln.r
+                    if (x2 > x1) drawRect(Color(0xFF4FA8FF).copy(alpha = 0.38f), Offset(x1 * size.width, ln.t * size.height), Size((x2 - x1) * size.width, (ln.b - ln.t) * size.height))
+                }
+            }
             if (live.size > 1) {
                 val p = Path()
                 p.moveTo(live[0].x * size.width, live[0].y * size.height)
@@ -869,4 +910,115 @@ fun RulerButtons(modifier: Modifier, onUp: () -> Unit, onDown: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Rounded.KeyboardArrowDown, "Siguiente línea", tint = c.accentInk) }
     }
+}
+
+/** Manijas y menú del texto elegido sobre la página original. */
+@Composable
+private fun PdfSelectionOverlay(
+    vm: HiloViewModel,
+    book: Book,
+    engine: PdfEngine,
+    annots: AnnotStore,
+    psel: PdfSelection,
+    root: androidx.compose.ui.layout.LayoutCoordinates?,
+    color: Color,
+    onStudyLine: (page: Int, line: Int, x: Float, chosen: String, hl: (String) -> Unit) -> Unit,
+) {
+    val raw = psel.sel ?: return
+    @Suppress("UNUSED_VARIABLE") val tick = psel.tick
+    val (pc, lines) = psel.placed[raw.page] ?: return
+    val rc = root ?: return
+    if (!pc.isAttached || !rc.isAttached || lines.isEmpty()) return
+    val sl = raw.ordered()
+    val l1 = lines.getOrNull(sl.l1) ?: return
+    val l2 = lines.getOrNull(sl.l2) ?: return
+    val w = pc.size.width.toFloat()
+    val h = pc.size.height.toFloat()
+    fun toRoot(x: Float, y: Float) = rc.localPositionOf(pc, Offset(x * w, y * h))
+    val startPt = toRoot(lineCharX(l1, sl.c1), l1.b)
+    val endPt = toRoot(lineCharX(l2, sl.c2), l2.b)
+    val topPt = toRoot(l1.l, l1.t)
+    val lineH = (l1.b - l1.t) * h
+    val anchor = androidx.compose.ui.geometry.Rect(minOf(startPt.x, endPt.x), topPt.y, maxOf(startPt.x, endPt.x), endPt.y)
+
+    fun posAt(p: Offset): Pair<Int, Int>? {
+        val local = pc.localPositionOf(rc, p - Offset(0f, lineH * 0.6f))
+        val x = local.x / w
+        val y = local.y / h
+        var best = -1
+        var bd = Float.MAX_VALUE
+        lines.forEachIndexed { i, ln ->
+            val dy = if (y < ln.t) ln.t - y else if (y > ln.b) y - ln.b else 0f
+            if (dy < bd) { bd = dy; best = i }
+        }
+        val ln = lines.getOrNull(best) ?: return null
+        return best to lineCharAt(ln, x)
+    }
+    SelHandle(startPt, true, color, onMove = { p ->
+        posAt(p)?.let { (li, ch) -> psel.sel = PdfSel(sl.page, li, ch, sl.l2, sl.c2).ordered() }
+    })
+    SelHandle(endPt, false, color, onMove = { p ->
+        posAt(p)?.let { (li, ch) -> psel.sel = PdfSel(sl.page, sl.l1, sl.c1, li, ch).ordered() }
+    })
+    val text = pdfSelText(lines, sl)
+    if (text.isBlank()) return
+
+    fun highlight(kind: String) {
+        val asp = engine.aspects.getOrElse(sl.page) { 1.41f }
+        val col = com.hilo.lector.data.MARK_KINDS.firstOrNull { it.first == kind }?.third ?: PLAIN_HL
+        var n = 0
+        for (i in sl.l1..sl.l2) {
+            val ln = lines.getOrNull(i) ?: continue
+            val x1 = if (i == sl.l1) lineCharX(ln, sl.c1) else ln.l
+            val x2 = if (i == sl.l2) lineCharX(ln, sl.c2) else ln.r
+            if (x2 <= x1) continue
+            val cy = (ln.t + ln.b) / 2
+            val part = ln.text.substring(
+                if (i == sl.l1) sl.c1.coerceIn(0, ln.text.length) else 0,
+                if (i == sl.l2) sl.c2.coerceIn(0, ln.text.length).coerceAtLeast(if (i == sl.l1) sl.c1.coerceIn(0, ln.text.length) else 0) else ln.text.length,
+            )
+            annots.addStroke(InkStroke(annots.newId(), sl.page, true, col, (ln.b - ln.t) * asp * 1.05f, floatArrayOf(x1, cy, x2, cy), part))
+            n++
+        }
+        if (kind == "duda") {
+            vm.motor.add(com.hilo.lector.data.Entry(vm.motor.newId(), book.id, "duda", "pág. ${sl.page + 1}", text, System.currentTimeMillis()))
+            vm.toast = "Marcada como duda: la verás en tu ruta de estudio."
+        }
+        vm.undoable(if (kind.isBlank()) "Resaltado" else "Subrayado: " + (com.hilo.lector.data.MARK_KINDS.firstOrNull { it.first == kind }?.second ?: "")) { repeat(n) { annots.undo() } }
+    }
+
+    SelectionToolbar(
+        anchor,
+        SelMenu(
+            text = text,
+            lang = vm.study.langs[book.id].orEmpty(),
+            onHighlight = { k -> highlight(k) },
+            onNote = { note ->
+                highlight("")
+                annots.addNote(PdfNote(annots.newId(), sl.page, l1.r.coerceAtMost(0.97f), l1.t, "«$text»" + if (note.isNotBlank()) "\n\n$note" else ""))
+                vm.toast = "Nota pegada en la página."
+            },
+            onStudy = { onStudyLine(sl.page, sl.l1, lineCharX(l1, sl.c1), text) { k -> highlight(k) } },
+            onCite = {
+                saveQuote(vm, StudyRequest(book.id, text, 0, false, sl.page, "pág. ${sl.page + 1}", null), text)
+            },
+            onSentence = {
+                // Une las líneas de la página, busca la oración y vuelve a líneas
+                val starts = IntArray(lines.size)
+                val sb = StringBuilder()
+                lines.forEachIndexed { i, ln -> if (i > 0) sb.append(' '); starts[i] = sb.length; sb.append(ln.text) }
+                val all = sb.toString()
+                val (a, b) = sentenceAround(all, starts[sl.l1] + sl.c1)
+                fun back(o: Int): Pair<Int, Int> {
+                    var i = starts.indexOfLast { it <= o }.coerceAtLeast(0)
+                    return i to (o - starts[i]).coerceIn(0, lines[i].text.length)
+                }
+                val (la, ca) = back(a)
+                val (lb, cb) = back(b)
+                psel.sel = PdfSel(sl.page, la, ca, lb, cb)
+            },
+            onParagraph = null,
+            onDone = { psel.sel = null },
+        ),
+    )
 }

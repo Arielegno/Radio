@@ -107,7 +107,7 @@ fun GestureCoach(onDone: () -> Unit) {
         Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.72f)).pointerInput(Unit) { detectTapGestures { onDone() } },
     ) {
         Row(Modifier.fillMaxSize()) {
-            listOf("‹\nPágina\nanterior" to 0.28f, "Toca aquí para ver u ocultar los menús\n\nMantén el dedo sobre una oración para estudiarla" to 0.44f, "›\nPágina\nsiguiente" to 0.28f).forEachIndexed { i, (t, w) ->
+            listOf("‹\nPágina\nanterior" to 0.28f, "Toca aquí para ver u ocultar los menús\n\nMantén el dedo sobre una palabra para elegirla; ajusta con las manijas" to 0.44f, "›\nPágina\nsiguiente" to 0.28f).forEachIndexed { i, (t, w) ->
                 Box(
                     Modifier.weight(w).fillMaxHeight().padding(6.dp).border(2.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center,

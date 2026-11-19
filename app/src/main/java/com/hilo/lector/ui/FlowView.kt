@@ -57,6 +57,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
@@ -171,6 +172,8 @@ fun FlowParagraph(
     onLongPress: ((offset: Int) -> Unit)? = null,
     modifier: Modifier = Modifier,
     gap: Boolean = true,
+    selection: IntRange? = null,
+    onPlaced: ((androidx.compose.ui.layout.LayoutCoordinates, TextLayoutResult) -> Unit)? = null,
 ) {
     val heading = text.startsWith("# ")
     val longPress by rememberUpdatedState(onLongPress)
@@ -188,8 +191,18 @@ fun FlowParagraph(
         modifier = modifier
             .fillMaxWidth()
             .padding(bottom = if (gap) paraGap(heading, s) else 0.dp)
+            .then(
+                if (onPlaced != null) Modifier.onGloballyPositioned { co -> layout?.let { onPlaced(co, it) } } else Modifier
+            )
             .drawBehind {
                 val l = layout
+                // Texto elegido con las manijas
+                if (l != null && selection != null) {
+                    val n = l.layoutInput.text.length
+                    val a = selection.first.coerceIn(0, n)
+                    val b = selection.last.coerceIn(a, n)
+                    if (b > a) drawPath(l.getPathForRange(a, b), Color(0xFF4FA8FF).copy(alpha = if (mode.dark) 0.45f else 0.38f))
+                }
                 // Resaltados del estudio
                 if (l != null && marks.isNotEmpty()) {
                     val n = l.layoutInput.text.length
@@ -330,29 +343,122 @@ fun FlowView(
         return
     }
 
-    // Mantener el dedo sobre el texto: estudiar esa oración
+    val fsel = remember(book.id) { FlowSelection() }
+
+    /** Resalta [a, b) del párrafo con el color de su tipo. */
+    fun highlight(para: Int, a: Int, b: Int, kind: String) {
+        val body = list[para].removePrefix("# ")
+        val col = com.hilo.lector.data.MARK_KINDS.firstOrNull { it.first == kind }?.third ?: PLAIN_HL
+        val mk = TextMark(vm.study.newId(), book.id, para, a, b, body.substring(a, b).trim(), col, System.currentTimeMillis(), kind)
+        vm.study.addMark(mk)
+        if (kind == "duda") vm.toast = "Marcada como duda: la verás en tu ruta de estudio."
+        vm.undoable(if (kind.isBlank()) "Resaltado" else "Subrayado: " + (com.hilo.lector.data.MARK_KINDS.firstOrNull { it.first == kind }?.second ?: "")) { vm.study.deleteMark(mk.id) }
+    }
+
+    /** El panel completo de estudio, con las palabras elegidas ya marcadas. */
+    fun request(para: Int, selA: Int, selB: Int): StudyRequest? {
+        val body = list[para].removePrefix("# ")
+        val (s0, _) = sentenceAround(body, selA)
+        val (_, e1) = sentenceAround(body, (selB - 1).coerceAtLeast(selA))
+        val sentence = body.substring(s0, e1).trim()
+        if (sentence.isEmpty()) return null
+        val lead = body.substring(s0, e1).length - body.substring(s0, e1).trimStart().length
+        return StudyRequest(
+            bookId = book.id, sentence = sentence, wordIndex = wordIndexAt(body.substring(s0, e1), selA - s0),
+            flow = true, pos = para, source = "párrafo ${para + 1}",
+            onHighlight = { kind -> highlight(para, selA, selB, kind) },
+            selStart = selA - s0 - lead, selEnd = selB - s0 - lead,
+        )
+    }
+
+    // Mantener el dedo sobre el texto: elegir la palabra (después se ajusta con las manijas)
     val study: (Int, Int) -> Unit = { para, offset ->
         val body = list[para].removePrefix("# ")
-        val (a, b) = sentenceAround(body, offset)
-        val sentence = body.substring(a, b).trim()
-        if (sentence.isNotEmpty()) {
-            onStudy(
-                StudyRequest(
-                    bookId = book.id, sentence = sentence, wordIndex = wordIndexAt(body.substring(a, b), offset - a),
-                    flow = true, pos = para, source = "párrafo ${para + 1}",
-                    onHighlight = { kind ->
-                        val col = com.hilo.lector.data.MARK_KINDS.firstOrNull { it.first == kind }?.third ?: 0xFFFFD54F.toInt()
-                        val mk = TextMark(vm.study.newId(), book.id, para, a, b, sentence, col, System.currentTimeMillis(), kind)
-                        vm.study.addMark(mk)
-                        vm.undoable(if (kind.isBlank()) "Resaltado" else "Subrayado: " + (com.hilo.lector.data.MARK_KINDS.firstOrNull { it.first == kind }?.second ?: "")) { vm.study.deleteMark(mk.id) }
-                    },
-                )
-            )
+        if (body.isNotBlank()) {
+            val (a, b) = wordRange(body, offset)
+            fsel.sel = TextSel(para, a, b)
         }
     }
 
-    if (s.pageMode == 1) PagedFlow(vm, book, list, s, mode, bridge, onTapPlain, study)
-    else ScrollFlow(vm, book, list, s, mode, bridge, onTapPlain, study)
+    var root by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+    Box(Modifier.fillMaxSize().onGloballyPositioned { root = it }) {
+        if (s.pageMode == 1) PagedFlow(vm, book, list, s, mode, bridge, onTapPlain, study, fsel)
+        else ScrollFlow(vm, book, list, s, mode, bridge, onTapPlain, study, fsel)
+        FlowSelectionOverlay(vm, book, list, fsel, root, c.accent, ::highlight, ::request, onStudy)
+    }
+}
+
+/** Manijas y menú del texto elegido, encima del texto. */
+@Composable
+private fun FlowSelectionOverlay(
+    vm: HiloViewModel,
+    book: Book,
+    list: List<String>,
+    fsel: FlowSelection,
+    root: androidx.compose.ui.layout.LayoutCoordinates?,
+    color: Color,
+    highlight: (Int, Int, Int, String) -> Unit,
+    request: (Int, Int, Int) -> StudyRequest?,
+    onStudy: (StudyRequest) -> Unit,
+) {
+    val sel = fsel.sel ?: return
+    @Suppress("UNUSED_VARIABLE") val tick = fsel.tick
+    val (pc, lay) = fsel.placed[sel.para] ?: return
+    val rc = root ?: return
+    if (!pc.isAttached || !rc.isAttached) return
+    val body = list[sel.para].removePrefix("# ")
+    val n = minOf(lay.layoutInput.text.length, body.length)
+    val vis = fsel.visible[sel.para] ?: (0 until n + 1)
+    val lo = vis.first.coerceIn(0, n)
+    val hi = (vis.last).coerceIn(lo, n)
+    val a = sel.start.coerceIn(lo, hi)
+    val b = sel.end.coerceIn(a, hi)
+    if (b <= a) return
+    fun toRoot(p: Offset) = rc.localPositionOf(pc, p)
+    val ca = lay.getCursorRect(a)
+    val cb = lay.getCursorRect(b)
+    val startPt = toRoot(Offset(ca.left, ca.bottom))
+    val endPt = toRoot(Offset(cb.left, cb.bottom))
+    val topPt = toRoot(Offset(0f, lay.getLineTop(lay.getLineForOffset(a))))
+    val lineH = ca.bottom - ca.top
+    val anchor = androidx.compose.ui.geometry.Rect(minOf(startPt.x, endPt.x), topPt.y, maxOf(startPt.x, endPt.x), endPt.y)
+
+    fun offsetAt(p: Offset): Int {
+        val local = pc.localPositionOf(rc, p - Offset(0f, lineH * 0.6f))
+        return lay.getOffsetForPosition(local).coerceIn(lo, hi)
+    }
+    SelHandle(startPt, true, color, onMove = { p ->
+        val o = offsetAt(p)
+        fsel.sel = if (o < sel.end) sel.copy(start = o) else sel.copy(start = (sel.end - 1).coerceAtLeast(0))
+    })
+    SelHandle(endPt, false, color, onMove = { p ->
+        val o = offsetAt(p)
+        fsel.sel = if (o > sel.start) sel.copy(end = o) else sel.copy(end = sel.start + 1)
+    })
+    val text = body.substring(a, b).trim()
+    SelectionToolbar(
+        anchor,
+        SelMenu(
+            text = text,
+            lang = vm.study.langs[book.id].orEmpty(),
+            onHighlight = { kind -> highlight(sel.para, a, b, kind) },
+            onNote = { note ->
+                highlight(sel.para, a, b, "")
+                val old = vm.study.notes[book.id].orEmpty()
+                val entry = "> «$text» (párrafo ${sel.para + 1})" + (if (note.isNotBlank()) "\n$note" else "")
+                vm.study.setNote(book.id, if (old.isBlank()) entry else old.trimEnd() + "\n\n" + entry)
+                vm.toast = "Nota guardada en Apuntes."
+            },
+            onStudy = { request(sel.para, a, b)?.let(onStudy) },
+            onCite = { request(sel.para, a, b)?.let { saveQuote(vm, it, text) } },
+            onSentence = {
+                val (s0, s1) = sentenceAround(body, a)
+                fsel.sel = TextSel(sel.para, s0.coerceAtLeast(lo), s1.coerceAtMost(hi))
+            },
+            onParagraph = { fsel.sel = TextSel(sel.para, lo, hi) },
+            onDone = { fsel.sel = null },
+        ),
+    )
 }
 
 @Composable
@@ -365,6 +471,7 @@ private fun ScrollFlow(
     bridge: ReaderBridge,
     onTapPlain: () -> Unit,
     study: (para: Int, offset: Int) -> Unit,
+    fsel: FlowSelection,
 ) {
     val c = LocalHilo.current
     val scope = rememberCoroutineScope()
@@ -422,6 +529,7 @@ private fun ScrollFlow(
     }
 
     fun tapAt(frac: Float) {
+        if (fsel.consumeTap()) return
         val vp = listState.layoutInfo.viewportSize.height.toFloat()
         when {
             s.tapTurn && frac < 0.28f -> scope.launch { listState.animateScrollBy(-vp * 0.85f) }
@@ -470,9 +578,11 @@ private fun ScrollFlow(
                     rulerLine = ruler?.takeIf { it.first == i }?.second,
                     rulerOn = s.ruler,
                     onLayout = { layouts[i] = it },
-                    onTap = { line, fx -> if (s.ruler && line != null) ruler = i to line else tapAt(fx) },
+                    onTap = { line, fx -> if (fsel.sel == null && s.ruler && line != null) ruler = i to line else tapAt(fx) },
                     marks = marksFor(i, 0, p.removePrefix("# ").length),
                     onLongPress = { off -> study(i, off) },
+                    selection = fsel.sel?.takeIf { it.para == i }?.let { it.start..it.end },
+                    onPlaced = { co, l -> fsel.place(i, co, l) },
                 )
             }
             item {
@@ -555,6 +665,7 @@ private fun PagedFlow(
     bridge: ReaderBridge,
     onTapPlain: () -> Unit,
     study: (para: Int, offset: Int) -> Unit,
+    fsel: FlowSelection,
 ) {
     val c = LocalHilo.current
     val density = LocalDensity.current
@@ -657,6 +768,7 @@ private fun PagedFlow(
         }
 
         fun tapAt(frac: Float) {
+            if (fsel.consumeTap()) return
             when {
                 s.tapTurn && frac < 0.28f -> scope.launch { pagerState.animateScrollToPage((pagerState.currentPage - 1).coerceAtLeast(0)) }
                 s.tapTurn && frac > 0.72f -> scope.launch {
@@ -716,9 +828,11 @@ private fun PagedFlow(
                             rulerLine = rLine,
                             rulerOn = s.ruler,
                             onLayout = { layouts[pi * 1000 + k] = it },
-                            onTap = { line, fx -> if (s.ruler && line != null) ruler = PagedRuler(pi, k, line) else tapAt(fx) },
+                            onTap = { line, fx -> if (fsel.sel == null && s.ruler && line != null) ruler = PagedRuler(pi, k, line) else tapAt(fx) },
                             marks = marksFor(ch.para, 0, raw.length + 1),
                             onLongPress = { off -> study(ch.para, off) },
+                            selection = fsel.sel?.takeIf { it.para == ch.para }?.let { it.start..it.end },
+                            onPlaced = { co, l -> if (pi / per == pagerState.currentPage) fsel.place(ch.para, co, l, ch.start..ch.end) },
                             gap = false,
                             modifier = Modifier.wrapContentHeight(Alignment.Top, unbounded = true)
                                 .offset { androidx.compose.ui.unit.IntOffset(0, -ch.top.roundToInt()) },
@@ -729,6 +843,8 @@ private fun PagedFlow(
             }
         }
 
+        // Al pasar de página se suelta el texto elegido
+        LaunchedEffect(pagerState) { snapshotFlow { pagerState.currentPage }.collect { fsel.sel = null } }
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize(), beyondViewportPageCount = 1) { sp ->
             Box(
                 Modifier.fillMaxSize().pageTurn(pagerState, sp).background(mode.paper)

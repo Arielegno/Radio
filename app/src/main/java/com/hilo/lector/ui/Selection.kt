@@ -200,11 +200,13 @@ fun SelectionToolbar(anchor: Rect, menu: SelMenu) {
             below + size.height <= H - with(d) { 24.dp.toPx() } -> below
             else -> ((H - size.height) / 2f)
         }
-        val x = (anchor.center.x - size.width / 2f).coerceIn(with(d) { 8.dp.toPx() }, (W - size.width - with(d) { 8.dp.toPx() }).coerceAtLeast(0f))
+        val m = with(d) { 8.dp.toPx() }
+        // Nunca más ancho que la pantalla; si no cabe centrado sobre el texto, se corre hacia adentro
+        val x = (anchor.center.x - size.width / 2f).coerceIn(m, maxOf(m, W - size.width - m))
 
         Surface(
             shape = RoundedCornerShape(18.dp), color = c.surface, shadowElevation = 10.dp, tonalElevation = 2.dp,
-            modifier = Modifier.offset { IntOffset(x.roundToInt(), y.roundToInt()) }.widthIn(max = 420.dp)
+            modifier = Modifier.offset { IntOffset(x.roundToInt(), y.roundToInt()) }.widthIn(max = minOf(420.dp, maxWidth - 16.dp))
                 .onSizeChanged { size = it }.border(1.dp, c.line, RoundedCornerShape(18.dp)),
         ) {
             when (panel) {

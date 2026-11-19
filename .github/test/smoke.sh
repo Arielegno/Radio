@@ -464,6 +464,9 @@ adb shell am force-stop $PKG
 adb shell am start -W -n $PKG/.MainActivity
 sleep 3
 tap "Menú"
+sleep 1
+adb shell input swipe 300 1800 300 500 400
+sleep 1
 tap "Cómo usar Hilo"
 shot 89_guia_nueva 3
 tap "Elegir texto (selección)"

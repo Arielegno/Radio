@@ -478,8 +478,9 @@ private fun ScrollFlow(
     val listState = rememberLazyListState(book.flowPos.coerceIn(0, list.size - 1), book.flowOffset)
     val layouts = remember(book.id) { HashMap<Int, TextLayoutResult>() }
     var ruler by remember(book.id) { mutableStateOf<Pair<Int, Int>?>(null) }
-    val bookMarks = vm.study.marks.filter { it.bookId == book.id }
-    fun marksFor(para: Int, start: Int, end: Int): List<Pair<IntRange, Int>> = bookMarks.filter { it.para == para && it.end > start && it.start < end }
+    // Resaltados agrupados por párrafo: con miles de resaltados, cada párrafo busca solo los suyos
+    val byPara by remember(book.id) { androidx.compose.runtime.derivedStateOf { vm.study.marks.filter { it.bookId == book.id }.groupBy { it.para } } }
+    fun marksFor(para: Int, start: Int, end: Int): List<Pair<IntRange, Int>> = byPara[para].orEmpty().filter { it.end > start && it.start < end }
         .map { ((maxOf(it.start, start) - start) until (minOf(it.end, end) - start)) to it.color }
 
     LaunchedEffect(list) {
@@ -669,8 +670,9 @@ private fun PagedFlow(
 ) {
     val c = LocalHilo.current
     val density = LocalDensity.current
-    val bookMarks = vm.study.marks.filter { it.bookId == book.id }
-    fun marksFor(para: Int, start: Int, end: Int): List<Pair<IntRange, Int>> = bookMarks.filter { it.para == para && it.end > start && it.start < end }
+    // Resaltados agrupados por párrafo: con miles de resaltados, cada párrafo busca solo los suyos
+    val byPara by remember(book.id) { androidx.compose.runtime.derivedStateOf { vm.study.marks.filter { it.bookId == book.id }.groupBy { it.para } } }
+    fun marksFor(para: Int, start: Int, end: Int): List<Pair<IntRange, Int>> = byPara[para].orEmpty().filter { it.end > start && it.start < end }
         .map { ((maxOf(it.start, start) - start) until (minOf(it.end, end) - start)) to it.color }
     val scope = rememberCoroutineScope()
     val layouts = remember(book.id) { HashMap<Int, TextLayoutResult>() }

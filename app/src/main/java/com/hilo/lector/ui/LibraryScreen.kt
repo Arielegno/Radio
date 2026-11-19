@@ -177,7 +177,11 @@ private fun mimeOf(type: String) = when (type) {
 fun LibraryScreen(vm: HiloViewModel) {
     val c = LocalHilo.current
     val ctx = LocalContext.current
-    val books by vm.repo.books.collectAsStateWithLifecycle()
+    val allBooks by vm.repo.books.collectAsStateWithLifecycle()
+    // Formatos ocultos en Ajustes: siguen en el celular, solo no se muestran
+    val hiddenTypes = vm.settings.state.collectAsStateWithLifecycle().value.hiddenTypes
+    val books = remember(allBooks, hiddenTypes) { if (hiddenTypes.isEmpty()) allBooks else allBooks.filter { it.type !in hiddenTypes } }
+    val hiddenCount = allBooks.size - books.size
     var section by remember { mutableStateOf(Section("all")) }
     var query by rememberSaveable { mutableStateOf("") }
     var searching by rememberSaveable { mutableStateOf(false) }
@@ -443,7 +447,8 @@ fun LibraryScreen(vm: HiloViewModel) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     val n = books.count { !it.trashed }
                     Text(
-                        "$n ${if (n == 1) "libro guardado" else "libros guardados"} en este celular.",
+                        "$n ${if (n == 1) "libro guardado" else "libros guardados"} en este celular." +
+                            (if (hiddenCount > 0) " $hiddenCount ocultos por su formato (Ajustes → Formatos que se ven)." else ""),
                         color = c.muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     )
                 }
@@ -805,6 +810,10 @@ private fun FilterBar(vm: HiloViewModel, books: List<Book>, filters: List<String
         if (fmts.size > 1) androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             fmts.forEach { t -> Pill(Formats.label(t), "fmt:$t" in filters) { toggle("fmt:$t") } }
         }
+        Text(
+            "Ocultar formatos siempre (por ejemplo HTML) →", color = c.accent, fontSize = 13.sp,
+            modifier = Modifier.clip(RoundedCornerShape(50)).clickable { vm.sheet = "settings" }.padding(vertical = 4.dp, horizontal = 2.dp),
+        )
         val tags = live.flatMap { it.collections }.distinct().sorted()
         if (tags.isNotEmpty()) androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             tags.forEach { t -> Pill("# $t", "tag:$t" in filters) { toggle("tag:$t") } }
@@ -817,7 +826,9 @@ private fun FilterBar(vm: HiloViewModel, books: List<Book>, filters: List<String
 @Composable
 private fun GlobalResults(vm: HiloViewModel, query: String) {
     val c = LocalHilo.current
-    val books by vm.repo.books.collectAsStateWithLifecycle()
+    val all by vm.repo.books.collectAsStateWithLifecycle()
+    val hidden = vm.settings.state.collectAsStateWithLifecycle().value.hiddenTypes
+    val books = all.filter { it.type !in hidden }
     val hits by androidx.compose.runtime.produceState<List<com.hilo.lector.data.Hit>?>(null, query) {
         kotlinx.coroutines.delay(350)
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { vm.search.search(query, 120) }.getOrDefault(emptyList()) }

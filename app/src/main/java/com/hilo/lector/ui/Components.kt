@@ -271,7 +271,7 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
                 vm.settings.update { it.copy(intensity = (v * 20).roundToInt() / 20f) }
             }
             // Modo simple: lo esencial a la vista y el resto a un toque
-            var showAll by remember { mutableStateOf(!s.simple) }
+            var showAll by remember { mutableStateOf(!s.simple || s.hiddenTypes.isNotEmpty() || vm.screen == com.hilo.lector.Screen.Library) }
             if (!showAll) {
                 OutlinedButton(onClick = { showAll = true }, modifier = Modifier.fillMaxWidth()) { Text("Más ajustes (PDF, biblioteca, toques, voz…)", color = c.ink) }
             } else {
@@ -289,6 +289,23 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Label("Vista de la biblioteca")
                 ChoiceRow(listOf("Lista", "Portadas"), s.libraryView) { i -> vm.settings.update { it.copy(libraryView = i) } }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Label("Formatos que se ven")
+                Text("Toca un formato para ocultarlo de la biblioteca (por ejemplo HTML). Los archivos no se borran: vuelven al tocarlo otra vez.", color = c.muted, fontSize = 13.sp)
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.hilo.lector.text.Formats.ALL_TYPES.forEach { t ->
+                        val on = t !in s.hiddenTypes
+                        Text(
+                            (if (on) "✓ " else "") + com.hilo.lector.text.Formats.label(t), fontSize = 14.sp,
+                            color = if (on) c.accentInk else c.muted,
+                            modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
+                                .background(if (on) c.accent else c.chip)
+                                .clickable { vm.settings.update { it.copy(hiddenTypes = if (on) it.hiddenTypes + t else it.hiddenTypes - t) } }
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                        )
+                    }
+                }
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Label("Tema de los menús")

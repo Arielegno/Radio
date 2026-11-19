@@ -472,6 +472,20 @@ shot 89_guia_nueva 3
 tap "Elegir texto (selección)"
 shot 90_guia_tema 3
 
+# ---------- 2.1.1: ocultar formatos ----------
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 3
+tap "Ajustes"
+sleep 1
+for i in 1 2 3 4 5 6; do adb shell input swipe 540 1900 540 700 300; sleep 0.5; done
+shot 91_formatos_ajuste 2
+tap "✓ Markdown"
+tap "✓ Texto"
+shot 92_formatos_ocultos 2
+back 2
+shot 93_biblioteca_sin_formatos 3
+
 timeout 60 adb logcat -d > $OUT/logcat.txt
 grep -n -A 40 "FATAL EXCEPTION" $OUT/logcat.txt > $OUT/crashes.txt || echo "Sin cierres inesperados" > $OUT/crashes.txt
 exit 0

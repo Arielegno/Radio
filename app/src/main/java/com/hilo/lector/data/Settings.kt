@@ -41,6 +41,7 @@ data class ReaderSettings(
     val indent: Boolean = true,    // sangría al empezar cada párrafo, como en un libro
     val pdfCrop: Boolean = true,   // recortar los márgenes blancos del PDF
     val libraryView: Int = 0,      // 0 lista (como ReadEra), 1 cuadrícula de portadas
+    val hiddenTypes: Set<String> = emptySet(),   // formatos que no se muestran en la biblioteca (pdf, html…)
     val focus: Boolean = false,    // modo enfoque: pantalla completa, sin porcentajes y con «No molestar»
     val haptics: Boolean = true,   // vibración suave al pasar página y al responder tarjetas
     val simple: Boolean = false,   // modo simple: oculta las herramientas avanzadas de estudio
@@ -63,7 +64,7 @@ class SettingsStore(ctx: Context) {
         save(n)
     }
 
-    fun reset() = update { ReaderSettings(theme = it.theme, colorMode = it.colorMode, pageMode = it.pageMode, libraryView = it.libraryView, profile = it.profile, simple = it.simple) }
+    fun reset() = update { ReaderSettings(theme = it.theme, colorMode = it.colorMode, pageMode = it.pageMode, libraryView = it.libraryView, hiddenTypes = it.hiddenTypes, profile = it.profile, simple = it.simple) }
 
     private fun load(): ReaderSettings {
         val d = ReaderSettings()
@@ -100,6 +101,7 @@ class SettingsStore(ctx: Context) {
             indent = sp.getBoolean("indent", d.indent),
             pdfCrop = sp.getBoolean("pdfCrop", d.pdfCrop),
             libraryView = sp.getInt("libraryView", d.libraryView),
+            hiddenTypes = sp.getString("hiddenTypes", "").orEmpty().split(',').filter { it.isNotBlank() }.toSet(),
             focus = sp.getBoolean("focus", d.focus),
             haptics = sp.getBoolean("haptics", d.haptics),
             simple = sp.getBoolean("simple", d.simple),
@@ -148,6 +150,7 @@ class SettingsStore(ctx: Context) {
             .putBoolean("indent", s.indent)
             .putBoolean("pdfCrop", s.pdfCrop)
             .putInt("libraryView", s.libraryView)
+            .putString("hiddenTypes", s.hiddenTypes.joinToString(","))
             .putBoolean("focus", s.focus)
             .putBoolean("haptics", s.haptics)
             .putBoolean("simple", s.simple)

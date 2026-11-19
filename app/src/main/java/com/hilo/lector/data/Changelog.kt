@@ -6,6 +6,16 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            23, "2.1.1", "19 nov 2026", "Elige qué formatos ver",
+            added = listOf(
+                "Ajustes → Formatos que se ven: oculta de la biblioteca los formatos que no quieres (por ejemplo HTML). No se borra nada; vuelven al tocarlos otra vez.",
+                "La biblioteca avisa cuántos documentos están ocultos por su formato, y los filtros tienen un atajo a este ajuste.",
+            ),
+            fixed = listOf(
+                "Desplazarse rápido por párrafos enormes ya no traba la app.",
+            ),
+        ),
+        Version(
             22, "2.1", "19 nov 2026", "Elegir texto como en ReadEra",
             added = listOf(
                 "Mantén el dedo sobre una palabra: queda elegida con dos manijas que puedes arrastrar, en el texto y en la página original del PDF.",

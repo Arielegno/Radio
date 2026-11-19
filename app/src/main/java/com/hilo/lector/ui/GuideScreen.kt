@@ -388,6 +388,7 @@ private val TOPICS = listOf(
             "Mantén el dedo sobre un libro para elegir varios: luego puedes compartirlos, marcarlos como leídos, pasarlos a favoritos o a la papelera.",
             "Menú ☰ → Duplicados encuentra libros repetidos aunque tengan otro nombre.",
             "La vista en lista o en cuadrícula se cambia en Ajustes.",
+            "Para no ver un formato nunca (por ejemplo HTML): Ajustes → Formatos que se ven, y toca ese formato. Los archivos no se borran; vuelven al tocarlo otra vez.",
         ),
     ),
     Topic(

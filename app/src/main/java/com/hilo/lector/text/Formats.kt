@@ -46,6 +46,9 @@ object Formats {
         else -> null
     }
 
+    /** Los formatos que Hilo abre, en el orden en que se muestran en Ajustes. */
+    val ALL_TYPES = listOf("pdf", "epub", "docx", "mobi", "odt", "fb2", "html", "md", "txt", "comic")
+
     fun label(type: String) = when (type) {
         "pdf" -> "PDF"; "epub" -> "EPUB"; "md" -> "Markdown"; "html" -> "HTML"
         "fb2" -> "FB2"; "docx" -> "Word"; "odt" -> "ODT"; "mobi" -> "MOBI"; "comic" -> "Cómic"; else -> "Texto"

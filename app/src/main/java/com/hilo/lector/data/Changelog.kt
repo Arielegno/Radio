@@ -6,6 +6,20 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            22, "2.1", "19 nov 2026", "Elegir texto como en ReadEra",
+            added = listOf(
+                "Mantén el dedo sobre una palabra: queda elegida con dos manijas que puedes arrastrar, en el texto y en la página original del PDF.",
+                "Menú pequeño junto al texto elegido: Copiar, Subrayar (con los colores por tipo), Nota, Traducir, Diccionario y Más (estudiar, citar, Wikipedia, buscar en internet, compartir, elegir la oración o el párrafo).",
+                "El panel «Estudiar este fragmento» ya no se abre solo: está en Más → Estudiar, y viene con lo que elegiste ya marcado.",
+                "Panel de estudio rediseñado: el fragmento arriba, tarjetas (Completar, Pregunta, Vocabulario, Explícalo), subrayar, buscar y guardar en secciones claras.",
+                "Nota: escribe lo que piensas sobre el texto elegido; se guarda en tus Apuntes (o pegada en la página del PDF).",
+                "Guía nueva y detallada: buscador, temas por sección y, en cada uno, para qué sirve, el paso a paso y consejos.",
+            ),
+            fixed = listOf(
+                "El panel de estudio ya no tapa la página cada vez que mantienes el dedo sobre el texto.",
+            ),
+        ),
+        Version(
             21, "2.0.1", "19 nov 2026", "Mapa de conceptos con cifras",
             added = listOf(
                 "Cada círculo del mapa muestra cuántas veces aparece la palabra en el documento.",

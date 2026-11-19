@@ -196,16 +196,23 @@ shot 21_sin_menus 3
 open_book "Libro EPUB de prueba" EPUB
 sleep 5
 adb shell input swipe 400 900 400 900 900
+shot 22_seleccion_menu 2
+tap "Más"
+shot 22b_seleccion_mas 2
+tap "Estudiar: tarjetas y palabras clave"
 shot 23_hoja_estudio 3
 tap "sociología"
+shot 23b_hoja_elegida 2
 tap "Completar"
 sleep 2
-# Resaltar otra oración
+# Subrayar otra frase con su tipo
 open_book "Libro EPUB de prueba" EPUB
 sleep 5
 adb shell input swipe 400 1250 400 1250 900
 sleep 2
-tap "Resaltar"
+tap "Subrayar"
+shot 24a_colores 2
+tap "Definición"
 shot 24_resaltado 3
 # Buscar en el documento
 tap "Contenido y marcadores"
@@ -442,6 +449,25 @@ open_book "Libro FB2 de prueba" FB2
 shot 85_guia_gestos 6
 adb shell input tap 540 1300
 shot 86_tras_guia 3
+
+# ---------- Versión 2.1: selección en el PDF y guía nueva ----------
+open_book "Codigo Civil prueba" Codigo
+sleep 5
+adb shell input tap 540 1300
+sleep 1
+adb shell input swipe 500 900 500 900 900
+shot 87_pdf_seleccion 3
+tap "Subrayar"
+tap "Tesis"
+shot 88_pdf_subrayado 3
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 3
+tap "Menú"
+tap "Cómo usar Hilo"
+shot 89_guia_nueva 3
+tap "Elegir texto (selección)"
+shot 90_guia_tema 3
 
 timeout 60 adb logcat -d > $OUT/logcat.txt
 grep -n -A 40 "FATAL EXCEPTION" $OUT/logcat.txt > $OUT/crashes.txt || echo "Sin cierres inesperados" > $OUT/crashes.txt

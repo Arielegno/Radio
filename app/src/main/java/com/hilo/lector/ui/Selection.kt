@@ -288,10 +288,6 @@ private fun MoreItem(icon: ImageVector, label: String, onClick: () -> Unit) {
     }
 }
 
-fun copyText(ctx: Context, text: String) {
-    (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager)?.setPrimaryClip(ClipData.newPlainText("Hilo", text))
-}
-
 fun share(ctx: Context, text: String) {
     runCatching {
         ctx.startActivity(

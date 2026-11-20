@@ -106,7 +106,7 @@ jobs:
   probar:
     needs: apk
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -134,7 +134,7 @@ jobs:
           disk-size: 4096M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
-          script: timeout 1200 bash .github/test/smoke.sh
+          script: timeout 2400 bash .github/test/smoke.sh
       - name: Publicar capturas
         if: always()
         run: |

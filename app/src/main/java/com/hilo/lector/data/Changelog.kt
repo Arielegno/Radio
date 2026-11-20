@@ -6,6 +6,14 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            28, "2.5.1", "20 nov 2026", "Arreglos",
+            added = listOf("Ajustes → «Color en las letras»: interruptor para apagar el color de las líneas y leer con letra de un solo color. La intensidad ahora baja hasta 20 %."),
+            fixed = listOf(
+                "Con la letra grande del celular, la barra de abajo se partía letra por letra y el botón «Agregar» la tapaba.",
+                "Las versiones nuevas se instalan encima de la anterior sin desinstalar (firma fija).",
+            ),
+        ),
+        Version(
             27, "2.5", "20 nov 2026", "Áreas, diccionarios y herramientas",
             added = listOf(
                 "Áreas de referencia: junta todos los documentos de un campo (por ejemplo Derecho hondureño) y Hilo aprende su estructura: jerarquía de normas, quién cita a quién, definiciones, plazos, sanciones, autoridades y el vocabulario propio del campo. Las clases pueden usar áreas.",

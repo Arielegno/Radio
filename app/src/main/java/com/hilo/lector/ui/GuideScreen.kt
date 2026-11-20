@@ -433,7 +433,7 @@ private val BASE_TOPICS = listOf(
         "Ajustes y ayudas", Icons.Rounded.Lightbulb, "Ayudas de lectura para el TDAH",
         "Pequeñas ayudas para que el ojo no se pierda entre líneas. Prueba una a la vez.",
         listOf(
-            "Colores: cada línea pasa de un color a otro y la siguiente empieza en ese mismo color. El ojo encuentra el inicio de la línea sin saltársela.",
+            "Colores: cada línea pasa de un color a otro y la siguiente empieza en ese mismo color. El ojo encuentra el inicio de la línea sin saltársela. Para quitarlo: toca «Colores» arriba al leer, o Ajustes → «Color en las letras».",
             "Regla: oscurece todo menos la línea que lees. Tócala para moverla o usa las flechas.",
             "Negrita guía (modo Texto): resalta el inicio de cada palabra.",
             "Palabra a palabra (▶): el texto aparece en un solo punto, a tu velocidad.",

@@ -220,7 +220,7 @@ fun PdfView(
     var newNote by remember { mutableStateOf<Triple<Int, Float, Float>?>(null) }
     var editNote by remember { mutableStateOf<PdfNote?>(null) }
 
-    val style = remember(s.colors, s.colorMode, s.palette, s.intensity) {
+    val style = remember(s.colors, s.colorMode, s.palette, s.intensity, mode) {
         PageStyle(
             colors = s.colors, dark = mode.dark,
             palette = mode.palette(s.palette).map { it.toArgb() },

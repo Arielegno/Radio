@@ -263,12 +263,17 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             }
 
             SectionTitle("Ayudas para no perder el hilo", vm, "ayudas-lectura")
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Label("Colores de línea")
-                ChoiceRow(listOf("Arcoíris", "Frío", "Cálido"), s.palette) { i -> vm.settings.update { it.copy(palette = i) } }
+            SwitchRow("Color en las letras", "Cada línea pasa de un color a otro para no perder el renglón. Apágalo para leer con la letra de un solo color.", s.colors) { on ->
+                vm.settings.update { it.copy(colors = on) }
             }
-            SliderRow("Intensidad del color", "${(s.intensity * 100).roundToInt()}%", s.intensity, 0.4f..1f, 11) { v ->
-                vm.settings.update { it.copy(intensity = (v * 20).roundToInt() / 20f) }
+            if (s.colors) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Label("Colores de línea")
+                    ChoiceRow(listOf("Arcoíris", "Frío", "Cálido"), s.palette) { i -> vm.settings.update { it.copy(palette = i) } }
+                }
+                SliderRow("Intensidad del color", "${(s.intensity * 100).roundToInt()}%", s.intensity, 0.2f..1f, 15) { v ->
+                    vm.settings.update { it.copy(intensity = (v * 20).roundToInt() / 20f) }
+                }
             }
             // Modo simple: lo esencial a la vista y el resto a un toque
             var showAll by remember { mutableStateOf(!s.simple || s.hiddenTypes.isNotEmpty() || vm.screen == com.hilo.lector.Screen.Library) }

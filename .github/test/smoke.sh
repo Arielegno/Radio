@@ -667,6 +667,19 @@ shot 92_formatos_ocultos 2
 back 2
 shot 93_biblioteca_sin_formatos 3
 
+# Apagar el color de las letras desde Ajustes
+tap "Ajustes"
+sleep 1
+for i in 1 2 3; do adb shell input swipe 540 1900 540 900 300; sleep 0.5; done
+tap "Color en las letras"
+sleep 1
+shot 126_ajuste_color 2
+back 1
+tap "Libro EPUB de prueba"
+sleep 3
+shot 127_sin_color 2
+back 1
+
 # Letra grande del sistema: la barra de abajo y «Agregar» no deben taparse
 adb shell settings put system font_scale 1.3
 adb shell am force-stop $PKG

@@ -878,7 +878,10 @@ private fun TopBars(
     }
 
     val chips: @Composable () -> Unit = {
-        AidChip("Colores", s.colors) { vm.settings.update { it.copy(colors = !it.colors) } }
+        AidChip("Colores", s.colors) {
+            vm.settings.update { it.copy(colors = !it.colors) }
+            vm.toast = if (s.colors) "Color apagado: letra de un solo color." else "Color encendido."
+        }
         if (flow) AidChip("Negrita guía", s.bionic) { vm.settings.update { it.copy(bionic = !it.bionic) } }
         AidChip("Regla", s.ruler) {
             vm.settings.update { it.copy(ruler = !it.ruler) }

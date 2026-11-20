@@ -351,8 +351,8 @@ private fun ClassDetail(vm: HiloViewModel, cl: Clase) {
                     "calendario" -> CalendarTab(vm, cl, books)
                     "buscar" -> AreaSearchTab(vm, cl, (books + vm.classes.referenceBooks(cl).mapNotNull { vm.repo.get(it) }).distinctBy { it.id }.filter { !it.trashed })
                     "plantillas" -> TemplatesTab(vm, cl, books)
-                    "formulas" -> FormulasTab(vm, cl)
-                    "herramientas" -> ToolsList(vm, cl.field)
+                    "formulas" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) { FormulasTab(vm, cl); Spacer(Modifier.height(40.dp)) }
+                    "herramientas" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) { ToolsList(vm, cl.field, cl.id); Spacer(Modifier.height(40.dp)) }
                     else -> {
                         val st = state
                         when {

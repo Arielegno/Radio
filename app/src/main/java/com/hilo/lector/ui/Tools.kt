@@ -156,11 +156,11 @@ private fun toolsOf(group: String, field: String) = TOOLS.filter { it.group == g
 /** Lista de herramientas (en una clase o área, o todas). Al tocar una se abre a pantalla completa. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ToolsList(vm: HiloViewModel, field: String, classId: String? = null) {
+fun ToolsList(vm: HiloViewModel, field: String, classId: String? = null, header: Boolean = true) {
     val c = LocalHilo.current
     var open by remember { mutableStateOf<Tool?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        if (header) Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Herramientas", color = c.ink, fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier = Modifier.weight(1f))
             HelpButton(vm, "herramientas")
         }
@@ -197,7 +197,7 @@ fun ToolsList(vm: HiloViewModel, field: String, classId: String? = null) {
 @Composable
 fun ToolsScreen(vm: HiloViewModel, onClose: () -> Unit) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        OverlayFrame("Herramientas", onClose) { ToolsList(vm, "otro") }
+        OverlayFrame("Herramientas", onClose) { ToolsList(vm, "otro", header = false) }
     }
 }
 
@@ -328,11 +328,11 @@ private val BAND_LABELS = EngMath.COLORS
 private fun ColorCodeTool() {
     val c = LocalHilo.current
     var five by remember { mutableStateOf(false) }
-    val bands = remember { mutableStateListOf(1, 0, 2, 5) }       // marrón negro rojo dorado = 1 kΩ ±5 %
+    val bands = remember { mutableStateListOf(1, 0, 2, 10) }      // marrón negro rojo dorado = 1 kΩ ±5 %
     var toValue by remember { mutableStateOf("") }
     Choice(listOf("4" to "4 bandas", "5" to "5 bandas"), if (five) "5" else "4") {
         five = it == "5"
-        bands.clear(); bands.addAll(if (five) listOf(1, 0, 0, 1, 1) else listOf(1, 0, 2, 5))
+        bands.clear(); bands.addAll(if (five) listOf(1, 0, 0, 1, 1) else listOf(1, 0, 2, 10))
     }
     val n = if (five) 3 else 2
     val digits = bands.take(n).joinToString("") { it.toString() }.toInt()

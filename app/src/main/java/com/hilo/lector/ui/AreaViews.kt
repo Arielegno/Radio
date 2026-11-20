@@ -327,6 +327,7 @@ fun DeadlinesTab(vm: HiloViewModel, cl: Clase, books: List<Book>, docs: List<Pai
     if (texts == null) { Loading(msg); return }
     val titles = books.associate { it.id to it.title }
     var show by remember { mutableStateOf(0) }
+    val authorities = remember(texts) { Reference.authorities(texts.values.flatten()) }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item { ChoiceRow(listOf("Plazos", "Sanciones", "Autoridades"), show) { show = it } }
         when (show) {
@@ -352,7 +353,7 @@ fun DeadlinesTab(vm: HiloViewModel, cl: Clase, books: List<Book>, docs: List<Pai
                 }
             }
             else -> {
-                val all = remember(texts) { Reference.authorities(texts.values.flatten()) }
+                val all = authorities
                 item { Text("Instituciones y autoridades que más aparecen en tus normas.", color = c.muted, fontSize = 13.sp) }
                 items(all) { n ->
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.surface).padding(12.dp)) {

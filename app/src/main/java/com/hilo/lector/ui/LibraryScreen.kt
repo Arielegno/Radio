@@ -56,6 +56,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoStories
+import androidx.compose.material.icons.rounded.Class
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CollectionsBookmark
 import androidx.compose.material.icons.rounded.ContentPaste
@@ -476,6 +477,7 @@ fun LibraryScreen(vm: HiloViewModel) {
                     }
                 }
                 NavItem(Icons.Rounded.LibraryBooks, "Biblioteca", true) { section = Section("all"); searching = false }
+                NavItem(Icons.Rounded.Class, "Clases", false) { vm.screen = com.hilo.lector.Screen.Classes() }
                 NavItem(Icons.Rounded.AutoStories, "Leyendo", false) {
                     val last = books.filter { it.reading() }.maxByOrNull { it.updated }
                     if (last != null) vm.open(last) else vm.toast = "Todavía no empezaste ningún libro."

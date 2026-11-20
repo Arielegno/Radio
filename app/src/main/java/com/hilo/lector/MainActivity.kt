@@ -116,6 +116,7 @@ fun HiloRoot(vm: HiloViewModel) {
                 vm.screen = Screen.Library
             }
             is Screen.Study -> StudyScreen(vm, sc.bookId)
+            is Screen.Classes -> com.hilo.lector.ui.ClassesScreen(vm, sc.id)
         }
 
         vm.busy?.let { msg ->

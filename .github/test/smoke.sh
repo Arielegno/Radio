@@ -541,6 +541,54 @@ tap "Media" parcial
 shot 103_energia_media 2
 back 1
 
+# ---------- 2.4: Clases ----------
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 3
+tap "Clases"
+sleep 1
+shot 104_clases_vacio 2
+tap "Crear mi primera clase"
+sleep 1
+adb shell input text "Sociologia%sGeneral"
+tap "Crear"
+sleep 1
+shot 105_clase_materiales 2
+tap "+ De tu biblioteca"
+sleep 1
+tap "Libro EPUB de prueba"
+tap "Libro FB2 de prueba"
+tap "Libro MOBI de prueba"
+tap "Listo" parcial
+sleep 1
+shot 106_clase_con_materiales 2
+tap "Mapa"
+sleep 25
+shot 107_clase_mapa 3
+tap "Síntesis"
+sleep 8
+shot 108_clase_sintesis 3
+tap "Estudiar"
+sleep 3
+shot 109_clase_estudiar 2
+tap "Empezar simulacro"
+sleep 2
+shot 110_clase_simulacro 2
+back 1
+tap "Diario"
+sleep 1
+adb shell input text "El%sprofe%sdijo%sque%sla%sanomia%sva%sal%sexamen"
+tap "Va para el examen"
+tap "Guardar"
+sleep 1
+shot 111_clase_diario 2
+tap "Calendario"
+sleep 1
+tap "Agregar"
+sleep 1
+shot 112_clase_calendario 2
+back 1
+
 # ---------- 2.1.1: ocultar formatos ----------
 adb shell am force-stop $PKG
 adb shell am start -W -n $PKG/.MainActivity

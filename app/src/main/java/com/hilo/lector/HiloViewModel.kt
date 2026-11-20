@@ -46,6 +46,8 @@ sealed interface Screen {
     data object Welcome : Screen
     /** Estudio: de un documento, o de todos si [bookId] es null. */
     data class Study(val bookId: String?) : Screen
+    /** Clases: la lista, o una clase si [id] no es null. */
+    data class Classes(val id: String? = null) : Screen
 }
 
 /**
@@ -68,7 +70,7 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
     /** Motor de estudio: registro de repasos, ruta de estudio, escritos y estadísticas. */
     /** Búsqueda en el texto de toda la biblioteca. */
     val search = com.hilo.lector.data.SearchIndex(app)
-    val motor = com.hilo.lector.data.Motor(app).also { m -> study.onReview = { c, g, conf -> m.log(c, g, conf) }; study.onRemoveBook = { id -> m.removeBook(id); runCatching { search.remove(id) } } }
+    val motor = com.hilo.lector.data.Motor(app).also { m -> study.onReview = { c, g, conf -> m.log(c, g, conf) }; study.onRemoveBook = { id -> m.removeBook(id); runCatching { search.remove(id) }; runCatching { classes.forgetBook(id) } } }
 
     /** Documentos nuevos encontrados en el celular en la última revisión (para el aviso "Ver"). */
     var newFound by mutableStateOf(0)
@@ -98,7 +100,7 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Últimos análisis (pocos, porque un libro grande ocupa mucha memoria). */
     private val analyses = object : LinkedHashMap<String, Pair<Set<String>, Analysis>>(8, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Set<String>, Analysis>>?) = size > 5
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Set<String>, Analysis>>?) = size > 12
     }
 
     /** Análisis del documento (palabras, glosario, mapa, guía). Se recalcula al quitar palabras. */
@@ -147,6 +149,23 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
     var feynman by mutableStateOf<com.hilo.lector.ui.FeynmanReq?>(null)
     /** La copia se restauró: hay que reiniciar Hilo. */
     var restored by mutableStateOf(false)
+
+    // ---------- Clases ----------
+    val classes = com.hilo.lector.data.ClassStore(app)
+    /** Repaso que se abre al entrar a Estudio (por ejemplo, el mazo de una clase). */
+    var pendingReview by mutableStateOf<List<com.hilo.lector.data.StudyCard>?>(null)
+
+    /** Agrega archivos o fotos y avisa qué libros quedaron (para sumarlos a una clase). */
+    fun importInto(uris: List<Uri>, onDone: (List<Book>) -> Unit) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            busy = if (uris.size > 1) "Agregando ${uris.size} archivos…" else "Agregando…"
+            val r = runCatching { repo.importUris(uris) { i, t -> if (t > 1) busy = "Agregando ${i + 1} de $t…" } }
+            busy = null
+            r.onSuccess { list -> if (list.isEmpty()) toast = "No encontré nada que abrir." else onDone(list) }
+                .onFailure { toast = "No pude agregar ese archivo." }
+        }
+    }
 
     // ---------- Ayudas TDAH ----------
     /** Tema de ayuda abierto con el botón «?». */

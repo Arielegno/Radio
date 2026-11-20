@@ -92,7 +92,7 @@ object Analyzer {
     """.trim().split(Regex("\\s+")).toSet()
 
     /** Palabras que no aportan contenido: artículos, conectores, adverbios en «-mente» (claramente, precisamente), números. */
-    private fun isStop(k: String) = k.length < 3 || k in STOP || k.all { it.isDigit() } || (k.length > 7 && k.endsWith("mente"))
+    internal fun isStop(k: String) = k.length < 3 || k in STOP || k.all { it.isDigit() } || (k.length > 7 && k.endsWith("mente"))
 
     private fun splitSentences(p: String): List<String> = p.split(SENT_SPLIT).map { it.trim() }.filter { it.isNotEmpty() }
 

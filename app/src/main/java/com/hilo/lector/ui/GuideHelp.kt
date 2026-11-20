@@ -49,7 +49,9 @@ import com.hilo.lector.HiloViewModel
 import com.hilo.lector.Screen
 
 /** Temas de la guía que se abren con el botón «?» de cada apartado. */
-internal val EXTRA_TOPICS = listOf(
+internal val EXTRA_TOPICS: List<Topic> get() = EXTRA_LIST + CLASS_TOPICS
+
+private val EXTRA_LIST = listOf(
     // ---------------- Ayudas TDAH ----------------
     Topic(
         "Ayudas TDAH", Icons.Rounded.Psychology, "Ayudas para concentrarte (TDAH)",
@@ -297,6 +299,93 @@ internal val EXTRA_TOPICS = listOf(
             "Simulacro y cierre: examen con tiempo y resumen del día.",
         ),
         key = "actividades",
+    ),
+)
+
+
+/** Temas de las Clases. */
+internal val CLASS_TOPICS = listOf(
+    Topic(
+        "Clases", Icons.Rounded.School, "Clases: estudiar por materia",
+        "Una clase junta todo lo de una materia: libros, documentos, fotos de la pizarra, tus apuntes y las fechas. Con eso Hilo arma un mapa de conceptos de toda la clase, una síntesis por temas y preguntas de examen.",
+        listOf(
+            "Toca «Clases» en la barra de abajo (o en Estudiar).",
+            "Toca «Nueva clase», ponle nombre, profesor y color.",
+            "En Materiales agrega lo de esa materia: de tu biblioteca, archivos o fotos.",
+            "Mira el Mapa y la Síntesis, repasa en Estudiar y anota cada clase en el Diario.",
+            "Pon los exámenes en Calendario: Hilo arma el plan de lectura hasta esa fecha.",
+        ),
+        listOf("Un mismo libro puede estar en varias clases. Si quitas un material de la clase, no se borra de tu biblioteca."),
+        key = "clases",
+    ),
+    Topic(
+        "Clases", Icons.AutoMirrored.Rounded.MenuBook, "Materiales de la clase",
+        "Todo lo que la clase usa: libros, PDF del profesor, artículos, leyes y fotos de la pizarra o de tus apuntes.",
+        listOf(
+            "«+ De tu biblioteca»: marca los documentos que ya tienes.",
+            "«+ Archivos»: agrega PDF, Word, EPUB… y quedan en la clase y en tu biblioteca.",
+            "«+ Fotos»: elige fotos de la pizarra o de tus cuadernos. Hilo reconoce el texto sin internet y lo suma al mapa.",
+            "Toca un material para leerlo, «Estudiar» para su sala de estudio, o la X para quitarlo de la clase.",
+        ),
+        key = "clase-materiales",
+    ),
+    Topic(
+        "Clases", Icons.Rounded.Psychology, "Mapa de la clase",
+        "Una red con los conceptos más importantes de todos los materiales juntos. Hilo los agrupa en temas, cada uno con su color.",
+        listOf(
+            "Cada círculo es un concepto. Es más grande si pesa más en la clase (se repite mucho y en varios materiales). El número es cuántas veces aparece.",
+            "Las líneas unen conceptos que salen en la misma oración; más gruesas, más veces juntos.",
+            "Arriba están los temas: toca uno para ver solo sus conceptos.",
+            "Toca un concepto: ves en qué materiales aparece, cómo lo define cada uno (para comparar autores), con qué se relaciona y tus subrayados.",
+            "«Crear tarjeta» hace una pregunta «¿Qué es…?» con la definición.",
+        ),
+        listOf("Los temas se forman solos según qué conceptos aparecen juntos. Si un tema no tiene sentido, quita palabras que no son conceptos desde la pestaña Palabras de ese libro."),
+        key = "clase-mapa",
+    ),
+    Topic(
+        "Clases", Icons.Rounded.AutoStories, "Síntesis y hoja de repaso",
+        "Un resumen de toda la clase, ordenado por temas: conceptos clave, definiciones, las ideas centrales de cada texto y tus subrayados.",
+        listOf(
+            "Abre la clase y toca «Síntesis».",
+            "Cada tema muestra sus conceptos, definiciones e ideas centrales con el material de donde salen. Toca una idea para ir a esa parte.",
+            "Lo que marcaste con ★ en el Diario aparece arriba: «Va para el examen».",
+            "«Exportar a Word» crea el documento para imprimir o completar. «Hoja de repaso» es la versión de una página.",
+        ),
+        listOf("Hilo elige las ideas centrales con un método que busca las frases más conectadas con el resto del texto (TextRank). No inventa texto: todo sale de tus materiales."),
+        key = "clase-sintesis",
+    ),
+    Topic(
+        "Clases", Icons.Rounded.Quiz, "Estudiar la clase",
+        "Repaso, avance y simulacro de toda la materia junta.",
+        listOf(
+            "Mazo de la clase: las tarjetas de todos los materiales, mezcladas. «Repasar las de hoy» abre el repaso.",
+            "Cómo vas en cada tema: verde lo dominas, amarillo a medias, rojo repásalo, gris sin tarjetas. «Crear» hace tarjetas con las definiciones del tema.",
+            "Simulacro: preguntas de opción múltiple armadas con tus materiales (definiciones, relaciones, autores, en qué texto está cada tema). Lo que falles puede pasar a tarjetas.",
+            "Plan hasta el examen: cuántas páginas leer por día de cada material, dejando los últimos días para repasar.",
+        ),
+        key = "clase-estudiar",
+    ),
+    Topic(
+        "Clases", Icons.Rounded.EditNote, "Diario de clase",
+        "Tus apuntes de cada clase, por fecha, con grabación de audio.",
+        listOf(
+            "Escribe lo que se vio o lo que dijo el profe y toca «Guardar».",
+            "Marca ★ «Va para el examen» para que aparezca en la síntesis.",
+            "El micrófono graba la clase; toca ■ para terminar y se guarda con la entrada. La primera vez Android pide permiso.",
+            "«Tarjeta» convierte la entrada en una tarjeta de repaso.",
+        ),
+        listOf("Pide permiso a tu profesor antes de grabar la clase.", "Las grabaciones quedan solo en tu celular; no se pasan a texto."),
+        key = "clase-diario",
+    ),
+    Topic(
+        "Clases", Icons.Rounded.Alarm, "Calendario de la clase",
+        "Exámenes, entregas y lecturas con su fecha.",
+        listOf(
+            "Elige el tipo (Examen, Entrega, Lectura u Otro), escribe qué es y la fecha.",
+            "Las próximas 7 días se ven en rojo. Márcalas como hechas con la casilla.",
+            "Con un examen puesto, la pestaña Estudiar muestra el plan de lectura por día y la lista de clases lo muestra primero.",
+        ),
+        key = "clase-calendario",
     ),
 )
 

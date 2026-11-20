@@ -145,7 +145,10 @@ object Adhd {
     private val SMALL = setOf("porque", "cuando", "donde", "sobre", "entre", "desde", "hasta", "también", "puede", "pueden", "estos", "estas", "otros", "otras", "todos", "todas", "mismo", "misma", "siempre", "nunca", "parte", "manera", "forma", "hacer", "había", "habían", "tiene", "tienen", "decir", "cada", "aunque", "mientras", "según", "tanto", "solo", "sólo", "luego", "ahora", "entonces")
 
     /** Las [n] oraciones que mejor resumen estos textos (por las palabras que más se repiten), en su orden. */
-    fun keySentences(texts: List<String>, n: Int = 3): List<String> {
+    fun keySentences(texts: List<String>, n: Int = 3): List<String> = runCatching { com.hilo.lector.text.Smart.summarize(texts, n) }.getOrElse { keyByFreq(texts, n) }
+
+    /** Respaldo simple: por las palabras que más se repiten. */
+    private fun keyByFreq(texts: List<String>, n: Int = 3): List<String> {
         val all = texts.joinToString(" ")
         val freq = HashMap<String, Int>()
         Regex("[\\p{L}]{5,}").findAll(all.lowercase()).forEach { m -> if (m.value !in SMALL) freq[m.value] = (freq[m.value] ?: 0) + 1 }

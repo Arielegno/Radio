@@ -308,6 +308,9 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
     }
     val due = study.due(deck).filter { !vocabOnly || it.kind == "vocab" }
 
+    // Repaso pedido desde otra pantalla (por ejemplo, el mazo de una clase)
+    LaunchedEffect(vm.pendingReview) { vm.pendingReview?.let { if (it.isNotEmpty()) review = it; vm.pendingReview = null } }
+
     fun startReview(n: Int) {
         // Primero las frágiles; el resto mezclado por documento y tipo (repaso intercalado)
         val list = mixQueue(due).take(n)
@@ -345,6 +348,20 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                 if (cross && current == null) {
                     item { CrossMapView(vm) { id -> cross = false; deck = id; tab = "ruta" } }
                     return@LazyColumn
+                }
+                if (current == null && !vocabOnly) item {
+                    // Las clases: estudiar por materia
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).clickable { vm.screen = com.hilo.lector.Screen.Classes() }.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("🎓", fontSize = 20.sp)
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text("Tus clases (${vm.classes.classes.size})", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text("Estudia por materia: mapa de toda la clase, síntesis por temas y simulacro.", color = c.muted, fontSize = 13.sp)
+                        }
+                        HelpButton(vm, "clases", size = 18.dp)
+                    }
                 }
                 if (current == null && !vocabOnly) item {
                     // Racha y plan según cómo está tu energía hoy

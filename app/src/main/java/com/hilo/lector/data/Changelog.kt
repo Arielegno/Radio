@@ -6,6 +6,18 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            26, "2.4", "20 nov 2026", "Clases",
+            added = listOf(
+                "Clases: crea una por materia y agrégale libros, documentos y fotos de la pizarra o de tus apuntes (Hilo reconoce su texto).",
+                "Mapa de la clase: los conceptos de todos los materiales en una sola red, agrupados solos en temas de colores. Toca un concepto para ver en qué materiales aparece y cómo lo define cada uno.",
+                "Síntesis por temas: conceptos, definiciones, ideas centrales de cada texto y tus subrayados; se exporta a Word. También una hoja de repaso de una página.",
+                "Estudiar la clase: mazo con todas sus tarjetas, semáforo por tema, simulacro con preguntas armadas de tus materiales y plan de lectura hasta el examen.",
+                "Diario de clase con fecha, grabación de audio y ★ «Va para el examen», y calendario de exámenes, entregas y lecturas.",
+                "Más inteligencia sin internet: los resúmenes («¿Dónde me quedé?», preguntas de control, síntesis) eligen las frases centrales del texto con TextRank, y los conceptos de una clase se ordenan por su peso en todos los materiales.",
+            ),
+            fixed = emptyList(),
+        ),
+        Version(
             25, "2.3", "19 nov 2026", "Ayudas para concentrarte",
             added = listOf(
                 "Botón del cerebro 🧠 en el lector: todas las ayudas para el TDAH en un solo panel, ordenadas en Empezar, Mientras lees, Tiempo, Ambiente y Motivación.",

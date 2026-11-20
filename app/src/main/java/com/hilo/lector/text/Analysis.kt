@@ -57,7 +57,49 @@ class Analysis(
  * frases clave, definiciones para el glosario, relaciones entre conceptos y una guía por capítulo.
  * Todo se calcula en el celular.
  */
+/** Correcciones del usuario: conceptos fijados, unidos, renombrados y agregados a mano. */
+data class Tune(
+    val pinned: Set<String> = emptySet(),
+    val merged: Map<String, String> = emptyMap(),
+    val labels: Map<String, String> = emptyMap(),
+    val extra: List<String> = emptyList(),
+)
+
 object Analyzer {
+    /**
+     * Palabras de relleno de los textos académicos: se repiten mucho pero no son conceptos
+     * («siguiente», «paso», «total», «resultado»). No entran al mapa ni a las burbujas, salvo que las fijes.
+     */
+    val GENERIC: Set<String> = """
+        siguiente siguientes anterior anteriores paso pasos número números total totales resultado resultados elemento elementos
+        conjunto conjuntos ejemplo ejemplos figura figuras tabla tablas cuadro cuadros gráfica gráfico gráficos punto puntos cantidad cantidades
+        sección secciones ejercicio ejercicios respuesta respuestas pregunta preguntas aspecto aspectos hecho hechos idea ideas término términos
+        sentido año años día días persona personas libro libros texto textos autor autores obra obras estudio estudios uso usos momento momentos
+        situación situaciones cuestión cuestiones tema temas lado fin fines importante importantes diferente diferentes distinto distintos distinta distintas
+        diverso diversos diversas determinado determinada determinados dado dada dados dadas último última últimos últimas final finales principal principales
+        posible posibles necesario necesaria necesarios propio propia propios propias simple simples particular particulares general generales
+        obtener obtiene obtienen obtenemos obtenido obtenida utiliza utilizan utilizar utilizado utilizada usar usa usan usando usado observar observa
+        vemos ver veamos mostrar indica indican indicar significa supongamos supone supuesto puesto realizar realizado llamado llamada denominado denominada
+        mismo misma cualquiera demás nuevo nueva alto alta bajo baja largo larga cierto cierta varios varias pequeño pequeña único única
+        primera primero segunda segundo tercera tercero cuarto quinto mitad vez veces lugar hora horas minuto minutos semana mes meses
+        capítulo capítulos apartado apartados página páginas párrafo párrafos línea líneas letra letras nombre nombres caso casos forma formas
+        manera maneras tipo tipos parte partes modo medida cosa cosas grupo grupos clase siguiente fórmula
+    """.trim().split(Regex("\\s+")).toSet() - setOf("grupo", "grupos", "clase")
+
+    private val NOUN_AR = setOf("lugar", "poder", "mujer", "militar", "popular", "familiar", "particular", "nuclear", "escolar", "regular", "hogar", "bienestar", "placer", "saber", "deber", "ser", "par", "mar", "valor", "factor", "error", "sector", "actor", "autor", "vector", "motor", "color", "dolor", "amor", "orden", "humor", "nivel", "señor", "mayor", "menor", "interior", "exterior", "superior", "inferior", "anterior", "posterior")
+
+    /** Cuánto «parece concepto» una palabra por su forma: comunismo, democracia, sociología, alienación sí; observado, utilizar no. */
+    fun shape(k: String): Double = when {
+        k.contains(' ') -> 1.25
+        Regex("(ismos?|istas?|cracias?|log[ií]as?|graf[ií]as?|arqu[ií]as?)$").containsMatchIn(k) -> 1.9
+        Regex("(ciones|ción|siones|sión|dades|dad|tades|tad|ncias?|mientos?|ajes?|uras?|ezas?|ismo)$").containsMatchIn(k) -> 1.35
+        k in NOUN_AR -> 1.0
+        k.length > 5 && Regex("(ados?|adas?|idos?|idas?)$").containsMatchIn(k) -> 0.55
+        k.length > 5 && Regex("(ar|er|ir|ando|iendo)$").containsMatchIn(k) -> 0.6
+        k.length > 6 && Regex("(ivos?|ivas?|osos?|osas?|ables?|ibles?)$").containsMatchIn(k) -> 0.8
+        else -> 1.0
+    }
+
     private val WORD = Regex("[\\p{L}][\\p{L}'’]*(?:-[\\p{L}]+)*")
     private val SENT_SPLIT = Regex("(?<=[.!?…])[»”\"')\\]]*\\s+(?=[\\p{Lu}¿¡«“\"(\\d])")
 
@@ -122,7 +164,7 @@ object Analyzer {
         return out
     }
 
-    fun analyze(paras: List<String>, removed: Set<String>): Analysis {
+    fun analyze(paras: List<String>, removed: Set<String>, tune: Tune = Tune()): Analysis {
         // ---------- palabras ----------
         val counts = HashMap<String, Int>()
         val labels = HashMap<String, HashMap<String, Int>>()
@@ -184,8 +226,32 @@ object Analyzer {
             counts[base] = (counts[base] ?: 0) + (counts.remove(k) ?: 0)
             labels[k]?.forEach { (l, n) -> labels.getOrPut(base) { HashMap() }.let { it[l] = (it[l] ?: 0) + n } }
         }
+        // Uniones hechas por el usuario: «estados» y «estado nación» → «estado», etc.
+        for ((src0, dst0) in tune.merged) {
+            val src = alias[src0] ?: src0
+            val dst = alias[dst0] ?: dst0
+            if (src == dst) continue
+            val n = (counts.remove(src) ?: 0) + (stopCounts.remove(src) ?: 0)
+            if (n > 0) counts[dst] = (counts[dst] ?: 0) + n
+            alias[src] = dst
+            alias.entries.forEach { e -> if (e.value == src) e.setValue(dst) }
+        }
+        // Conceptos agregados a mano: se cuentan en todo el texto aunque Hilo los hubiera descartado
+        val extraPhrases = ArrayList<Term>()
+        if (tune.extra.isNotEmpty()) {
+            val lowParas = paras.map { it.lowercase() }
+            for (e in tune.extra) {
+                val k = e.trim().lowercase()
+                if (k.isEmpty()) continue
+                val rx = Regex("(?<![\\p{L}])" + Regex.escape(k) + "(?![\\p{L}])")
+                val n = lowParas.sumOf { p -> rx.findAll(p).count() }
+                if (k.contains(' ')) extraPhrases.add(Term(k, tune.labels[k] ?: e.trim(), n, true))
+                else { stopCounts.remove(k); counts[k] = max(counts[k] ?: 0, n); labels.getOrPut(k) { HashMap() }[e.trim()] = n + 1 }
+            }
+        }
         fun canon(k: String) = alias[k] ?: k
         fun labelOf(k: String): String {
+            tune.labels[k]?.let { return it }
             val m = labels[k] ?: return k
             // Preferir la forma en minúscula si es común; si casi siempre va con mayúscula (nombres), dejarla
             val lower = m.filterKeys { it == it.lowercase() }.values.sum()
@@ -195,17 +261,21 @@ object Analyzer {
 
         val distinct = counts.size
         val terms = counts.entries
-            .filter { it.key !in removed && it.value >= 2 }
-            .sortedByDescending { it.value }
+            .filter { it.key !in removed && (it.value >= 2 || it.key in tune.pinned) }
+            .sortedByDescending { it.value * (if (it.key in GENERIC) 0.3 else 1.0) }
             .take(150)
             .map { Term(it.key, labelOf(it.key), it.value, false) }
 
         val minPhrase = max(3, total / 25000)
-        val phrases = phraseCounts.entries
-            .filter { it.value >= minPhrase && it.key !in removed }
-            .sortedByDescending { it.value * (1 + it.key.count { c -> c == ' ' }) }
+        val phrases = (extraPhrases.filter { it.key !in removed } + phraseCounts.entries
+            .filter { e ->
+                val ws = e.key.split(' ')
+                e.value >= minPhrase && e.key !in removed && ws.first() !in GENERIC && ws.last() !in GENERIC
+            }
+            .sortedByDescending { it.value * (1 + it.key.count { c -> c == ' ' }) * shape(it.key.split(' ').first()) }
             .take(30)
-            .map { Term(it.key, it.key, it.value, true) }
+            .map { Term(it.key, tune.labels[it.key] ?: it.key, it.value, true) })
+            .distinctBy { it.key }
 
         // ---------- oraciones ----------
         val sentences = sentRaw.filter { it.first.length in 25..600 }.map { (s, pi) ->
@@ -216,7 +286,14 @@ object Analyzer {
         }
 
         // ---------- mapa de conceptos ----------
-        val mapTerms = (phrases.take(8) + terms).distinctBy { it.key }.sortedByDescending { it.count }.take(28)
+        // Mapa: los más repetidos, pero pesando la forma de la palabra (los «-ismo», «-ción», «-dad» suben;
+        // los verbos y el relleno bajan). Los fijados por el usuario entran siempre.
+        fun mapScore(t: Term) = t.count * (if (t.phrase) 1.25 else shape(t.key))
+        val pinnedTerms = (terms + phrases).filter { it.key in tune.pinned || it.key in tune.extra.map { e -> e.trim().lowercase() } }.distinctBy { it.key }
+        val mapTerms = (pinnedTerms + (phrases.take(8) + terms)
+            .filter { it.key !in GENERIC && it.key !in removed }
+            .sortedByDescending { mapScore(it) })
+            .distinctBy { it.key }.take(maxOf(28, pinnedTerms.size))
         val idx = mapTerms.withIndex().associate { it.value.key to it.index }
         val pair = HashMap<Long, Int>()
         for (s in sentences) {
@@ -293,7 +370,7 @@ object Analyzer {
             .sortedByDescending { it.count }
         return Analysis(
             total, distinct + stopCounts.size, terms, phrases, sentences, mapTerms, keep.toList(), glossary, guides, law, authors, timeline,
-            allWords = allWords, common = stopCounts.keys.toHashSet(), paraCount = paras.size,
+            allWords = allWords, common = (stopCounts.keys + counts.keys.filter { it in GENERIC && it !in tune.pinned }).toHashSet(), paraCount = paras.size,
         )
     }
 

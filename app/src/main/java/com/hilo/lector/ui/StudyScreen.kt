@@ -299,7 +299,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
     val removedNow = current?.let { study.removedFor(it.id) }
     // Al quitar una palabra se recalcula en segundo plano y se sigue mostrando el análisis anterior
     var analysis by remember(current?.id) { mutableStateOf<Analysis?>(null) }
-    LaunchedEffect(current?.id, removedNow) {
+    LaunchedEffect(current?.id, removedNow, vm.tuneVersion) {
         val b = current ?: return@LaunchedEffect
         try {
             val a = vm.analysis(b) { p, n -> anProg = p to n }

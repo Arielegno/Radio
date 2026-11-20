@@ -6,6 +6,18 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            29, "2.5.2", "20 nov 2026", "Conceptos más certeros y editables",
+            added = listOf(
+                "Mapa y burbujas: «+ Agregar concepto» para meter uno que Hilo dejó afuera (por ejemplo «comunismo» o «lucha de clases»); lo cuenta en todo el texto y queda fijado.",
+                "Al tocar un concepto: Fijar, Cambiar nombre, Unir con otro y Quitar. «Deshacer mis cambios» deja el mapa como lo armó Hilo.",
+            ),
+            fixed = listOf(
+                "El mapa ya no se llena de palabras de relleno como «siguiente», «anterior», «paso», «total», «número» o «resultado».",
+                "Los conceptos con forma de concepto (comunismo, democracia, alienación, sociología) suben; los verbos y participios bajan.",
+                "Las frases clave ya no salen cortadas («intervalo de» → «intervalo de confianza»).",
+            ),
+        ),
+        Version(
             28, "2.5.1", "20 nov 2026", "Arreglos",
             added = listOf("Ajustes → «Color en las letras»: interruptor para apagar el color de las líneas y leer con letra de un solo color. La intensidad ahora baja hasta 20 %."),
             fixed = listOf(

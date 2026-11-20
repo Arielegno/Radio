@@ -172,8 +172,8 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
     var merged by remember(book.id) {
         mutableStateOf(vm.motor["unir:${book.id}"].split('\n').mapNotNull { l -> l.split('=').takeIf { it.size == 2 }?.let { it[0] to it[1] } }.toMap())
     }
-    fun savePins(p: Set<String>) { pinned = p; vm.motor.put("pin:${book.id}", p.joinToString("\n")) }
-    fun saveMerged(m: Map<String, String>) { merged = m; vm.motor.put("unir:${book.id}", m.entries.joinToString("\n") { "${it.key}=${it.value}" }) }
+    fun savePins(p: Set<String>) { pinned = p; vm.motor.put("pin:${book.id}", p.joinToString("\n")); vm.tuneVersion++ }
+    fun saveMerged(m: Map<String, String>) { merged = m; vm.motor.put("unir:${book.id}", m.entries.joinToString("\n") { "${it.key}=${it.value}" }); vm.tuneVersion++ }
 
     // Todas las palabras con las uniones aplicadas
     val all = remember(a, merged, removed) {
@@ -192,6 +192,24 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
     val n = listOf(25, 45, 80)[howMany]
     val auto = remember(all, removed, withCommon, n) {
         all.filter { it.key !in removed && (withCommon || it.key !in a.common) && it.count >= 2 }.take(n)
+    }
+    var wordEdit by remember { mutableStateOf<String?>(null) }
+    wordEdit?.let { w ->
+        val tune = vm.tuneOf(book.id)
+        if (w == "add") ConceptTextDialog("Agregar palabra o frase", "Escribe un concepto que Hilo dejó afuera (por ejemplo «comunismo» o «lucha de clases»). Lo cuenta en todo el texto y lo deja fijado.", "") { v ->
+            wordEdit = null
+            if (v != null && v.isNotBlank()) {
+                vm.study.restoreWord(book.id, v.trim().lowercase())
+                vm.saveTune(book.id, tune.copy(extra = (tune.extra + v.trim()).distinctBy { it.lowercase() }, pinned = tune.pinned + v.trim().lowercase()))
+                pinned = pinned + v.trim().lowercase()
+            }
+        } else {
+            val k = w.removePrefix("rename:")
+            ConceptTextDialog("Cambiar nombre", "Cómo quieres que se llame en las burbujas, el mapa y las tarjetas.", tune.labels[k] ?: byKey[k]?.label ?: k) { v ->
+                wordEdit = null
+                if (v != null && v.isNotBlank()) vm.saveTune(book.id, tune.copy(labels = tune.labels + (k to v.trim())))
+            }
+        }
     }
     val bubbleList = if (phrases) a.phrases.filter { it.key !in removed }.take(24)
     else (pinned.mapNotNull { byKey[it] } + auto).distinctBy { it.key }.take(n + pinned.size)
@@ -243,6 +261,10 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
             Text("Comunes", color = c.muted, fontSize = 13.sp, modifier = Modifier.clickable { withCommon = !withCommon })
             Switch(withCommon, { withCommon = it }, modifier = Modifier.padding(start = 4.dp))
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Pill("+ Agregar palabra o frase") { wordEdit = "add" }
+            Text("¿Falta un concepto? Agrégalo y queda fijado.", color = c.muted, fontSize = 12.sp)
+        }
 
         // Nube de burbujas que flotan
         BoxWithConstraints(
@@ -284,7 +306,7 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
                 ) {
                     val rDp = b.r / density.density
                     val longest = b.term.label.split(' ').maxOf { it.length }.coerceAtLeast(3)
-                    val lines = if (b.term.phrase && b.term.label.contains(' ')) 2 else 1
+                    val lines = if (b.term.label.contains(' ')) minOf(3, b.term.label.count { ch -> ch == ' ' } + 1) else 1
                     val fs = minOf(rDp * 0.36f, rDp * 1.75f / (longest * 0.6f)).coerceIn(7f, 20f)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
@@ -329,6 +351,7 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
                         Text(if (term.key in pinned) "Soltar" else "Fijar en burbujas", color = c.ink)
                     }
                     if (!term.phrase) OutlinedButton(onClick = { joining = term }) { Text("Unir con…", color = c.ink) }
+                    OutlinedButton(onClick = { wordEdit = "rename:" + term.key }) { Text("Cambiar nombre", color = c.ink) }
                     OutlinedButton(onClick = {
                         val s = hitsOf(term, 1).firstOrNull()?.first
                         onCard(StudyCard(0, book.id, "qa", "¿Qué es «${term.label}»?", s?.text.orEmpty(), source = s?.let { "párrafo ${it.para + 1}" }.orEmpty(), sourcePos = s?.para ?: -1, sourceFlow = true, due = today()))
@@ -630,8 +653,30 @@ fun ConceptMapTab(
 
     val neighbors = sel?.let { s -> a.edges.filter { it.a == s || it.b == s }.sortedByDescending { it.w }.map { if (it.a == s) it.b else it.a } }.orEmpty()
 
+    var editing by remember { mutableStateOf<String?>(null) }   // "add", "rename", "merge"
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(intro, color = c.muted, fontSize = 13.sp)
+        if (book != null) {
+            val tune = vm.tuneOf(book.id)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Pill("+ Agregar concepto") { editing = "add" }
+                if (tune.pinned.isNotEmpty() || tune.extra.isNotEmpty() || tune.merged.isNotEmpty() || tune.labels.isNotEmpty()) {
+                    Text(
+                        listOfNotNull(
+                            tune.pinned.size.takeIf { it > 0 }?.let { "$it fijado(s)" },
+                            tune.extra.size.takeIf { it > 0 }?.let { "$it agregado(s)" },
+                            tune.merged.size.takeIf { it > 0 }?.let { "$it unido(s)" },
+                            tune.labels.size.takeIf { it > 0 }?.let { "$it renombrado(s)" },
+                        ).joinToString(" · "), color = c.muted, fontSize = 12.sp,
+                    )
+                    Pill("Deshacer mis cambios") {
+                        val old = tune
+                        vm.saveTune(book.id, com.hilo.lector.text.Tune())
+                        vm.undoable("El mapa volvió a como lo armó Hilo") { vm.saveTune(book.id, old) }
+                    }
+                }
+            }
+        }
         Box(Modifier.fillMaxWidth().height(460.dp).clip(RoundedCornerShape(20.dp)).background(c.surface)) {
             Canvas(
                 Modifier.fillMaxSize()
@@ -719,10 +764,21 @@ fun ConceptMapTab(
                     color = c.muted, fontSize = 13.sp,
                 )
                 LookupRow(t.label, vm.study.langs[book.id].orEmpty())
-                TextButton(onClick = {
-                    vm.study.removeWord(book.id, t.key, false); sel = null
-                    vm.undoable("«${t.label}» quitado del mapa") { vm.study.restoreWord(book.id, t.key) }
-                }) { Text("Quitar del mapa (no es un concepto)") }
+                val tune = vm.tuneOf(book.id)
+                val isPinned = t.key in tune.pinned
+                Label("Corregir")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Pill(if (isPinned) "Fijado ✓" else "Fijar en el mapa", isPinned) {
+                        vm.saveTune(book.id, tune.copy(pinned = if (isPinned) tune.pinned - t.key else tune.pinned + t.key))
+                        vm.toast = if (isPinned) "Ya no está fijado." else "Fijado: siempre va a estar en el mapa y en las burbujas."
+                    }
+                    Pill("Cambiar nombre") { editing = "rename" }
+                    Pill("Unir con otro") { editing = "merge" }
+                    Pill("Quitar (no es un concepto)") {
+                        vm.study.removeWord(book.id, t.key, false); sel = null
+                        vm.undoable("«${t.label}» quitado del mapa") { vm.study.restoreWord(book.id, t.key) }
+                    }
+                }
                 TextButton(onClick = {
                     vm.feynman = FeynmanReq(book.id, t.label, a.sentencesWith(t.key, 3).joinToString(" ") { it.text }, neighbors.take(3).map { a.mapTerms[it].label })
                 }) { Text("Explícalo con tus palabras") }
@@ -735,6 +791,33 @@ fun ConceptMapTab(
                         TextButton(onClick = { vm.openAt(book.id, true, st.para) }) { Text("Ir") }
                     }
                 }
+            }
+        }
+        if (book != null) editing?.let { mode ->
+            val tune = vm.tuneOf(book.id)
+            val t = sel?.let { a.mapTerms.getOrNull(it) }
+            when (mode) {
+                "add" -> ConceptTextDialog("Agregar concepto", "Escribe una palabra o frase del texto (por ejemplo «comunismo» o «lucha de clases»). Hilo la cuenta en todo el documento y la pone en el mapa.", "") { v ->
+                    editing = null
+                    if (v != null && v.isNotBlank()) {
+                        val k = v.trim().lowercase()
+                        vm.study.restoreWord(book.id, k)
+                        vm.saveTune(book.id, tune.copy(extra = (tune.extra + v.trim()).distinctBy { it.lowercase() }, pinned = tune.pinned + k))
+                        vm.toast = "Contando «${v.trim()}» en el documento…"
+                    }
+                }
+                "rename" -> if (t != null) ConceptTextDialog("Cambiar nombre", "Cómo quieres que se llame «${t.label}» en el mapa, las burbujas y las tarjetas.", t.label) { v ->
+                    editing = null
+                    if (v != null && v.isNotBlank()) vm.saveTune(book.id, tune.copy(labels = tune.labels + (t.key to v.trim())))
+                } else editing = null
+                "merge" -> if (t != null) MergeDialog(a, t) { other ->
+                    editing = null
+                    if (other != null) {
+                        vm.saveTune(book.id, tune.copy(merged = tune.merged + (t.key to other.key), pinned = tune.pinned - t.key))
+                        sel = null
+                        vm.toast = "«${t.label}» ahora cuenta como «${other.label}»."
+                    }
+                } else editing = null
             }
         }
         // Tabla de frecuencias, como en los programas de análisis cualitativo
@@ -1054,5 +1137,57 @@ private fun GlossChip(label: String, primary: Boolean = false, onClick: () -> Un
     Text(
         label, color = if (primary) c.accentInk else c.ink, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1,
         modifier = Modifier.clip(RoundedCornerShape(50)).background(if (primary) c.accent else c.chip).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 7.dp),
+    )
+}
+
+
+@Composable
+private fun ConceptTextDialog(title: String, help: String, start: String, onDone: (String?) -> Unit) {
+    val c = LocalHilo.current
+    var v by remember { mutableStateOf(start) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { onDone(null) },
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(help, color = c.muted, fontSize = 14.sp)
+                androidx.compose.material3.OutlinedTextField(v, { v = it }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = { TextButton(onClick = { onDone(v) }) { Text("Listo") } },
+        dismissButton = { TextButton(onClick = { onDone(null) }) { Text("Cancelar") } },
+    )
+}
+
+/** Elegir con qué concepto unir: «estados» con «estado», «marxista» con «marxismo»… */
+@Composable
+private fun MergeDialog(a: Analysis, t: Term, onDone: (Term?) -> Unit) {
+    val c = LocalHilo.current
+    var q by remember { mutableStateOf("") }
+    val f = com.hilo.lector.text.Smart.fold(q)
+    val stem = t.key.take(maxOf(4, t.key.length - 3))
+    val list = (a.mapTerms + a.terms + a.phrases).distinctBy { it.key }.filter { it.key != t.key }
+        .filter { q.isBlank() || com.hilo.lector.text.Smart.fold(it.label).contains(f) }
+        .sortedByDescending { (if (it.key.startsWith(stem) || t.key.startsWith(it.key.take(maxOf(4, it.key.length - 3)))) 100000 else 0) + it.count }
+        .take(40)
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { onDone(null) },
+        title = { Text("Unir «${t.label}» con…") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Sus apariciones se suman al otro y deja de verse por separado.", color = c.muted, fontSize = 13.sp)
+                androidx.compose.material3.OutlinedTextField(q, { q = it }, singleLine = true, placeholder = { Text("Buscar") }, modifier = Modifier.fillMaxWidth())
+                Column(Modifier.height(300.dp).verticalScroll(rememberScrollState())) {
+                    list.forEach { o ->
+                        Row(Modifier.fillMaxWidth().clickable { onDone(o) }.padding(vertical = 10.dp)) {
+                            Text(o.label, color = c.ink, modifier = Modifier.weight(1f))
+                            Text("${o.count}", color = c.muted)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = { onDone(null) }) { Text("Cancelar") } },
     )
 }

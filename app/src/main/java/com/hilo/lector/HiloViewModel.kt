@@ -12,6 +12,7 @@ import android.os.VibratorManager
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -99,17 +100,37 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Últimos análisis (pocos, porque un libro grande ocupa mucha memoria). */
-    private val analyses = object : LinkedHashMap<String, Pair<Set<String>, Analysis>>(8, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Set<String>, Analysis>>?) = size > 12
+    private val analyses = object : LinkedHashMap<String, Pair<String, Analysis>>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<String, Analysis>>?) = size > 12
     }
 
-    /** Análisis del documento (palabras, glosario, mapa, guía). Se recalcula al quitar palabras. */
+    /** Sube cada vez que el usuario fija, une, renombra o agrega conceptos: el análisis se recalcula. */
+    var tuneVersion by mutableIntStateOf(0)
+
+    /** Lo que el usuario corrigió del análisis de un libro. */
+    fun tuneOf(bookId: String): com.hilo.lector.text.Tune {
+        fun lines(k: String) = motor["$k:$bookId"].split('\n').filter { it.isNotBlank() }
+        fun pairs(k: String) = lines(k).mapNotNull { l -> l.split('=', limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] } }.toMap()
+        return com.hilo.lector.text.Tune(lines("pin").toSet(), pairs("unir"), pairs("etq"), lines("extra"))
+    }
+
+    fun saveTune(bookId: String, t: com.hilo.lector.text.Tune) {
+        motor.put("pin:$bookId", t.pinned.joinToString("\n"))
+        motor.put("unir:$bookId", t.merged.entries.joinToString("\n") { "${it.key}=${it.value}" })
+        motor.put("etq:$bookId", t.labels.entries.joinToString("\n") { "${it.key}=${it.value}" })
+        motor.put("extra:$bookId", t.extra.joinToString("\n"))
+        tuneVersion++
+    }
+
+    /** Análisis del documento (palabras, glosario, mapa, guía). Se recalcula al quitar, fijar, unir o agregar palabras. */
     suspend fun analysis(book: Book, progress: (Int, Int) -> Unit): Analysis {
         val removed = study.removedFor(book.id)
-        analyses[book.id]?.let { (r, a) -> if (r == removed) return a }
+        val tune = tuneOf(book.id)
+        val key = removed.sorted().joinToString("|") + "#" + tune.hashCode()
+        analyses[book.id]?.let { (r, a) -> if (r == key) return a }
         val paras = studyText(book, progress)
-        val a = withContext(analysisThread) { Analyzer.analyze(paras, removed) }
-        analyses[book.id] = removed to a
+        val a = withContext(analysisThread) { Analyzer.analyze(paras, removed, tune) }
+        analyses[book.id] = key to a
         return a
     }
 

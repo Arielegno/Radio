@@ -130,9 +130,9 @@ object Smart {
         val scored = per.map { (k, m) ->
             val tf = m.entries.sumOf { (d, c) -> c * 1000.0 / totals.getValue(d) }
             val spread = 1.0 + ln(1.0 + m.size) * (if (nDocs > 1) 1.6 else 1.0)
-            val bonus = if (isPhrase[k] == true) 1.35 else 1.0
+            val bonus = if (isPhrase[k] == true) 1.35 else Analyzer.shape(k)
             ClassConcept(k, labels.getValue(k), m.values.sum(), m, (tf * spread * bonus).toFloat())
-        }.filter { it.total >= 2 }.sortedByDescending { it.score }
+        }.filter { it.total >= 2 && it.key !in Analyzer.GENERIC }.sortedByDescending { it.score }
         // Si una frase («división del trabajo») ya está, no repetir sus palabras sueltas con menos peso
         val picked = ArrayList<ClassConcept>()
         for (c in scored) {

@@ -137,6 +137,10 @@ private fun tabsFor(a: Analysis?): List<Pair<String, String>> = buildList {
 private fun kindLabel(k: String) = when (k) {
     "vocab" -> "Vocabulario"
     "cloze" -> "Completar"
+    "imagen" -> "Imagen tapada"
+    "problema" -> "Problema paso a paso"
+    "codigo" -> "Código"
+    "formula" -> "Fórmula"
     else -> "Pregunta"
 }
 
@@ -945,7 +949,14 @@ private fun ReviewSession(
                         IconButton(onClick = { speaker.say(card.front, card.lang) }) { Icon(Icons.AutoMirrored.Rounded.VolumeUp, "Escuchar", tint = c.accent) }
                     }
                 }
-                Text(card.front, color = c.ink, fontSize = if (card.front.length < 40) 26.sp else 19.sp, lineHeight = if (card.front.length < 40) 32.sp else 27.sp)
+                when {
+                    card.kind == "imagen" -> {
+                        Text(card.front, color = c.ink, fontSize = 19.sp, lineHeight = 26.sp)
+                        OcclusionView(card.context, showBack)
+                    }
+                    isRich(card.front) -> RichText(card.front, c.ink, 19.sp)
+                    else -> Text(card.front, color = c.ink, fontSize = if (card.front.length < 40) 26.sp else 19.sp, lineHeight = if (card.front.length < 40) 32.sp else 27.sp)
+                }
                 if (showBack) {
                     if (spoken.isNotBlank()) {
                         val keys = remember(card.id) { KeyWords.of(card.back, emptyList(), 8) }
@@ -958,7 +969,11 @@ private fun ReviewSession(
                         )
                     }
                     Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
-                    Text(card.back, color = c.accent, fontSize = 22.sp, fontWeight = FontWeight.Medium, lineHeight = 28.sp)
+                    when {
+                        card.kind == "problema" -> ProblemSteps(card.back.split(Regex("\\n\\s*\\n|\\n(?=\\d+[.)] )")).map { it.trim() }.filter { it.isNotBlank() }, c.ink)
+                        isRich(card.back) -> RichText(card.back, c.accent, 19.sp, FontWeight.Medium)
+                        else -> Text(card.back, color = c.accent, fontSize = 22.sp, fontWeight = FontWeight.Medium, lineHeight = 28.sp)
+                    }
                     if (card.kind == "cloze" && card.context.isNotBlank()) {
                         Text(card.context, color = c.ink, fontSize = 16.sp, lineHeight = 23.sp)
                     }

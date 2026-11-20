@@ -589,6 +589,70 @@ sleep 1
 shot 112_clase_calendario 2
 back 1
 
+# ---------- 2.5: áreas, herramientas, fórmulas y diccionario ----------
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 3
+tap "Clases"
+sleep 1
+tap "Áreas de referencia"
+sleep 1
+shot 113_areas_vacio 2
+tap "Crear mi primera área"
+sleep 1
+adb shell input text "Electronica"
+tap "Ingeniería eléctrica y electrónica"
+tap "Crear"
+sleep 2
+shot 114_area_materiales 2
+for i in 1 2 3; do adb shell input swipe 900 330 200 330 300; sleep 0.5; done
+tap "Fórmulas"
+sleep 1
+tap "Poner las básicas"
+sleep 4
+shot 115_formulario 2
+tap "Calcular"
+sleep 2
+shot 116_formula_calcular 2
+back 1
+tap "Herramientas"
+sleep 1
+shot 117_herramientas 2
+tap "Código de colores"
+sleep 2
+shot 118_codigo_colores 2
+back 1
+tap "Ley de Ohm y potencia"
+sleep 3
+shot 119_ohm 2
+back 1
+tap "Tabla de verdad"
+sleep 2
+shot 120_tabla_verdad 2
+back 1
+back 2
+tap "Estudiar"
+sleep 2
+tap "Herramientas"
+sleep 2
+shot 121_todas_herramientas 2
+for i in 1 2 3 4; do adb shell input swipe 540 1900 540 700 300; sleep 0.5; done
+tap "Estadística descriptiva"
+sleep 1
+adb shell input text "12%s15%s9%s20%s14%s11%s18"
+sleep 1
+shot 122_estadistica 2
+back 1
+tap "Referencia APA 7"
+sleep 1
+shot 123_apa 2
+back 2
+tap "Ajustes"
+sleep 1
+for i in 1 2 3 4 5 6 7; do adb shell input swipe 540 1900 540 700 300; sleep 0.5; done
+shot 124_diccionarios_ajustes 2
+back 1
+
 # ---------- 2.1.1: ocultar formatos ----------
 adb shell am force-stop $PKG
 adb shell am start -W -n $PKG/.MainActivity

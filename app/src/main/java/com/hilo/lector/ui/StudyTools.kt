@@ -1141,6 +1141,17 @@ fun HubTools(vm: HiloViewModel, onCrossMap: () -> Unit, onDeck: (String) -> Unit
     val t = today()
     val exams = vm.study.exams.entries.filter { it.value >= t }.sortedBy { it.value }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).clickable { vm.toolsOpen = true }.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("√", color = c.accent, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+            Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                Text("Herramientas", color = c.ink, fontWeight = FontWeight.SemiBold)
+                Text("Calculadoras de electrónica, matemáticas, estadística, APA, regex y creadores de tarjetas.", color = c.muted, fontSize = 12.sp)
+            }
+            Text("›", color = c.muted, fontSize = 22.sp)
+        }
         if (exams.isNotEmpty()) {
             Label("Próximos exámenes")
             exams.forEach { (id, day) ->

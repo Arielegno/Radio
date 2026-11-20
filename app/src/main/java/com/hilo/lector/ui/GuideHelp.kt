@@ -32,6 +32,16 @@ import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.ListAlt
+import androidx.compose.material.icons.rounded.Calculate
+import androidx.compose.material.icons.rounded.ElectricBolt
+import androidx.compose.material.icons.rounded.Functions
+import androidx.compose.material.icons.rounded.Gavel
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.LibraryBooks
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,7 +59,7 @@ import com.hilo.lector.HiloViewModel
 import com.hilo.lector.Screen
 
 /** Temas de la guía que se abren con el botón «?» de cada apartado. */
-internal val EXTRA_TOPICS: List<Topic> get() = EXTRA_LIST + CLASS_TOPICS
+internal val EXTRA_TOPICS: List<Topic> get() = EXTRA_LIST + CLASS_TOPICS + NEW_TOPICS
 
 private val EXTRA_LIST = listOf(
     // ---------------- Ayudas TDAH ----------------
@@ -389,8 +399,149 @@ internal val CLASS_TOPICS = listOf(
     ),
 )
 
+/** Áreas de referencia, diccionario, herramientas y fórmulas (2.5). */
+internal val NEW_TOPICS = listOf(
+    Topic(
+        "Áreas y diccionario", Icons.Rounded.LibraryBooks, "Áreas de referencia",
+        "Un área junta TODOS los documentos de un campo (por ejemplo «Derecho hondureño»: Constitución, códigos, leyes, reglamentos). Hilo los lee y aprende su estructura: qué normas hay y en qué nivel, cómo se citan entre sí, qué definen, qué plazos y sanciones ponen, quién es la autoridad y qué palabras son propias del campo.",
+        listOf(
+            "Ve a Clases y toca «Áreas de referencia» arriba.",
+            "Toca «Nueva área», ponle nombre y elige el campo (Derecho, Psicología, Eléctrica…).",
+            "En Materiales agrega todos los documentos de ese campo.",
+            "Usa las pestañas: Buscar, Glosario, Vocabulario y, según el campo, Normas, Plazos, Plantillas, Fórmulas o Herramientas.",
+            "En una clase, en Materiales → «Áreas de referencia que usa», conecta el área: así la clase busca también ahí.",
+            "Mientras lees, elige un texto → Más → «Buscar en mis áreas de referencia»: si nombra un artículo de una ley que tienes, lo abre directo; si no, muestra los párrafos más parecidos.",
+        ),
+        listOf(
+            "Hilo aprende la estructura y las palabras del campo; no «entiende» el derecho ni da consejo legal. Revisa siempre la norma vigente.",
+            "Cuantos más documentos tenga el área, mejor encuentra referencias y vocabulario propio.",
+        ),
+        key = "areas",
+    ),
+    Topic(
+        "Áreas y diccionario", Icons.Rounded.Search, "Buscar en un área o clase",
+        "Busca en todos los documentos del área (y en las áreas que usa la clase) a la vez.",
+        listOf(
+            "«Palabras»: encuentra las páginas que contienen lo que escribes.",
+            "«Párrafos parecidos»: pega un párrafo o una idea y Hilo trae los párrafos que hablan de lo mismo, aunque usen otras palabras cercanas.",
+            "Toca un resultado para abrir el documento en ese lugar.",
+        ),
+        listOf("La primera vez tarda un poco porque prepara el índice de cada documento."),
+        key = "clase-buscar",
+    ),
+    Topic(
+        "Áreas y diccionario", Icons.AutoMirrored.Rounded.MenuBook, "Glosario y vocabulario del área",
+        "El Glosario junta las definiciones que aparecen en los documentos («Para efectos de esta ley se entiende por…», «X es…»). El Vocabulario muestra las palabras que este campo usa mucho más que el español común: las que tienes que dominar.",
+        listOf(
+            "Glosario: toca un término para ver su definición y de qué documento viene; «Tarjeta» la manda a tu repaso.",
+            "Vocabulario: las primeras son las más propias del campo. Toca una para ver dónde aparece o buscarla en el diccionario.",
+        ),
+        listOf("Si una «definición» no lo es, bórrala: Hilo usa reglas, no inteligencia artificial, y a veces se equivoca."),
+        key = "clase-glosario",
+    ),
+    Topic(
+        "Áreas y diccionario", Icons.Rounded.Gavel, "Normas, plazos y plantillas (Derecho)",
+        "Para áreas de Derecho: Normas ordena los documentos por jerarquía (Constitución, tratados, códigos, leyes, reglamentos…) y muestra qué normas citan a cuáles. Plazos junta los plazos, sanciones y autoridades. Plantillas guarda modelos de escritos.",
+        listOf(
+            "Normas: toca una norma para ver a quién cita y quién la cita.",
+            "Plazos: cada plazo con su artículo; toca para abrirlo.",
+            "Plantillas: guarda un escrito modelo con «Usar como modelo», genera una plantilla de Word con los campos para llenar y revisa un borrador contra el modelo (qué partes le faltan).",
+        ),
+        listOf("La jerarquía se deduce del título del documento; si se equivoca, el orden igual sirve de guía."),
+        key = "clase-normas",
+    ),
+    Topic(
+        "Áreas y diccionario", Icons.Rounded.Translate, "Diccionario sin internet",
+        "Diccionarios completos de español e inglés del Wikcionario: definiciones, ejemplos, pronunciación, origen y traducción entre los dos idiomas. Se descargan una vez dentro de Hilo y después funcionan sin internet.",
+        listOf(
+            "Ve a Ajustes → «Diccionarios sin internet» y toca «Descargar» (usa wifi: español 27 MB, inglés 88 MB).",
+            "Al leer, elige una palabra → «Traducir» o Más → «Diccionario».",
+            "Si la palabra está conjugada o en plural (corrieron, leyes), Hilo busca su forma base.",
+            "«+ A mis tarjetas de vocabulario» la manda al repaso.",
+        ),
+        listOf("El Diccionario de la RAE no se puede guardar en la app por derechos de autor; el botón «RAE» lo abre en internet."),
+        key = "diccionario",
+    ),
+    Topic(
+        "Herramientas", Icons.Rounded.Calculate, "Herramientas para tu carrera",
+        "Calculadoras y creadores de tarjetas que funcionan sin internet. Están en Estudiar → Herramientas y, dentro de cada clase o área, en la pestaña Herramientas (con las de su campo primero).",
+        listOf(
+            "Toca una herramienta: se abre a pantalla completa. La X o «atrás» la cierra.",
+            "Los valores aceptan prefijos: 4.7k = 4700, 20m = 0,02, 100n = 0,0000001, 1M = 1 000 000.",
+            "Las tarjetas que creas (código, problema, fórmula, imagen tapada) van a la clase donde estás o, si no, al mazo «herramientas».",
+        ),
+        listOf("Las calculadoras ayudan a comprobar; en el examen tienes que saber el procedimiento. Úsalas para verificar tus resultados."),
+        key = "herramientas",
+    ),
+    Topic(
+        "Herramientas", Icons.Rounded.ElectricBolt, "Electricidad y electrónica",
+        "Para Ingeniería eléctrica y electrónica.",
+        listOf(
+            "Ley de Ohm y potencia: escribe dos de V, I, R, P.",
+            "Código de colores: elige las bandas (4 o 5) y ve el valor, o escribe el valor y ve los colores.",
+            "Serie y paralelo para R, C y L; divisor de tensión (con carga y R2 comercial).",
+            "RC y RL: τ y frecuencia de corte. RLC: reactancias, |Z|, ángulo, resonancia y Q.",
+            "Potencia en alterna mono y trifásica, con el capacitor para corregir el factor de potencia.",
+            "Resistencia para LED (valor E12), 555 astable, decibeles, calibre AWG con caída de tensión.",
+            "Bases numéricas con complemento a 2 y tabla de verdad con suma de productos.",
+        ),
+        listOf("Tabla de verdad: AB significa A·B, C' es NO C, + es O."),
+        key = "tools-electrica",
+    ),
+    Topic(
+        "Herramientas", Icons.Rounded.Functions, "Matemáticas y fórmulas",
+        "Calculadora científica, conversor de unidades (incluye la manzana hondureña), ecuación de segundo grado y sistemas 2×2 y 3×3. En las clases de Eléctrica y Matemáticas hay además un Formulario.",
+        listOf(
+            "Calculadora: escribe toda la operación (2·sin(30)+√16). El interruptor cambia grados/radianes.",
+            "Formulario: «Poner las básicas» agrega las fórmulas típicas del campo, o «+ Fórmula» para las tuyas.",
+            "Cada fórmula se ve como en el libro. Si le pones «Para calcular» (por ejemplo 1/(2*pi*sqrt(L*C))), el botón Calcular te pide los valores.",
+            "«Tarjeta» la manda al repaso: de un lado el nombre, del otro la fórmula.",
+        ),
+        listOf("Para escribir fórmulas se usa LaTeX: \\frac{a}{b}, x^2, x_1, \\sqrt{x}, \\pi. Debajo del campo hay una ayuda."),
+        key = "clase-formulas",
+    ),
+    Topic(
+        "Herramientas", Icons.Rounded.BarChart, "Psicología: estadística, APA y corrientes",
+        "Herramientas para Psicología (y Sociología): estadística descriptiva, correlación de Pearson, prueba t de dos grupos, referencias APA 7 y un resumen de corrientes y autores. Además hay fichas nuevas: investigación, caso clínico y teoría.",
+        listOf(
+            "Pega tus datos (separados por espacio, coma o renglón).",
+            "Cada resultado trae cómo escribirlo en APA, por ejemplo t(18) = 2.31, p = .033.",
+            "APA 7: elige libro, artículo, capítulo o web y llena los campos; copia la referencia y la cita.",
+            "Corrientes: busca por escuela, autor o concepto (apego, refuerzo, Gestalt…).",
+        ),
+        listOf("La prueba t es la de Welch (no supone varianzas iguales). Para trabajos formales confirma con SPSS, JASP o R."),
+        key = "tools-psicologia",
+    ),
+    Topic(
+        "Herramientas", Icons.Rounded.Code, "Programación y tarjetas especiales",
+        "Probador de expresiones regulares y tarjetas que se ven bien en el repaso: código con colores, problemas paso a paso, fórmulas e imagen tapada.",
+        listOf(
+            "Tarjeta de código: pregunta + código. En el repaso el código se ve con colores y en letra de máquina.",
+            "Tarjeta de problema: enunciado y pasos. Al repasar, los pasos se muestran de a uno: intenta el siguiente antes de verlo.",
+            "En cualquier tarjeta puedes escribir fórmulas entre \$…\$ y se dibujan bien.",
+        ),
+        listOf("Bases numéricas y tabla de verdad también sirven para programación."),
+        key = "tools-programacion",
+    ),
+    Topic(
+        "Herramientas", Icons.Rounded.Image, "Imagen tapada",
+        "Toma una foto o imagen (un circuito, el cerebro, un mapa, un diagrama) y tapa sus partes. Al repasar, una parte se ve en rojo y tienes que decir qué es.",
+        listOf(
+            "Herramientas → Imagen tapada → «Elegir imagen».",
+            "Arrastra el dedo sobre la imagen para tapar cada parte (se numeran).",
+            "Escribe qué es cada parte y toca «Crear tarjeta»: se crea una por parte.",
+        ),
+        listOf("Hilo guarda una copia de la imagen: aunque la borres de la galería, la tarjeta sigue funcionando."),
+        key = "imagen-tapada",
+    ),
+)
+
 /** Claves de los temas que ya estaban en la guía. */
 private val KEY_TITLES = mapOf(
+    "clase-vocabulario" to "Glosario y vocabulario del área",
+    "clase-plantillas" to "Normas, plazos y plantillas (Derecho)",
+    "clase-plazos" to "Normas, plazos y plantillas (Derecho)",
+    "clase-herramientas" to "Herramientas para tu carrera",
     "primeros" to "Primeros pasos (léelo primero)",
     "gestos" to "Gestos de la página",
     "modo" to "Página original o Texto",

@@ -170,7 +170,7 @@ fun DictDownloads(vm: HiloViewModel) {
                         when {
                             prog != null -> "Descargando… ${(prog * 100).toInt()} %"
                             Dict.has(ctx, lang) -> "Listo · ${Dict.sizeMb(ctx, lang)} MB en el celular"
-                            else -> if (lang == "es") "Unos 30–60 MB" else "Unos 60–120 MB"
+                            else -> if (lang == "es") "210 000 palabras · descarga de 27 MB" else "665 000 palabras · descarga de 88 MB"
                         },
                         color = c.muted, fontSize = 12.sp,
                     )

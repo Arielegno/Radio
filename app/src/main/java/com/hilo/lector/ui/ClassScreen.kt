@@ -148,20 +148,39 @@ fun ClassesScreen(vm: HiloViewModel, id: String?) {
 private fun ClassList(vm: HiloViewModel) {
     val c = LocalHilo.current
     var newOne by remember { mutableStateOf(false) }
+    var areasTab by rememberSaveable { mutableStateOf(false) }
     BackHandler { vm.screen = Screen.Library }
     Box(Modifier.fillMaxSize().background(c.bg).windowInsetsPadding(WindowInsets.safeDrawing), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 760.dp).fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
                 IconButton(onClick = { vm.screen = Screen.Library }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Volver", tint = c.ink) }
                 Text("Clases", fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 24.sp, color = c.ink, modifier = Modifier.weight(1f))
-                HelpButton(vm, "clases", tint = c.ink)
+                HelpButton(vm, if (areasTab) "areas" else "clases", tint = c.ink)
             }
-            val list = vm.classes.classes.sortedBy { cl -> vm.classes.nextExam(cl.id)?.day ?: Long.MAX_VALUE }
+            Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                ChoiceRow(listOf("Mis clases", "Áreas de referencia"), if (areasTab) 1 else 0) { areasTab = it == 1 }
+            }
+            val list = (if (areasTab) vm.classes.areas else vm.classes.courses).sortedBy { cl -> vm.classes.nextExam(cl.id)?.day ?: Long.MAX_VALUE }
             LazyColumn(
                 Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 110.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (list.isEmpty()) item {
+                if (list.isEmpty() && areasTab) item {
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surface).padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text("Tu biblioteca de referencia por campo", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(
+                            "Un área junta todos los documentos de un campo para siempre: por ejemplo, todas las leyes de Honduras. Hilo aprende de ellos: " +
+                                "enlaza las remisiones entre normas, junta las definiciones legales y el vocabulario técnico, arma plantillas a partir de tus modelos y, " +
+                                "al leer cualquier documento, te muestra qué dicen tus fuentes sobre lo mismo.",
+                            color = c.muted, fontSize = 14.sp, lineHeight = 20.sp,
+                        )
+                        Button(onClick = { newOne = true }, colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.accentInk)) { Text("Crear mi primera área") }
+                    }
+                }
+                if (list.isEmpty() && !areasTab) item {
                     Column(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surface).padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -180,11 +199,11 @@ private fun ClassList(vm: HiloViewModel) {
         }
         ExtendedFloatingActionButton(
             onClick = { newOne = true }, containerColor = c.accent, contentColor = c.accentInk,
-            icon = { Icon(Icons.Rounded.Add, null) }, text = { Text("Nueva clase") },
+            icon = { Icon(Icons.Rounded.Add, null) }, text = { Text(if (areasTab) "Nueva área" else "Nueva clase") },
             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
         )
     }
-    if (newOne) ClassDialog(vm, null) { cl -> newOne = false; if (cl != null) vm.screen = Screen.Classes(cl.id) }
+    if (newOne) ClassDialog(vm, null, area = areasTab) { cl -> newOne = false; if (cl != null) vm.screen = Screen.Classes(cl.id) }
 }
 
 @Composable
@@ -201,7 +220,10 @@ private fun ClassCard(vm: HiloViewModel, cl: Clase, onOpen: () -> Unit) {
         Column(Modifier.weight(1f).padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(cl.name, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                listOfNotNull(cl.teacher.takeIf { it.isNotBlank() }, "${books.size} ${if (books.size == 1) "material" else "materiales"}", if (due > 0) "$due tarjetas para hoy" else null).joinToString(" · "),
+                listOfNotNull(
+                    if (cl.isArea) com.hilo.lector.data.FIELDS.firstOrNull { it.first == cl.field }?.second else cl.teacher.takeIf { it.isNotBlank() },
+                    "${books.size} ${if (books.size == 1) "material" else "materiales"}", if (due > 0) "$due tarjetas para hoy" else null,
+                ).joinToString(" · "),
                 color = c.muted, fontSize = 13.sp, maxLines = 1,
             )
             if (exam != null) Text("📅 ${exam.title.ifBlank { "Examen" }} ${inDays(exam.day)}", color = if (exam.day - today() <= 7) c.lines[0] else c.ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -212,18 +234,26 @@ private fun ClassCard(vm: HiloViewModel, cl: Clase, onOpen: () -> Unit) {
 
 /** Crear o editar una clase. */
 @Composable
-private fun ClassDialog(vm: HiloViewModel, edit: Clase?, onDone: (Clase?) -> Unit) {
+@OptIn(ExperimentalLayoutApi::class)
+private fun ClassDialog(vm: HiloViewModel, edit: Clase?, area: Boolean = edit?.isArea == true, onDone: (Clase?) -> Unit) {
     val c = LocalHilo.current
     var name by remember { mutableStateOf(edit?.name.orEmpty()) }
     var teacher by remember { mutableStateOf(edit?.teacher.orEmpty()) }
     var color by remember { mutableIntStateOf(edit?.color ?: CLASS_COLORS[vm.classes.classes.size % CLASS_COLORS.size]) }
+    var field by remember { mutableStateOf(edit?.field ?: "otro") }
     AlertDialog(
         onDismissRequest = { onDone(null) },
-        title = { Text(if (edit == null) "Nueva clase" else "Editar clase") },
+        title = { Text(if (edit == null) (if (area) "Nueva área de referencia" else "Nueva clase") else "Editar") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Nombre (ej.: Sociología General)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(teacher, { teacher = it }, label = { Text("Profesor o profesora (opcional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(name, { name = it }, label = { Text(if (area) "Nombre (ej.: Derecho hondureño)" else "Nombre (ej.: Sociología General)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (!area) OutlinedTextField(teacher, { teacher = it }, label = { Text("Profesor o profesora (opcional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Text("Campo (activa sus herramientas)", color = c.muted, fontSize = 13.sp)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    com.hilo.lector.data.FIELDS.forEach { (k, l) ->
+                        Text(l, color = if (k == field) Color.White else c.ink, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(if (k == field) Color(color) else c.chip).clickable { field = k }.padding(horizontal = 10.dp, vertical = 6.dp))
+                    }
+                }
                 Text("Color", color = c.muted, fontSize = 13.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     CLASS_COLORS.forEach { col ->
@@ -237,8 +267,8 @@ private fun ClassDialog(vm: HiloViewModel, edit: Clase?, onDone: (Clase?) -> Uni
         },
         confirmButton = {
             TextButton(onClick = {
-                if (edit == null) onDone(vm.classes.create(name, color, teacher))
-                else { vm.classes.update(edit.id) { it.copy(name = name.trim().ifBlank { it.name }, teacher = teacher.trim(), color = color) }; onDone(edit) }
+                if (edit == null) onDone(vm.classes.create(name, color, teacher, if (area) "area" else "clase", field))
+                else { vm.classes.update(edit.id) { it.copy(name = name.trim().ifBlank { it.name }, teacher = teacher.trim(), color = color, field = field) }; onDone(edit) }
             }, enabled = name.isNotBlank()) { Text(if (edit == null) "Crear" else "Guardar") }
         },
         dismissButton = { TextButton(onClick = { onDone(null) }) { Text("Cancelar") } },
@@ -249,10 +279,17 @@ private fun ClassDialog(vm: HiloViewModel, edit: Clase?, onDone: (Clase?) -> Uni
 // Una clase
 // =====================================================================
 
-private val CLASS_TABS = listOf(
-    "materiales" to "Materiales", "mapa" to "Mapa", "sintesis" to "Síntesis",
-    "estudiar" to "Estudiar", "diario" to "Diario", "calendario" to "Calendario",
-)
+/** Pestañas de una clase o un área, según su campo. */
+private fun tabsFor(cl: Clase): List<Pair<String, String>> {
+    val t = ArrayList<Pair<String, String>>()
+    t += "materiales" to "Materiales"; t += "mapa" to "Mapa"; t += "sintesis" to "Síntesis"
+    if (cl.isArea) { t += "buscar" to "Buscar"; t += "glosario" to "Glosario"; t += "vocabulario" to "Vocabulario" }
+    else { t += "estudiar" to "Estudiar"; t += "diario" to "Diario"; t += "calendario" to "Calendario"; t += "buscar" to "Buscar" }
+    if (cl.field == "derecho") { t += "normas" to "Normas"; t += "plantillas" to "Plantillas"; t += "plazos" to "Plazos y sanciones" }
+    if (cl.field == "electrica" || cl.field == "matematicas") t += "formulas" to "Fórmulas"
+    if (cl.field != "otro") t += "herramientas" to "Herramientas"
+    return t
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -265,7 +302,7 @@ private fun ClassDetail(vm: HiloViewModel, cl: Clase) {
 
     // Análisis de todos los materiales (se calcula al abrir Mapa, Síntesis o Estudiar)
     val books = cl.books.mapNotNull { vm.repo.get(it) }.filter { !it.trashed }
-    val needs = tab in setOf("mapa", "sintesis", "estudiar")
+    val needs = tab in setOf("mapa", "sintesis", "estudiar", "glosario", "vocabulario", "normas", "plazos")
     var progress by remember { mutableStateOf("") }
     val state by produceState<Pair<List<Pair<String, Analysis>>, ClassGraph>?>(null, cl.books, needs) {
         if (!needs && value == null) return@produceState
@@ -288,7 +325,8 @@ private fun ClassDetail(vm: HiloViewModel, cl: Clase) {
                 Box(Modifier.size(12.dp).clip(CircleShape).background(Color(cl.color)))
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
                     Text(cl.name, fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (cl.teacher.isNotBlank()) Text(cl.teacher, color = c.muted, fontSize = 13.sp, maxLines = 1)
+                    val sub = if (cl.isArea) "Área de referencia · " + (com.hilo.lector.data.FIELDS.firstOrNull { it.first == cl.field }?.second ?: "") else cl.teacher
+                if (sub.isNotBlank()) Text(sub, color = c.muted, fontSize = 13.sp, maxLines = 1)
                 }
                 IconButton(onClick = { editing = true }) { Icon(Icons.Rounded.Edit, "Editar clase", tint = c.muted) }
                 IconButton(onClick = { deleting = true }) { Icon(Icons.Rounded.Delete, "Borrar clase", tint = c.muted) }
@@ -298,7 +336,7 @@ private fun ClassDetail(vm: HiloViewModel, cl: Clase) {
                 horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
             ) {
                 HelpButton(vm, "clase-$tab", tint = c.accent)
-                CLASS_TABS.forEach { (k, t) ->
+                tabsFor(cl).forEach { (k, t) ->
                     val on = k == tab
                     Text(
                         t, color = if (on) c.accentInk else c.ink, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
@@ -311,6 +349,10 @@ private fun ClassDetail(vm: HiloViewModel, cl: Clase) {
                     "materiales" -> MaterialsTab(vm, cl, books)
                     "diario" -> DiaryTab(vm, cl)
                     "calendario" -> CalendarTab(vm, cl, books)
+                    "buscar" -> AreaSearchTab(vm, cl, (books + vm.classes.referenceBooks(cl).mapNotNull { vm.repo.get(it) }).distinctBy { it.id }.filter { !it.trashed })
+                    "plantillas" -> TemplatesTab(vm, cl, books)
+                    "formulas" -> FormulasTab(vm, cl)
+                    "herramientas" -> ToolsList(vm, cl.field)
                     else -> {
                         val st = state
                         when {
@@ -322,6 +364,10 @@ private fun ClassDetail(vm: HiloViewModel, cl: Clase) {
                             st.second.concepts.isEmpty() -> Empty("No encontré texto en estos materiales. Si son fotos o PDF escaneados, activa «Reconocer texto en escaneados» en Ajustes.")
                             tab == "mapa" -> ClassMapTab(vm, cl, books, st.first, st.second)
                             tab == "sintesis" -> SynthesisTab(vm, cl, books, st.first, st.second)
+                            tab == "glosario" -> AreaGlossaryTab(vm, cl, books, st.first)
+                            tab == "vocabulario" -> AreaVocabTab(vm, cl, books, st.first)
+                            tab == "normas" -> NormsTab(vm, cl, books, st.first)
+                            tab == "plazos" -> DeadlinesTab(vm, cl, books, st.first)
                             else -> ClassStudyTab(vm, cl, books, st.first, st.second)
                         }
                     }
@@ -384,6 +430,32 @@ private fun MaterialsTab(vm: HiloViewModel, cl: Clase, books: List<Book>) {
                 OutlinedButton(onClick = { pickFiles.launch(arrayOf("*/*")) }) { Text("+ Archivos", color = c.ink) }
                 OutlinedButton(onClick = { pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text("+ Fotos", color = c.ink) }
             }
+        }
+        if (!cl.isArea) item {
+            var pickAreas by remember { mutableStateOf(false) }
+            val used = cl.areas.mapNotNull { vm.classes.get(it) }
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.band).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Áreas de referencia que usa", color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Text(if (used.isEmpty()) "Ninguna. Conecta un área (por ejemplo, tus leyes) para buscar en ella desde esta clase." else used.joinToString(" · ") { it.name }, color = c.muted, fontSize = 13.sp)
+                TextButton(onClick = { pickAreas = true }) { Text(if (used.isEmpty()) "Conectar un área" else "Cambiar") }
+            }
+            if (pickAreas) AlertDialog(
+                onDismissRequest = { pickAreas = false },
+                title = { Text("Áreas que usa ${cl.name}") },
+                text = {
+                    Column {
+                        if (vm.classes.areas.isEmpty()) Text("Todavía no tienes áreas. Créalas en Clases → Áreas de referencia.", color = c.muted)
+                        vm.classes.areas.forEach { a ->
+                            val on = a.id in cl.areas
+                            Row(Modifier.fillMaxWidth().clickable { vm.classes.update(cl.id) { it.copy(areas = if (on) it.areas - a.id else it.areas + a.id) } }, verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(on, { vm.classes.update(cl.id) { it.copy(areas = if (on) it.areas - a.id else it.areas + a.id) } })
+                                Text(a.name, color = c.ink)
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { pickAreas = false }) { Text("Listo") } },
+            )
         }
         if (books.isEmpty()) item { Text("Todavía no hay materiales.", color = c.muted, modifier = Modifier.padding(vertical = 20.dp)) }
         items(books, key = { it.id }) { b ->

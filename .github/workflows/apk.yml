@@ -20,6 +20,13 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+      - name: KaTeX (fórmulas sin internet)
+        run: |
+          mkdir -p /tmp/k app/src/main/assets/katex/fonts
+          cd /tmp/k && npm pack katex@0.16.11 --silent && tar xzf katex-0.16.11.tgz
+          cp package/dist/katex.min.js package/dist/katex.min.css $GITHUB_WORKSPACE/app/src/main/assets/katex/
+          cp package/dist/fonts/*.woff2 $GITHUB_WORKSPACE/app/src/main/assets/katex/fonts/
+          ls -la $GITHUB_WORKSPACE/app/src/main/assets/katex
       - run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:

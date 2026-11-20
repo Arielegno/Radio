@@ -164,6 +164,11 @@ fun SelHandle(at: Offset, start: Boolean, color: Color, onMove: (Offset) -> Unit
 }
 
 /** Lo que el menú necesita saber y hacer con el texto elegido. */
+/** Para abrir «En mis áreas» desde el menú de selección. */
+object RefUi {
+    var open: ((String) -> Unit)? = null
+}
+
 class SelMenu(
     val text: String,
     val lang: String,
@@ -227,6 +232,8 @@ fun SelectionToolbar(anchor: Rect, menu: SelMenu) {
                     MoreItem(Icons.AutoMirrored.Rounded.ArrowBack, "Volver") { panel = "main" }
                     MoreItem(Icons.Rounded.School, "Estudiar: tarjetas y palabras clave") { menu.onStudy(); menu.onDone() }
                     MoreItem(Icons.Rounded.FormatQuote, "Guardar como cita (APA)") { menu.onCite(); menu.onDone() }
+                    MoreItem(Icons.AutoMirrored.Rounded.MenuBook, "Diccionario (sin internet)") { lookup(ctx, menu.text, "dic", menu.lang); menu.onDone() }
+                    RefUi.open?.let { o -> MoreItem(Icons.Rounded.Search, "Buscar en mis áreas de referencia") { o(menu.text); menu.onDone() } }
                     MoreItem(Icons.Rounded.Public, "Buscar en Wikipedia") { lookup(ctx, menu.text, "wiki", menu.lang); menu.onDone() }
                     MoreItem(Icons.Rounded.Search, "Buscar en internet") { webSearch(ctx, menu.text); menu.onDone() }
                     MoreItem(Icons.Rounded.Share, "Compartir") { share(ctx, menu.text); menu.onDone() }

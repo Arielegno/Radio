@@ -2,6 +2,7 @@
 
 package com.hilo.lector.ui
 
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.Switch
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -808,25 +809,50 @@ fun GlossaryTab(vm: HiloViewModel, book: Book, a: Analysis) {
         if (entries.isEmpty()) {
             Text("No encontré definiciones claras. Agrega términos desde aquí o desde la pestaña Palabras.", color = c.ink, fontSize = 14.sp)
         }
-        entries.forEach { g ->
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(g.term, color = c.accent, fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f))
-                    val ctx = androidx.compose.ui.platform.LocalContext.current
-                    TextButton(onClick = { lookup(ctx, g.term, "dic", vm.study.langs[book.id].orEmpty()) }) { Text("Diccionario", fontSize = 12.sp) }
-                    TextButton(onClick = { lookup(ctx, g.term, "wiki", vm.study.langs[book.id].orEmpty()) }) { Text("Wikipedia", fontSize = 12.sp) }
-                }
-                Text(g.definition, color = c.ink, fontSize = 15.sp)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (g.para >= 0) "párrafo ${g.para + 1}" else "", color = c.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { saveCard(vm, book, "qa", "¿Qué es «${g.term}»?", g.definition, g.para); vm.toast = "Tarjeta creada." }) { Text("Tarjeta") }
-                    TextButton(onClick = { vm.feynman = FeynmanReq(book.id, g.term, g.definition, emptyList()) }) { Text("Explícalo") }
-                    TextButton(onClick = { edit = g to g.term }) { Text("Editar") }
-                    if (g.para >= 0) TextButton(onClick = { vm.openAt(book.id, true, g.para) }) { Text("Ir") }
-                    TextButton(onClick = { vm.study.hideGloss(book.id, g.term) }) { Text("Quitar", color = c.lines[0]) }
+        var gq by remember { mutableStateOf("") }
+        if (entries.size > 6) OutlinedTextField(
+            gq, { gq = it }, placeholder = { Text("Buscar en el glosario") }, singleLine = true,
+            leadingIcon = { Icon(Icons.Rounded.Search, null, tint = c.muted) }, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+        )
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        val lang = vm.study.langs[book.id].orEmpty()
+        entries.filter { gq.isBlank() || (it.term + " " + it.definition).contains(gq.trim(), true) }.forEach { g ->
+            Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).clip(RoundedCornerShape(18.dp)).background(c.surface)) {
+                // Franja de color a la izquierda, como una ficha
+                Box(Modifier.width(5.dp).fillMaxHeight().background(c.accent))
+                Column(Modifier.weight(1f).padding(start = 14.dp, end = 12.dp, top = 14.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(g.term, color = c.ink, fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 19.sp, modifier = Modifier.weight(1f))
+                        if (g.para >= 0) Text(
+                            "párr. ${g.para + 1} ›", color = c.accent, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                            modifier = Modifier.clip(RoundedCornerShape(50)).background(c.band).clickable { vm.openAt(book.id, true, g.para) }.padding(horizontal = 10.dp, vertical = 4.dp),
+                        )
+                    }
+                    // La definición, con el término resaltado
+                    val styled = remember(g) {
+                        androidx.compose.ui.text.buildAnnotatedString {
+                            val t = g.definition
+                            val i = t.indexOf(g.term, ignoreCase = true)
+                            if (i >= 0) {
+                                append(t.substring(0, i))
+                                pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.SemiBold))
+                                append(t.substring(i, i + g.term.length)); pop()
+                                append(t.substring(i + g.term.length))
+                            } else append(t)
+                        }
+                    }
+                    Text(styled, color = c.ink, fontSize = 16.sp, lineHeight = 24.sp)
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        GlossChip("Tarjeta", primary = true) { saveCard(vm, book, "qa", "¿Qué es «${g.term}»?", g.definition, g.para); vm.toast = "Tarjeta creada." }
+                        GlossChip("Explícalo") { vm.feynman = FeynmanReq(book.id, g.term, g.definition, emptyList()) }
+                        GlossChip("Diccionario") { lookup(ctx, g.term, "dic", lang) }
+                        GlossChip("Wikipedia") { lookup(ctx, g.term, "wiki", lang) }
+                        GlossChip("Editar") { edit = g to g.term }
+                        IconButton(onClick = {
+                            vm.study.hideGloss(book.id, g.term)
+                            vm.undoable("«${g.term}» quitado del glosario") { vm.study.putGloss(book.id, g, null) }
+                        }) { Icon(Icons.Rounded.Delete, "Quitar del glosario", tint = c.muted, modifier = Modifier.size(20.dp)) }
+                    }
                 }
             }
         }
@@ -1019,4 +1045,14 @@ fun QuizOverlay(vm: HiloViewModel, book: Book, title: String, qs: List<Question>
             }
         }
     }
+}
+
+
+@Composable
+private fun GlossChip(label: String, primary: Boolean = false, onClick: () -> Unit) {
+    val c = LocalHilo.current
+    Text(
+        label, color = if (primary) c.accentInk else c.ink, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1,
+        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (primary) c.accent else c.chip).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 7.dp),
+    )
 }

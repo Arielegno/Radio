@@ -198,6 +198,10 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
     // ---------- Ayudas TDAH ----------
     /** Tema de ayuda abierto con el botón «?». */
     var help by mutableStateOf<String?>(null)
+    /** Texto elegido que se busca en las áreas de referencia. */
+    var refText by mutableStateOf<String?>(null)
+    /** Pantalla de todas las herramientas abierta. */
+    var toolsOpen by mutableStateOf(false)
     /** Palabra que dice la voz ahora: (párrafo, caracteres), para marcarla en el texto. */
     var ttsWord by mutableStateOf<Pair<Int, IntRange>?>(null)
     /** Desplazamiento automático: 0 apagado, 1 a 10 velocidad. */

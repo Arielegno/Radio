@@ -6,6 +6,22 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            27, "2.5", "20 nov 2026", "Áreas, diccionarios y herramientas",
+            added = listOf(
+                "Áreas de referencia: junta todos los documentos de un campo (por ejemplo Derecho hondureño) y Hilo aprende su estructura: jerarquía de normas, quién cita a quién, definiciones, plazos, sanciones, autoridades y el vocabulario propio del campo. Las clases pueden usar áreas.",
+                "«Buscar en mis áreas» al elegir un texto: si nombra un artículo de una ley que tienes, lo abre directo; si no, trae los párrafos más parecidos.",
+                "Plantillas de escritos para Derecho: guarda modelos, genera una plantilla de Word y revisa un borrador contra el modelo.",
+                "Diccionarios de español (210 000 palabras) e inglés (665 000) del Wikcionario, descargables dentro de Hilo y sin internet después: definiciones, ejemplos, pronunciación, origen y traducción. Reconoce palabras conjugadas y plurales.",
+                "Herramientas para la carrera: 14 de electricidad y electrónica (Ohm, código de colores, serie/paralelo, divisor, RC/RL, RLC y resonancia, potencia mono y trifásica con corrección del factor de potencia, LED, 555, dB, AWG, prefijos, bases y complemento a 2, tabla de verdad), calculadora científica, unidades, ecuaciones y sistemas.",
+                "Psicología: estadística descriptiva, correlación de Pearson y prueba t con el resultado en formato APA, generador de referencias APA 7, resumen de corrientes y autores, y fichas de investigación, caso clínico y teoría.",
+                "Programación: probador de expresiones regulares y tarjetas de código con colores.",
+                "Formulario por clase con fórmulas dibujadas como en el libro (sin internet) y que se pueden calcular.",
+                "Tarjetas nuevas: problema paso a paso, fórmula e imagen tapada (tapas partes de un circuito, del cerebro o de un mapa y repasas cada una).",
+                "Glosario más bonito y fácil de leer, con búsqueda, y sin «definiciones» falsas como «Esta valoración es…».",
+            ),
+            fixed = listOf("El glosario ya no toma como término frases que empiezan con «esta», «esto», «la situación» y parecidas."),
+        ),
+        Version(
             26, "2.4", "20 nov 2026", "Clases",
             added = listOf(
                 "Clases: crea una por materia y agrégale libros, documentos y fotos de la pizarra o de tus apuntes (Hilo reconoce su texto).",

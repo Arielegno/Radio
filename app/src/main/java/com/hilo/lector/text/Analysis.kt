@@ -307,6 +307,15 @@ object Analyzer {
     )
 
     /** Busca oraciones que definen un concepto: "La anomia es…", "Se entiende por capital cultural…". */
+    /** Palabras con las que NO empieza un término definido (demostrativos, pronombres, adverbios). */
+    private val NOT_TERM = setOf("esta", "este", "estos", "estas", "esa", "ese", "esos", "esas", "eso", "esto", "aquello", "ello", "ella", "él", "ellos", "ellas",
+        "lo", "que", "cual", "quien", "donde", "cuando", "como", "ya", "también", "tambien", "así", "asi", "aquí", "aqui", "hoy", "mi", "su", "sus", "nuestro", "nuestra",
+        "tal", "dicha", "dicho", "dichos", "dichas", "otra", "otro", "otros", "otras", "cada", "todo", "toda", "todos", "todas", "nada", "algo", "mucho", "mucha", "poco", "situación", "situacion", "caso", "problema", "cosa", "hecho")
+    /** Una definición suele empezar con un artículo o una palabra que nombra («un conjunto», «la facultad»…). */
+    private val DEF_START = setOf("un", "una", "unos", "unas", "el", "la", "los", "las", "aquel", "aquella", "aquello", "aquellos", "aquellas", "lo", "todo", "toda", "cualquier", "cualquiera", "uno", "parte", "conjunto", "acción", "accion", "acto", "proceso", "facultad", "capacidad", "derecho", "instrumento", "medio", "forma", "tipo", "rama", "ciencia", "disciplina", "estudio", "relación", "relacion", "estado", "situación", "situacion", "principio", "norma", "regla")
+    /** Si lo que sigue a «es» es una opinión, no es definición («es particularmente importante»). */
+    private val OPINION = setOf("muy", "más", "mas", "menos", "particularmente", "especialmente", "sumamente", "bastante", "tan", "importante", "necesario", "necesaria", "posible", "fundamental", "claro", "clara", "evidente", "cierto", "cierta", "difícil", "dificil", "fácil", "facil", "útil", "util", "decir", "porque", "cuando", "ya", "también", "tambien", "así", "asi", "no", "sí", "si", "mejor", "peor", "bueno", "buena", "malo", "mala", "probable", "imposible", "obvio", "verdad", "falso", "suficiente")
+
     fun findDefinitions(sentences: List<Sent>, important: Set<String>): List<Gloss> {
         val found = LinkedHashMap<String, Pair<Gloss, Int>>()
         for (s in sentences) {
@@ -315,6 +324,13 @@ object Analyzer {
             val term = m.groupValues[1].trim().trimEnd(',', ':')
             val words = term.split(Regex("\\s+"))
             if (words.size > 5 || words.all { isStop(it.lowercase()) }) continue
+            // No es una definición si empieza con «Esta…», «Eso…», «Situación que…», o si lo que sigue es una opinión
+            val w0 = words.first().lowercase()
+            if (w0 in NOT_TERM || words.any { it.lowercase() in setOf("que", "cual", "cuales", "donde", "cuando", "quien") }) continue
+            val rest = m.groupValues[2].trimStart().lowercase()
+            val strongVerb = Regex("(?i)\\b(se define|se entiende|consiste en|se refiere a|significa|designa|alude a|se denomina|se llama|llamamos|denominamos|definimos)\\b").containsMatchIn(s.text.take(term.length + 40))
+            val r0 = rest.split(Regex("\\s+")).firstOrNull().orEmpty()
+            if (!strongVerb && (r0 in OPINION || r0 !in DEF_START)) continue
             if (term.firstOrNull()?.isDigit() == true) continue
             val key = term.lowercase()
             val score = (if (words.any { it.lowercase() in important } || key in important) 10 else 0) +

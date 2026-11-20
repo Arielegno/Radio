@@ -98,12 +98,20 @@ val FICHA_KINDS = listOf(
     "concepto" to "Ficha de concepto",
     "metodo" to "Ficha de método",
     "clasico" to "Análisis de texto clásico",
+    "investigacion" to "Ficha de artículo científico",
+    "caso-clinico" to "Caso clínico (psicología)",
+    "teoria" to "Ficha de teoría psicológica",
+    "problema" to "Problema resuelto (ingeniería)",
 )
 
 /** Fichas de Derecho y de Sociología, para mostrarlas agrupadas. */
 val FICHAS_DERECHO = setOf("irac", "sentencia", "norma", "caso")
 
 fun fichaFields(kind: String): List<String> = when (kind) {
+    "investigacion" -> listOf("Cita (APA 7)", "Pregunta de investigación", "Hipótesis", "Participantes y muestra", "Diseño y método", "Variables (independiente, dependiente, de control)", "Instrumentos", "Resultados principales", "Conclusiones de los autores", "Limitaciones", "Mi evaluación crítica")
+    "caso-clinico" -> listOf("Datos generales (sin nombres reales)", "Motivo de consulta", "Historia del problema", "Antecedentes personales y familiares", "Observación y conducta", "Pruebas aplicadas y resultados", "Hipótesis diagnóstica (criterios que cumple)", "Factores de riesgo y de protección", "Plan de intervención", "Consideraciones éticas y confidencialidad")
+    "teoria" -> listOf("Teoría y autor", "Corriente", "Época y contexto", "Supuestos sobre la persona", "Conceptos clave", "Cómo explica el problema o la conducta", "Método o técnicas", "Evidencia a favor", "Críticas", "Aplicaciones (clínica, educativa, organizacional)")
+    "problema" -> listOf("Enunciado", "Datos conocidos (con unidades)", "Incógnita", "Fórmulas o leyes que aplican", "Planteamiento (diagrama o ecuaciones)", "Resolución paso a paso", "Resultado con unidades", "Comprobación (¿tiene sentido el valor?)")
     "irac" -> listOf("Problema jurídico (Issue): ¿qué hay que decidir?", "Norma (Rule): artículos, principios y jurisprudencia", "Aplicación (Application): la norma a estos hechos", "Conclusión (Conclusion)", "Hechos relevantes")
     "sentencia" -> listOf("Tribunal, fecha y número", "Partes", "Hechos", "Problema jurídico", "Ratio decidendi (la razón que decide)", "Obiter dicta (lo dicho de paso)", "Decisión o fallo", "Precedente: ¿vinculante o no?", "Comentario crítico")
     "norma" -> listOf("Artículo y texto", "Bien jurídico protegido", "Sujetos (activo y pasivo)", "Conducta o verbo rector", "Elementos o requisitos", "Sanción o consecuencia", "Remisiones", "Concordancias", "Reformas")

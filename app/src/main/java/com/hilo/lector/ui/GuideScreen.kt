@@ -90,7 +90,7 @@ internal class Topic(
     val key: String = "",
 )
 
-internal val GROUPS = listOf("Empezar", "Ayudas TDAH", "Leer", "Elegir texto y subrayar", "Estudiar", "Clases", "Derecho", "Sociología", "Biblioteca", "Ajustes y ayudas")
+internal val GROUPS = listOf("Empezar", "Ayudas TDAH", "Leer", "Elegir texto y subrayar", "Estudiar", "Clases", "Áreas y diccionario", "Herramientas", "Derecho", "Sociología", "Biblioteca", "Ajustes y ayudas")
 
 private val BASE_TOPICS = listOf(
     // ---------------- Empezar ----------------

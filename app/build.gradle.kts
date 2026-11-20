@@ -16,11 +16,23 @@ android {
         versionName = "2.5"
     }
 
+    // Firma fija: así cada versión nueva se instala encima de la anterior sin borrar nada.
+    signingConfigs {
+        create("hilo") {
+            storeFile = file("hilo.keystore")
+            storePassword = "NSxpV_m8ZBZE2F5Fa4TF2YAQ"
+            keyAlias = "hilo"
+            keyPassword = "NSxpV_m8ZBZE2F5Fa4TF2YAQ"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("hilo")
+        }
         release {
             isMinifyEnabled = false
-            // Para probar en tu celular sin configurar firma propia.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("hilo")
         }
     }
     compileOptions {

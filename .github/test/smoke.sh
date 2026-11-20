@@ -667,6 +667,14 @@ shot 92_formatos_ocultos 2
 back 2
 shot 93_biblioteca_sin_formatos 3
 
+# Letra grande del sistema: la barra de abajo y «Agregar» no deben taparse
+adb shell settings put system font_scale 1.3
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 4
+shot 125_letra_grande 2
+adb shell settings put system font_scale 1.0
+
 timeout 60 adb logcat -d > $OUT/logcat.txt
 grep -n -A 40 "FATAL EXCEPTION" $OUT/logcat.txt > $OUT/crashes.txt || echo "Sin cierres inesperados" > $OUT/crashes.txt
 exit 0

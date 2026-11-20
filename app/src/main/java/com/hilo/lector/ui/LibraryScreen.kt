@@ -111,6 +111,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -187,6 +190,7 @@ fun LibraryScreen(vm: HiloViewModel) {
     var query by rememberSaveable { mutableStateOf("") }
     var searching by rememberSaveable { mutableStateOf(false) }
     var addMenu by remember { mutableStateOf(false) }
+    var navH by remember { androidx.compose.runtime.mutableIntStateOf(220) }
     var menuFor by remember { mutableStateOf<Book?>(null) }
     var editFor by remember { mutableStateOf<Book?>(null) }
     var collFor by remember { mutableStateOf<List<Book>?>(null) }
@@ -347,7 +351,7 @@ fun LibraryScreen(vm: HiloViewModel) {
             }
             LazyVerticalGrid(
                 columns = if (listView) GridCells.Adaptive(330.dp) else GridCells.Adaptive(112.dp),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = with(LocalDensity.current) { navH.toDp() } + 84.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(if (listView) 10.dp else 12.dp),
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -458,13 +462,16 @@ fun LibraryScreen(vm: HiloViewModel) {
             }
             // Barra inferior: lo principal siempre a un toque
             if (!selecting) Row(
-                Modifier.fillMaxWidth().background(c.surface).padding(vertical = 4.dp),
+                Modifier.fillMaxWidth().background(c.surface).padding(vertical = 4.dp, horizontal = 4.dp)
+                    .onSizeChanged { navH = it.height },
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
+                // Con letra muy grande en el celular, los nombres se achican un poco para caber en una línea.
+                val navFont = (12f * minOf(1f, 1.15f / LocalDensity.current.fontScale)).sp
                 @Composable
-                fun NavItem(icon: ImageVector, label: String, on: Boolean, badge: Int = 0, onClick: () -> Unit) {
+                fun RowScope.NavItem(icon: ImageVector, label: String, on: Boolean, badge: Int = 0, onClick: () -> Unit) {
                     Column(
-                        Modifier.clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 6.dp),
+                        Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(horizontal = 2.dp, vertical = 6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Box {
@@ -473,7 +480,7 @@ fun LibraryScreen(vm: HiloViewModel) {
                             }
                             if (badge > 0) Box(Modifier.align(Alignment.TopEnd).size(8.dp).clip(CircleShape).background(c.lines[0]))
                         }
-                        Text(label, color = if (on) c.accent else c.ink, fontSize = 12.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal)
+                        Text(label, color = if (on) c.accent else c.ink, fontSize = navFont, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 NavItem(Icons.Rounded.LibraryBooks, "Biblioteca", true) { section = Section("all"); searching = false }
@@ -489,7 +496,7 @@ fun LibraryScreen(vm: HiloViewModel) {
 
             if (vm.newFound > 0 && !selecting) {
                 Row(
-                    Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 150.dp, bottom = 92.dp)
+                    Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 150.dp, bottom = with(LocalDensity.current) { navH.toDp() } + 20.dp)
                         .clip(RoundedCornerShape(12.dp)).background(c.ink).padding(start = 16.dp, end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -532,7 +539,7 @@ fun LibraryScreen(vm: HiloViewModel) {
                     }
                 }
             }
-            if (!selecting) Box(Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 88.dp)) {
+            if (!selecting) Box(Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = with(LocalDensity.current) { navH.toDp() } + 16.dp)) {
                 ExtendedFloatingActionButton(
                     onClick = { addMenu = true },
                     icon = { Icon(Icons.Rounded.Add, null) },

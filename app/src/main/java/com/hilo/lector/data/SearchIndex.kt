@@ -73,6 +73,41 @@ class SearchIndex(private val ctx: Context) : SQLiteOpenHelper(ctx, "busqueda.db
         }.getOrDefault(emptyList())
     }
 
+    /** Un párrafo parecido, con su texto completo y qué tanto se parece. */
+    data class Passage(val bookId: String, val para: Int, val text: String, val score: Float)
+
+    /**
+     * Párrafos parecidos a un texto: los que comparten más palabras clave (y las más raras pesan más).
+     * Solo en [books] si no está vacío.
+     */
+    fun similar(words: List<String>, books: Set<String>, limit: Int = 25): List<Passage> {
+        val ws = words.map { fold(it) }.filter { it.length >= 3 }.distinct().take(8)
+        if (ws.isEmpty()) return emptyList()
+        val q = ws.joinToString(" OR ") { "$it*" }
+        val rows = ArrayList<Triple<String, Int, String>>()
+        runCatching {
+            readableDatabase.rawQuery("SELECT book, para, body FROM docs WHERE body MATCH ? LIMIT 3000", arrayOf(q)).use { c ->
+                while (c.moveToNext()) {
+                    val b = c.getString(0)
+                    if (books.isEmpty() || b in books) rows.add(Triple(b, c.getString(1).toIntOrNull() ?: 0, c.getString(2)))
+                }
+            }
+        }
+        if (rows.isEmpty()) return emptyList()
+        val folded = rows.map { fold(it.third) }
+        val df = ws.associateWith { w -> folded.count { it.contains(w) }.coerceAtLeast(1) }
+        return rows.indices.map { i ->
+            val f = folded[i]
+            val sc = ws.sumOf { w -> if (f.contains(w)) Math.log(1.0 + rows.size.toDouble() / df.getValue(w)) else 0.0 } / Math.sqrt(1.0 + f.length / 400.0)
+            Passage(rows[i].first, rows[i].second, rows[i].third, sc.toFloat())
+        }.filter { it.score > 0f }.sortedByDescending { it.score }.distinctBy { it.bookId to it.para }.take(limit)
+    }
+
+    /** Agrega al índice el texto de un libro (para las áreas y clases). */
+    fun ensure(bookId: String, paras: List<String>) {
+        index(bookId, paras, paras.size.toLong() * 1_000_003L + paras.sumOf { it.length.toLong() })
+    }
+
     /**
      * Indexa los libros que faltan: los que ya tienen texto guardado (modo Texto o sala de estudio)
      * y los formatos de texto (EPUB, Word, MOBI…). Los PDF se indexan después de abrirlos en modo Texto.

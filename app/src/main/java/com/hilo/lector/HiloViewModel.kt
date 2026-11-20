@@ -167,6 +167,34 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---------- Diccionarios ----------
+    var dictWord by mutableStateOf<Pair<String, Boolean>?>(null)
+    var dictVersion by mutableStateOf(0)
+    val dictProgress = androidx.compose.runtime.mutableStateMapOf<String, Float>()
+
+    /** Descarga un diccionario (una sola vez) y avisa al terminar. */
+    fun downloadDict(lang: String) {
+        if (dictProgress.containsKey(lang)) return
+        dictProgress[lang] = 0f
+        viewModelScope.launch {
+            val r = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    var last = 0L
+                    com.hilo.lector.data.Dict.download(getApplication(), lang) { got, total ->
+                        val now = System.currentTimeMillis()
+                        if (now - last > 300 && total > 0) { last = now; dictProgress[lang] = (got.toFloat() / total).coerceIn(0f, 1f) }
+                    }
+                }
+            }
+            dictProgress.remove(lang)
+            dictVersion++
+            toast = r.fold(
+                { "Diccionario de ${com.hilo.lector.data.Dict.NAMES[lang]?.lowercase()} listo: funciona sin internet." },
+                { "No pude descargarlo. Revisa tu conexión e inténtalo de nuevo." },
+            )
+        }
+    }
+
     // ---------- Ayudas TDAH ----------
     /** Tema de ayuda abierto con el botón «?». */
     var help by mutableStateOf<String?>(null)

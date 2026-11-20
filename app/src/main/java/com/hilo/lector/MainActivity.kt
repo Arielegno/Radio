@@ -238,6 +238,8 @@ fun HiloRoot(vm: HiloViewModel) {
     }
 
     // Ayuda de cada apartado, celebración y sonidos de fondo
+    androidx.compose.runtime.SideEffect { com.hilo.lector.ui.DictUi.open = { w, en -> vm.dictWord = w to en } }
+    vm.dictWord?.let { (w, en) -> com.hilo.lector.ui.DictionarySheet(vm, w, en) { vm.dictWord = null } }
     vm.help?.let { com.hilo.lector.ui.HelpSheet(vm, it) }
     com.hilo.lector.ui.Celebration(vm)
     val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current

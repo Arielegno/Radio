@@ -21,7 +21,26 @@ data class Clase(
     val teacher: String = "",
     val books: List<String> = emptyList(),
     val created: Long = System.currentTimeMillis(),
+    /** "clase" (un curso, con fechas) o "area" (biblioteca de referencia permanente de un campo). */
+    val type: String = "clase",
+    /** Campo: derecho, sociologia, psicologia, electrica, matematicas, programacion u otro. */
+    val field: String = "otro",
+    /** Áreas de referencia que usa esta clase. */
+    val areas: List<String> = emptyList(),
+) {
+    val isArea get() = type == "area"
+}
+
+/** Los campos con herramientas propias. */
+val FIELDS = listOf(
+    "derecho" to "Derecho", "sociologia" to "Sociología", "psicologia" to "Psicología",
+    "electrica" to "Ingeniería eléctrica y electrónica", "matematicas" to "Matemáticas, física e ingenierías",
+    "programacion" to "Programación", "otro" to "Otro",
 )
+
+/** Una fórmula del formulario de una clase o área. */
+data class Formula(val id: Long, val classId: String, val name: String, val tex: String, val vars: String)
+
 
 /** Una entrada del diario de la clase. [important]: «va para el examen». [audio]: grabación. */
 data class ClassNote(
@@ -66,8 +85,17 @@ class ClassStore(private val ctx: Context) {
     fun classesOf(bookId: String) = classes.filter { bookId in it.books }
     fun newId() = System.currentTimeMillis() * 10 + (0..9).random()
 
-    fun create(name: String, color: Int, teacher: String): Clase {
-        val c = Clase("c" + System.currentTimeMillis().toString(36), name.trim().ifBlank { "Clase nueva" }, color, teacher.trim())
+    val formulas: SnapshotStateList<Formula> = mutableStateListOf()
+    fun formulasOf(id: String) = formulas.filter { it.classId == id }
+    fun putFormula(f: Formula) { val i = formulas.indexOfFirst { it.id == f.id }; if (i >= 0) formulas[i] = f else formulas.add(f); save() }
+    fun deleteFormula(id: Long) { formulas.removeAll { it.id == id }; save() }
+    val areas get() = classes.filter { it.isArea }
+    val courses get() = classes.filter { !it.isArea }
+    /** Libros de las áreas que usa una clase (o del área misma). */
+    fun referenceBooks(c: Clase): List<String> = (if (c.isArea) c.books else c.areas.mapNotNull { get(it) }.flatMap { it.books }).distinct()
+
+    fun create(name: String, color: Int, teacher: String, type: String = "clase", field: String = "otro"): Clase {
+        val c = Clase((if (type == "area") "a" else "c") + System.currentTimeMillis().toString(36), name.trim().ifBlank { if (type == "area") "Área nueva" else "Clase nueva" }, color, teacher.trim(), type = type, field = field)
         classes.add(c); save()
         return c
     }
@@ -128,6 +156,8 @@ class ClassStore(private val ctx: Context) {
                         Clase(
                             j.getString("id"), j.optString("nombre"), j.optInt("color", CLASS_COLORS[0]), j.optString("profe"),
                             if (bs == null) emptyList() else (0 until bs.length()).map { bs.getString(it) }, j.optLong("creada"),
+                            j.optString("tipo", "clase"), j.optString("campo", "otro"),
+                            j.optJSONArray("areas")?.let { a2 -> (0 until a2.length()).map { a2.getString(it) } } ?: emptyList(),
                         )
                     )
                 }
@@ -136,6 +166,12 @@ class ClassStore(private val ctx: Context) {
                 for (i in 0 until a.length()) {
                     val j = a.getJSONObject(i)
                     notes.add(ClassNote(j.getLong("id"), j.getString("clase"), j.getLong("dia"), j.optString("texto"), j.optBoolean("importante"), j.optString("audio")))
+                }
+            }
+            o.optJSONArray("formulas")?.let { a ->
+                for (i in 0 until a.length()) {
+                    val j = a.getJSONObject(i)
+                    formulas.add(Formula(j.getLong("id"), j.getString("clase"), j.optString("nombre"), j.optString("tex"), j.optString("vars")))
                 }
             }
             o.optJSONArray("fechas")?.let { a ->
@@ -149,6 +185,7 @@ class ClassStore(private val ctx: Context) {
 
     private fun save() {
         val snap = Triple(classes.toList(), notes.toList(), events.toList())
+        val fs = formulas.toList()
         saveJob?.cancel()
         saveJob = scope.launch {
             delay(300)
@@ -156,7 +193,7 @@ class ClassStore(private val ctx: Context) {
             o.put("clases", JSONArray().apply {
                 snap.first.forEach { c ->
                     put(JSONObject().put("id", c.id).put("nombre", c.name).put("color", c.color).put("profe", c.teacher)
-                        .put("libros", JSONArray(c.books)).put("creada", c.created))
+                        .put("libros", JSONArray(c.books)).put("creada", c.created).put("tipo", c.type).put("campo", c.field).put("areas", JSONArray(c.areas)))
                 }
             })
             o.put("diario", JSONArray().apply {
@@ -168,6 +205,9 @@ class ClassStore(private val ctx: Context) {
                 snap.third.forEach { e ->
                     put(JSONObject().put("id", e.id).put("clase", e.classId).put("dia", e.day).put("tipo", e.kind).put("titulo", e.title).put("hecho", e.done))
                 }
+            })
+            o.put("formulas", JSONArray().apply {
+                fs.forEach { f -> put(JSONObject().put("id", f.id).put("clase", f.classId).put("nombre", f.name).put("tex", f.tex).put("vars", f.vars)) }
             })
             val tmp = File(file.path + ".tmp")
             tmp.writeText(o.toString())

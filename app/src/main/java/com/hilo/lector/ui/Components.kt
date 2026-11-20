@@ -314,6 +314,8 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             SwitchRow("Mantener pantalla encendida", "Mientras estás leyendo.", s.keepOn) { on ->
                 vm.settings.update { it.copy(keepOn = on) }
             }
+            SectionTitle("Diccionarios sin internet", vm, "diccionario")
+            DictDownloads(vm)
             SectionTitle("Toques y pantalla", vm, "simple")
             val ctx = androidx.compose.ui.platform.LocalContext.current
             SwitchRow("Modo enfoque", "Pantalla completa, sin porcentajes y con «No molestar» mientras lees.", s.focus) { on ->

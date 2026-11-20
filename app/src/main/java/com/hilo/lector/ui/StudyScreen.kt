@@ -196,8 +196,11 @@ fun lookup(ctx: Context, term: String, where: String, lang: String) {
     val q = term.trim().trim { !it.isLetterOrDigit() && it != ' ' }
     if (q.isEmpty()) return
     val l = lang.ifBlank { "es" }
+    // Diccionario dentro de Hilo (sin internet): definiciones y, para una palabra, también su traducción
+    val hook = DictUi.open
+    if (hook != null && (where == "dic" || (where == "tr" && q.split(' ').size <= 3))) { hook(q, l == "en"); return }
     val enc = Uri.encode(q)
-    val url = when (where) {
+    val url = when (if (where == "web-dic") "dic" else where) {
         "dic" -> when (l) {
             "es" -> "https://dle.rae.es/$enc"
             "en" -> "https://dictionary.cambridge.org/dictionary/english/$enc"

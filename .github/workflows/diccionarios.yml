@@ -1,0 +1,30 @@
+# Arma los diccionarios de Hilo (Wikcionario) y los publica como descarga.
+name: Diccionarios
+
+on:
+  push:
+    branches: [hilo-android]
+    paths: ['.github/dict/**', '.github/workflows/diccionarios.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diccionarios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - name: Español
+        run: python3 .github/dict/build.py es es.db
+      - name: Inglés
+        run: python3 .github/dict/build.py en en.db
+      - name: Comprimir
+        run: gzip -9 -k es.db en.db && ls -la *.db *.gz
+      - name: Publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view dic-1 -R ${{ github.repository }} >/dev/null 2>&1 || gh release create dic-1 -R ${{ github.repository }} --target hilo-android --title "Diccionarios de Hilo" --notes "Diccionarios de español e inglés para usar sin internet en Hilo. Datos del Wikcionario (CC BY-SA 4.0 / GFDL), extraídos con wiktextract (kaikki.org)."
+          gh release upload dic-1 es.db.gz en.db.gz --clobber -R ${{ github.repository }}

@@ -1,0 +1,323 @@
+Physical size: 1080x2400
+CAPTURA 00_bienvenida: 0
+TAP OK: Necesito letra grande
+CAPTURA 00b_perfil: 0
+TAP OK: Ahora no
+CAPTURA 00c_inicio: 0
+CAPTURA 01_biblioteca: 0
+TAP OK: Menú
+CAPTURA 02_menu_lateral: 0
+TAP OK: Seguir leyendo
+CAPTURA 03_pdf_vertical: 0
+TAP OK: Ajustes de lectura
+TAP OK: Horizontal
+CAPTURA 04_ajustes_horizontal: 0
+CAPTURA 05_pdf_horizontal: 0
+CAPTURA 06_pdf_pagina_2: 0
+TAP OK: Ajustes de lectura
+TAP OK: Sepia
+CAPTURA 07_pdf_sepia: 0
+TAP OK: Agregar marcador
+CAPTURA 08_marcador: 0
+TAP OK: Contenido y marcadores
+TAP OK: Marcadores
+CAPTURA 09_marcadores: 0
+TAP OK: Ajustes de lectura
+TAP OK: Noche
+TAP OK: Texto
+CAPTURA 10_texto_paginas_noche: 0
+CAPTURA 11_texto_pagina_2: 0
+TAP OK: Página
+TAP OK: Ajustes de lectura
+TAP OK: Dos páginas con el celular acostado
+TAP OK: Día
+CAPTURA 12_dos_paginas: 0
+TAP OK: Buscar
+TAP OK: Libro EPUB de prueba
+CAPTURA 13_epub: 0
+CAPTURA 14_epub_pagina_2: 0
+TAP OK: Contenido y marcadores
+CAPTURA 15_indice_epub: 0
+TAP OK: Buscar
+TAP OK: Documento Word de prueba
+CAPTURA 16_word: 0
+TAP OK: Buscar
+TAP OK: Apuntes en Markdown
+CAPTURA 17_markdown: 0
+TAP OK: Buscar
+TAP OK: Libro FB2 de prueba
+CAPTURA 18_fb2: 0
+TAP OK: Buscar
+TAP OK: Libro EPUB de prueba
+TAP OK: Ajustes de lectura
+TAP OK: Hacia abajo
+TAP OK: Regla
+CAPTURA 19_epub_vertical_regla: 0
+TAP OK: Siguiente línea
+CAPTURA 20_regla_baja: 0
+TAP OK: Regla
+CAPTURA 21_sin_menus: 0
+TAP OK: Buscar
+TAP OK: Libro EPUB de prueba
+CAPTURA 22_seleccion_menu: 0
+TAP OK: Más
+CAPTURA 22b_seleccion_mas: 0
+TAP OK: Estudiar: tarjetas y palabras clave
+CAPTURA 23_hoja_estudio: 0
+NO ENCONTRADO: sociología
+CAPTURA 23b_hoja_elegida: 0
+TAP OK: Completar
+TAP OK: Buscar
+TAP OK: Libro EPUB de prueba
+TAP OK: Subrayar
+CAPTURA 24a_colores: 0
+TAP OK: Definición
+CAPTURA 24_resaltado: 0
+TAP OK: Contenido y marcadores
+TAP OK: Buscar
+CAPTURA 25_buscar: 0
+TAP OK: Buscar
+TAP OK: Opciones de Libro EPUB de prueba
+TAP OK: Estudiar: tarjetas y resaltados
+CAPTURA 26_sala_ruta: 0
+TAP OK: Prueba previa
+CAPTURA 26b_prueba_previa: 0
+TAP OK: Resaltados
+CAPTURA 27_resaltados: 0
+TAP OK: Apuntes
+CAPTURA 28_apuntes: 0
+TAP OK: Tarjetas
+NO ENCONTRADO: Repasar 1
+CAPTURA 29_repaso_frente: 0
+NO ENCONTRADO: Dudo
+CAPTURA 30_repaso_respuesta: 0
+NO ENCONTRADO: Bien
+CAPTURA 31_repaso_fin: 0
+TAP OK: Buscar
+TAP OK: Opciones de Libro EPUB de prueba
+TAP OK: Estudiar: tarjetas y resaltados
+TAP OK: Guía
+CAPTURA 40_guia: 0
+CUADROS EN REPOSO (guia): Total frames rendered: 0
+CHIPS: P=641 442 G=893 442 M=130 568
+TAP AT: 641 442
+CAPTURA 43_nube_palabras: 0
+CUADROS EN REPOSO (palabras): Total frames rendered: 0
+CAPTURA 44_lista_palabras: 0
+NO ENCONTRADO: ¿Cómo elige Hilo las palabras?
+CAPTURA 44b_como_elige: 0
+TAP OK: Comunes
+CAPTURA 44c_comunes: 0
+CAPTURA 44d_todas: 0
+NO ENCONTRADO: sociedad
+NO ENCONTRADO: En contexto
+CAPTURA 44e_contexto: 0
+NO ENCONTRADO: En el libro
+CAPTURA 44f_distribucion: 0
+NO ENCONTRADO: Va junto a…
+CAPTURA 44g_junto: 0
+TAP AT: 893 442
+CAPTURA 45_glosario: 0
+CUADROS EN REPOSO (glosario): Total frames rendered: 0
+TAP AT: 130 568
+CAPTURA 46_mapa: 0
+CUADROS EN REPOSO (mapa): Total frames rendered: 18
+CAPTURA 47_mapa_toque: 0
+TAP OK: Buscar
+TAP OK: Libro MOBI de prueba
+CAPTURA 70_mobi_pagina: 0
+TAP OK: Ajustes de lectura
+CAPTURA 71_ajustes_pagina: 0
+CAPTURA 72_ajustes_letra: 0
+CAPTURA 73_ajustes_mas: 0
+CAPTURA 74_lista: 0
+TAP OK: Buscar
+HOLD: Documento Word de prueba
+CAPTURA 75_seleccion: 0
+NO ENCONTRADO: Todos
+CAPTURA 77_todos: 0
+TAP OK: Menú
+TAP OK: Carpetas
+CAPTURA 78_carpetas: 0
+TAP OK: Menú
+TAP OK: Novedades
+CAPTURA 79_novedades: 0
+TAP OK: Buscar
+TAP OK: Opciones de Código Procesal de prueba
+TAP OK: Estudiar: tarjetas y resaltados
+CAPTURA 50_sala_ley: 0
+TAP OK: Ley
+CAPTURA 51_ley: 0
+TAP OK: Libro PRIMERO
+TAP OK: Título I
+CAPTURA 52_ley_indice: 0
+TAP OK: Ir al artículo…
+TAP OK: Ver
+CAPTURA 53_articulo: 0
+TAP OK: Art. 3
+CAPTURA 54_articulo_enlazado: 0
+TAP OK: Cerrar
+TAP OK: Plazos
+CAPTURA 55_plazos: 0
+TAP OK: Fichas
+NO ENCONTRADO: + caso o sentencia
+CAPTURA 56_ficha_caso: 0
+TAP OK: Buscar
+TAP OK: Opciones de Teoría sociológica de prueba
+TAP OK: Estudiar: tarjetas y resaltados
+CAPTURA 57_sala_teoria: 0
+TAP OK: Autores
+CAPTURA 58_autores: 0
+TAP OK: Comparar
+TAP OK: Comparar
+TAP OK: Comparar Marx
+CAPTURA 59_cuadro: 0
+TAP OK: Línea de tiempo
+CAPTURA 60_linea_tiempo: 0
+TAP OK: Citas
+CAPTURA 61_citas: 0
+TAP OK: Autores
+TAP OK: Explícalo
+TAP OK: Comparar
+CAPTURA 62_feynman: 0
+TAP OK: Listo
+NO ENCONTRADO: Pon la fecha
+CAPTURA 63_fecha_examen: 0
+TAP OK: Menú
+TAP OK: Estudio
+CAPTURA 64_herramientas: 0
+TAP OK: Mapa entre tus documentos
+CAPTURA 65_mapa_documentos: 0
+CAPTURA 32_documentos_nuevos: 0
+TAP OK: VER
+CAPTURA 33_nuevos: 0
+TAP OK: Menú
+TAP OK: Estudio
+CAPTURA 34_estudio_general: 0
+TAP OK: Estadísticas
+CAPTURA 35_estadisticas: 0
+TAP OK: Simulacro
+CAPTURA 36_simulacro: 0
+TAP OK: Buscar
+TAP OK: Cómic de prueba
+CAPTURA 80_comic: 0
+CAPTURA 81_comic_pag2: 0
+TAP OK: Buscar
+CAPTURA 82_busqueda_global: 0
+TAP OK: Filtros
+CAPTURA 83_filtros: 0
+CAPTURA 83b_filtros_cerrados: 0
+TAP OK: Estudiar
+CAPTURA 84_barra_estudiar: 0
+TAP OK: Buscar
+TAP OK: Libro FB2 de prueba
+CAPTURA 85_guia_gestos: 0
+CAPTURA 86_tras_guia: 0
+TAP OK: Buscar
+TAP OK: Codigo Civil prueba
+CAPTURA 87_pdf_seleccion: 0
+TAP OK: Subrayar
+TAP OK: Tesis
+CAPTURA 88_pdf_subrayado: 0
+TAP OK: Menú
+TAP OK: Cómo usar Hilo
+CAPTURA 89_guia_nueva: 0
+NO ENCONTRADO: Elegir texto (selección)
+CAPTURA 90_guia_tema: 0
+CAPTURA 94_biblioteca_racha: 0
+TAP OK: Ayuda: cómo se usa
+CAPTURA 95_ayuda_hoja: 0
+TAP OK: Buscar
+TAP OK: Libro EPUB de prueba
+TAP OK: Ayudas para concentrarte
+CAPTURA 96_panel_tdah: 0
+CAPTURA 97_panel_tdah_2: 0
+TAP OK: Cada 3 pág.
+CAPTURA 98_panel_tdah_3: 0
+TAP OK: Iniciar
+CAPTURA 99_teleprompter: 0
+TAP OK: Detener desplazamiento
+NO ENCONTRADO: 💭
+CAPTURA 100_libreta: 0
+NO ENCONTRADO: Guardar y seguir
+NO ENCONTRADO: Ayudas para concentrarte
+NO ENCONTRADO: Foco de un párrafo
+CAPTURA 101_foco_parrafo: 0
+TAP OK: Estudiar
+CAPTURA 102_estudiar_energia: 0
+TAP OK: ¿Cómo está tu energía?
+TAP OK: Media
+CAPTURA 103_energia_media: 0
+TAP OK: Clases
+CAPTURA 104_clases_vacio: 0
+TAP OK: Crear mi primera clase
+TAP OK: Crear
+CAPTURA 105_clase_materiales: 0
+TAP OK: + De tu biblioteca
+TAP OK: Libro EPUB de prueba
+TAP OK: Libro FB2 de prueba
+TAP OK: Libro MOBI de prueba
+TAP OK: Listo
+CAPTURA 106_clase_con_materiales: 0
+TAP OK: Mapa
+CAPTURA 107_clase_mapa: 0
+TAP OK: Síntesis
+CAPTURA 108_clase_sintesis: 0
+TAP OK: Estudiar
+CAPTURA 109_clase_estudiar: 0
+NO ENCONTRADO: Empezar simulacro
+CAPTURA 110_clase_simulacro: 0
+NO ENCONTRADO: Diario
+NO ENCONTRADO: Va para el examen
+NO ENCONTRADO: Guardar
+CAPTURA 111_clase_diario: 0
+NO ENCONTRADO: Calendario
+NO ENCONTRADO: Agregar
+CAPTURA 112_clase_calendario: 0
+TAP OK: Clases
+TAP OK: Áreas de referencia
+CAPTURA 113_areas_vacio: 0
+TAP OK: Crear mi primera área
+TAP OK: Ingeniería eléctrica y electrónica
+TAP OK: Crear
+CAPTURA 114_area_materiales: 0
+TAP OK: Fórmulas
+TAP OK: Poner las básicas
+CAPTURA 115_formulario: 0
+TAP OK: Calcular
+CAPTURA 116_formula_calcular: 0
+TAP OK: Herramientas
+CAPTURA 117_herramientas: 0
+TAP OK: Código de colores
+CAPTURA 118_codigo_colores: 0
+TAP OK: Ley de Ohm y potencia
+CAPTURA 119_ohm: 0
+NO ENCONTRADO: Tabla de verdad
+CAPTURA 120_tabla_verdad: 0
+TAP OK: Estudiar
+NO ENCONTRADO: Herramientas
+CAPTURA 121_todas_herramientas: 0
+NO ENCONTRADO: Estadística descriptiva
+CAPTURA 122_estadistica: 0
+NO ENCONTRADO: Referencia APA 7
+CAPTURA 123_apa: 0
+NO ENCONTRADO: Ajustes
+CAPTURA 124_diccionarios_ajustes: 0
+TAP OK: Ajustes
+CAPTURA 91_formatos_ajuste: 0
+TAP OK: ✓ Markdown
+TAP OK: ✓ Texto
+CAPTURA 92_formatos_ocultos: 0
+CAPTURA 93_biblioteca_sin_formatos: 0
+TAP OK: Ajustes
+TAP OK: Color en las letras
+CAPTURA 126_ajuste_color: 0
+TAP OK: Libro EPUB de prueba
+CAPTURA 127_sin_color: 0
+CAPTURA 125_letra_grande: 0
+TAP OK: Estudiar
+CAPTURA 128_letra_grande_estudiar: 0
+NO ENCONTRADO: Ajustes
+CAPTURA 129_letra_grande_ajustes: 0
+TAP OK: Clases
+CAPTURA 130_letra_grande_clases: 0

@@ -745,12 +745,15 @@ private val DAY_NAMES = listOf("lun", "mar", "mié", "jue", "vie", "sáb", "dom"
 
 /** «hace 2 días», «ayer», «hace 5 horas». */
 fun agoText(ms: Long): String {
+    if (ms < 1_577_836_800_000L) return "hace un tiempo"   // fecha desconocida (antes de 2020)
     val h = ((System.currentTimeMillis() - ms) / 3_600_000L).toInt()
     val d = (LocalDate.now().toEpochDay() - java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toEpochDay()).toInt()
     return when {
         d <= 0 -> if (h <= 1) "hace un rato" else "hace $h horas"
         d == 1 -> "ayer"
         d < 7 -> "el ${DAY_NAMES[java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault()).dayOfWeek.value - 1]}"
-        else -> "hace $d días"
+        d < 60 -> "hace $d días"
+        d < 730 -> "hace ${d / 30} meses"
+        else -> "hace más de un año"
     }
 }

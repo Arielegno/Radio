@@ -629,8 +629,20 @@ fun FichasTab(vm: HiloViewModel, book: Book, a: Analysis?, onEdit: (Ficha) -> Un
             "Plantillas para ordenar lo que lees: casos y sentencias (hechos, problema jurídico, norma, fallo), lecturas (tesis, argumentos, crítica) y autores.",
             color = c.muted, fontSize = 13.sp,
         )
+        // Primero las fichas de la materia de este libro (por el tipo de texto o la clase donde está); el resto, a un toque
+        val fields = vm.classes.classesOf(book.id).map { it.field }.toSet()
+        val primary = when {
+            a?.law?.isLaw == true || "derecho" in fields -> listOf("irac", "sentencia", "norma", "caso", "lectura", "concepto")
+            "psicologia" in fields -> listOf("investigacion", "caso-clinico", "teoria", "lectura", "autor", "concepto")
+            fields.any { it in setOf("electrica", "matematicas", "programacion") } -> listOf("problema", "concepto", "metodo", "lectura")
+            else -> listOf("lectura", "autor", "concepto", "metodo", "clasico")
+        }
+        var allKinds by remember { mutableStateOf(false) }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            FICHA_KINDS.forEach { (k, l) -> OutlinedButton(onClick = { onEdit(newFicha(vm, book, k, a)) }) { Text("+ " + l.removePrefix("Ficha de "), color = c.ink) } }
+            FICHA_KINDS.filter { allKinds || it.first in primary }.sortedBy { primary.indexOf(it.first).let { i -> if (i < 0) 99 else i } }.forEach { (k, l) ->
+                OutlinedButton(onClick = { onEdit(newFicha(vm, book, k, a)) }) { Text("+ " + l.removePrefix("Ficha de "), color = c.ink) }
+            }
+            TextButton(onClick = { allKinds = !allKinds }) { Text(if (allKinds) "Menos tipos" else "Más tipos (${FICHA_KINDS.size - primary.size})") }
         }
         list.forEach { f ->
             Panel(Modifier.clickable { onEdit(f) }) {
@@ -1040,8 +1052,11 @@ fun CrossMapView(vm: HiloViewModel, onOpenDeck: (String) -> Unit) {
             }
         }
         // Conceptos importantes en al menos dos documentos (no palabras sueltas que aparecen de paso)
-        val shared = occ.entries.filter { e -> e.value.count { it.value >= 3 } >= 2 }
-            .sortedByDescending { e -> e.value.size * 1000 + e.value.values.sum() }.take(18)
+        // (sin relleno ni palabras de los títulos, como «documento» o «libro»)
+        val titleWords = docs.flatMap { b -> b.title.lowercase().split(Regex("[^\\p{L}]+")) }.filter { it.length > 2 }.toSet()
+        val shared = occ.entries.filter { e ->
+            e.value.count { it.value >= 3 } >= 2 && e.key !in com.hilo.lector.text.Analyzer.GENERIC && e.key !in titleWords
+        }.sortedByDescending { e -> (e.value.size * 1000 + e.value.values.sum()) * com.hilo.lector.text.Analyzer.shape(e.key) }.take(18)
         val usedDocs = shared.flatMap { it.value.keys }.toSortedSet().toList()
         val nodes = ArrayList<Term>()
         val idxDoc = HashMap<Int, Int>()

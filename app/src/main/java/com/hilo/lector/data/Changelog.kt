@@ -6,6 +6,23 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            30, "2.5.3", "21 nov 2026", "Revisión visual",
+            added = listOf("Fichas: primero las de la materia del libro (Derecho, Psicología, Ingeniería…); el resto con «Más tipos»."),
+            fixed = listOf(
+                "«¿Dónde me quedé?» decía «hace 20778 días» cuando no sabía la fecha.",
+                "El botón 💭 (libreta) ya no tapa el texto: pasó a la barra de abajo.",
+                "Las herramientas a pantalla completa quedaban debajo de la barra de estado.",
+                "Al buscar con el teclado abierto, la barra de abajo y «Agregar» tapaban los resultados.",
+                "Mapas: los nombres ya no se enciman y el mapa de la clase se ve entero y centrado (antes quedaba amontonado en un borde).",
+                "Mapa entre documentos: sin palabras de relleno ni de los títulos, y sin la tabla con porcentajes rotos.",
+                "Burbujas: las palabras largas se parten con guion en vez de salirse del círculo.",
+                "Sala de estudio: el resumen de hoy se achica en las pestañas para dejar más lugar.",
+                "Ajustes: «Con guiones» ya no sale cortado; márgenes y espacio entre párrafos con nombres claros.",
+                "Estadísticas: mensaje cuando todavía no hay datos en vez de un gráfico vacío.",
+                "Lista de palabras: primero las importantes y al final las comunes (la, de, el…).",
+            ),
+        ),
+        Version(
             29, "2.5.2", "20 nov 2026", "Conceptos más certeros y editables",
             added = listOf(
                 "Mapa y burbujas: «+ Agregar concepto» para meter uno que Hilo dejó afuera (por ejemplo «comunismo» o «lucha de clases»); lo cuenta en todo el texto y queda fijado.",

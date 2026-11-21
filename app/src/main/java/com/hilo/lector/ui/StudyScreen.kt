@@ -394,8 +394,13 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                         onDismiss = { energy = false },
                     )
                 }
-                item { TodayCard(due.size, study.streak, study.todayCount, onStart = { startReview(SESSION) }, onQuick = { startReview(5) }) }
-                if (current != null && !vocabOnly) item { ExamCard(vm, current, analysis) }
+                // En las pestañas que no son la Ruta, el resumen de hoy se achica a una línea para dejar lugar al contenido
+                val compactTop = current != null && tab != "ruta"
+                item {
+                    if (!compactTop) TodayCard(due.size, study.streak, study.todayCount, onStart = { startReview(SESSION) }, onQuick = { startReview(5) })
+                    else if (due.isNotEmpty()) CompactToday(due.size) { startReview(SESSION) }
+                }
+                if (current != null && !vocabOnly && !compactTop) item { ExamCard(vm, current, analysis) }
 
                 if (current == null && !vocabOnly) {
                     // Todas las barajas: una por documento, más la de idiomas
@@ -558,6 +563,18 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
             onMore = { startReview(SESSION) },
             onClose = { review = null },
         )
+    }
+}
+
+@Composable
+private fun CompactToday(due: Int, onStart: () -> Unit) {
+    val c = LocalHilo.current
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).clickable(onClick = onStart).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("$due ${if (due == 1) "tarjeta" else "tarjetas"} para hoy", color = c.ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Text("Repasar ›", color = c.accent, fontWeight = FontWeight.SemiBold)
     }
 }
 

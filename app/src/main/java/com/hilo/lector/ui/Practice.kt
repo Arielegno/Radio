@@ -887,9 +887,12 @@ fun StatsView(vm: HiloViewModel, onClose: () -> Unit) {
         }
         Panel {
             Text("Minutos de lectura por día", color = c.ink, fontWeight = FontWeight.Bold)
-            Bars(hist.map { it.first }, c.accent)
+            if (hist.all { it.first <= 0 }) Text("Todavía no hay minutos de lectura en estos 14 días. Se cuentan solos mientras lees.", color = c.muted, fontSize = 13.sp)
+            else Bars(hist.map { it.first }, c.accent)
             Text("Tarjetas repasadas por día", color = c.ink, fontWeight = FontWeight.Bold)
-            Bars(m.perDay(14), c.lines[3])
+            val perDay = m.perDay(14)
+            if (perDay.all { it <= 0 }) Text("Todavía no repasaste tarjetas en estos 14 días.", color = c.muted, fontSize = 13.sp)
+            else Bars(perDay, c.lines[3])
             Text(if (nAcc == 0) "Todavía no hay repasos." else "Aciertos en 30 días: ${(acc * 100).roundToInt()} % de $nAcc respuestas.", color = c.ink, fontSize = 14.sp)
         }
         Panel {

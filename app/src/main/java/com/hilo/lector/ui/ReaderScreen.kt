@@ -238,7 +238,7 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
     }
     LaunchedEffect(bookId, flow) {
         kotlinx.coroutines.delay(1600)
-        if (lastSeen > 0 && System.currentTimeMillis() - lastSeen > 4 * 3_600_000L && book.progress > 0.01f) showRecap(auto = true)
+        if (lastSeen > 1_577_836_800_000L && System.currentTimeMillis() - lastSeen > 4 * 3_600_000L && book.progress > 0.01f) showRecap(auto = true)
     }
 
     // Preguntas de control cada cierto tramo
@@ -468,14 +468,6 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
                 if (vm.timer.running && s.visualTimer && !chrome) {
                     VisualTimer(vm.timer, 30.dp, Modifier.align(Alignment.TopEnd).padding(top = 10.dp, end = 12.dp))
                 }
-                // Libreta de distracciones, a mano mientras están los menús
-                if (chrome && !annotating && book.type != "comic") {
-                    Box(
-                        Modifier.align(Alignment.BottomStart).padding(start = 14.dp, bottom = 132.dp).size(46.dp).clip(CircleShape)
-                            .background(c.surface).border(1.dp, c.line, CircleShape).clickable { notebook = true },
-                        contentAlignment = Alignment.Center,
-                    ) { Text("💭", fontSize = 20.sp) }
-                }
                 if (vm.autoScroll > 0) {
                     AutoScrollBar(vm, Modifier.align(Alignment.BottomCenter).padding(bottom = if (chrome) 132.dp else 24.dp))
                 }
@@ -527,6 +519,7 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
                     onTimer = { vm.sheet = "timer" },
                     onGoTo = { goTo = true },
                     onSeek = { p -> scope.launch { bridge.seek?.invoke(p) } },
+                    onNotebook = if (book.type != "comic") ({ notebook = true }) else null,
                 )
             }
         }
@@ -633,6 +626,7 @@ private fun PageBar(
     onTimer: () -> Unit,
     onGoTo: () -> Unit,
     onSeek: (Int) -> Unit,
+    onNotebook: (() -> Unit)? = null,
 ) {
     val c = LocalHilo.current
     val total = bridge.total.coerceAtLeast(1)
@@ -649,6 +643,7 @@ private fun PageBar(
                 color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(onClick = onGoTo).padding(vertical = 6.dp),
             )
+            if (onNotebook != null) IconButton(onClick = onNotebook) { Text("💭", fontSize = 19.sp) }
             IconButton(onClick = onTimer) {
                 if (timer.running) Text(
                     formatClock(timer.remaining), fontSize = 12.sp, fontWeight = FontWeight.Bold,

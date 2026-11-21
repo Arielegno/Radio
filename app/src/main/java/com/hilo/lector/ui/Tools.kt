@@ -187,7 +187,7 @@ fun ToolsList(vm: HiloViewModel, field: String, classId: String? = null, header:
         }
     }
     open?.let { t ->
-        Dialog(onDismissRequest = { open = null }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Dialog(onDismissRequest = { open = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             OverlayFrame(t.title, { open = null }) { ToolBody(vm, t.key, classId) }
         }
     }
@@ -196,7 +196,7 @@ fun ToolsList(vm: HiloViewModel, field: String, classId: String? = null, header:
 /** Pantalla con todas las herramientas (desde Estudiar). */
 @Composable
 fun ToolsScreen(vm: HiloViewModel, onClose: () -> Unit) {
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         OverlayFrame("Herramientas", onClose) { ToolsList(vm, "otro", header = false) }
     }
 }
@@ -1206,7 +1206,7 @@ private fun FormulaCalc(f: Formula, onDismiss: () -> Unit) {
                     val r = runCatching { EngMath.eval(f.vars, deg = false, vars = m) }
                     Text(r.getOrNull()?.let { "= " + num(it, 6) + "   (" + eng(it) + ")" } ?: (r.exceptionOrNull()?.message ?: ""), color = c.accent, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                 } else Spacer(Modifier.height(4.dp))
-                Note("Los ángulos van en radianes.")
+                if (Regex("\\b(a?sin|a?cos|a?tan|sen)\\b").containsMatchIn(f.vars)) Note("Los ángulos van en radianes.")
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Listo") } },

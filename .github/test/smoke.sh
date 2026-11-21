@@ -686,7 +686,22 @@ adb shell am force-stop $PKG
 adb shell am start -W -n $PKG/.MainActivity
 sleep 4
 shot 125_letra_grande 2
+tap "Estudiar"
+sleep 2
+shot 128_letra_grande_estudiar 2
+tap "Ajustes"
+sleep 2
+shot 129_letra_grande_ajustes 2
+back 1
+tap "Clases"
+sleep 2
+shot 130_letra_grande_clases 2
+back 1
 adb shell settings put system font_scale 1.0
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 3
+# (la búsqueda con teclado abierto ya queda en 82_busqueda_global)
 
 timeout 60 adb logcat -d > $OUT/logcat.txt
 grep -n -A 40 "FATAL EXCEPTION" $OUT/logcat.txt > $OUT/crashes.txt || echo "Sin cierres inesperados" > $OUT/crashes.txt

@@ -522,7 +522,7 @@ private fun LibraryPicker(vm: HiloViewModel, cl: Clase, onDone: () -> Unit) {
 // ---------------------------------------------------------------------
 
 /** Acomoda los conceptos: se repelen entre sí y las uniones los atraen (los temas quedan juntos). */
-private fun layoutGraph(g: ClassGraph, w: Float, h: Float): Array<Offset> {
+private fun layoutGraph(g: ClassGraph, w: Float, h: Float, dens: Float = 2.75f): Pair<Array<Offset>, Float> {
     val n = g.concepts.size
     val r = java.util.Random(7)
     val nt = max(1, g.topics.size)
@@ -553,11 +553,15 @@ private fun layoutGraph(g: ClassGraph, w: Float, h: Float): Array<Offset> {
             disp[i] += (Offset(w / 2, h / 2) - pos[i]) * 0.02f
             val l = max(1f, disp[i].getDistance())
             pos[i] += disp[i] / l * min(l, temp)
-            pos[i] = Offset(pos[i].x.coerceIn(40f, w - 40f), pos[i].y.coerceIn(40f, h - 40f))
         }
         temp *= 0.985f
     }
-    return pos
+    // Sin círculos ni nombres encimados, y centrado
+    val maxScore = g.concepts.maxOf { it.score }
+    val rr = FloatArray(n) { (12f + 26f * sqrt(g.concepts[it].score / maxScore)) * dens * 0.55f }
+    val lw = FloatArray(n) { g.concepts[it].label.length * 6.3f * dens }
+    val fit = untangle(pos, rr, lw, 15f * dens, w, h, 14f * dens)
+    return pos to fit
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -600,12 +604,15 @@ private fun ClassMapTab(vm: HiloViewModel, cl: Clase, books: List<Book>, docs: L
             BoxWithConstraints(Modifier.fillMaxWidth().height(460.dp).clip(RoundedCornerShape(20.dp)).background(c.surface)) {
                 val w = with(density) { maxWidth.toPx() }
                 val h = with(density) { maxHeight.toPx() }
-                val pos by produceState<Array<Offset>?>(null, g, w, h) { value = withContext(Dispatchers.Default) { layoutGraph(g, w, h) } }
-                val p = pos
+                val laid by produceState<Pair<Array<Offset>, Float>?>(null, g, w, h) {
+                    value = withContext(Dispatchers.Default) { layoutGraph(g, w, h, density.density) }
+                }
+                val p = laid?.first
+                LaunchedEffect(laid) { laid?.let { (_, fit) -> zoom = fit; pan = Offset(w / 2f, h / 2f) * (1f - fit) } }
                 if (p == null) CircularProgressIndicator(color = Color(cl.color), modifier = Modifier.align(Alignment.Center))
                 else Canvas(
                     Modifier.fillMaxSize()
-                        .pointerInput(g) { detectTransformGestures { centroid, dp, z, _ -> val nz = (zoom * z).coerceIn(0.6f, 4f); pan = (pan + dp) + (centroid - pan) * (1 - nz / zoom); zoom = nz } }
+                        .pointerInput(g) { detectTransformGestures { centroid, dp, z, _ -> val nz = (zoom * z).coerceIn(0.3f, 4f); pan = (pan + dp) + (centroid - pan) * (1 - nz / zoom); zoom = nz } }
                         .pointerInput(g, p) {
                             detectTapGestures { o ->
                                 val gp = (o - pan) / zoom
@@ -627,13 +634,13 @@ private fun ClassMapTab(vm: HiloViewModel, cl: Clase, books: List<Book>, docs: L
                         val alpha = if (on(i)) 1f else 0.15f
                         drawCircle(col, rad, tr(p[i]), alpha = alpha * 0.9f)
                         if (sel == i) drawCircle(c.ink, rad + 4f, tr(p[i]), style = Stroke(3f))
-                        val num = measurer.measure("${cc.total}", TextStyle(fontSize = (9f * zoom).coerceIn(8f, 16f).sp, color = Color.White.copy(alpha = alpha), fontWeight = FontWeight.Bold))
+                        val num = measurer.measure("${cc.total}", TextStyle(fontSize = (9f * zoom).coerceIn(6f, 16f).sp, color = Color.White.copy(alpha = alpha), fontWeight = FontWeight.Bold))
                         if (rad > 9f * density.density) drawText(num, topLeft = tr(p[i]) - Offset(num.size.width / 2f, num.size.height / 2f))
-                        val lab = measurer.measure(cc.label, TextStyle(fontSize = (11f * zoom).coerceIn(9f, 18f).sp, color = c.ink.copy(alpha = alpha), fontWeight = if (sel == i) FontWeight.Bold else FontWeight.Medium))
+                        val lab = measurer.measure(cc.label, TextStyle(fontSize = (11f * zoom).coerceIn(6f, 18f).sp, color = c.ink.copy(alpha = alpha), fontWeight = if (sel == i) FontWeight.Bold else FontWeight.Medium))
                         drawText(lab, topLeft = tr(p[i]) + Offset(-lab.size.width / 2f, rad + 2f))
                     }
                 }
-                TextButton(onClick = { zoom = 1f; pan = Offset.Zero; sel = null; topicOn = null }, modifier = Modifier.align(Alignment.BottomEnd)) { Text("Centrar") }
+                TextButton(onClick = { val f = laid?.second ?: 1f; zoom = f; pan = Offset(w / 2f, h / 2f) * (1f - f); sel = null; topicOn = null }, modifier = Modifier.align(Alignment.BottomEnd)) { Text("Centrar") }
             }
         }
         sel?.let { i -> item { ConceptPanel(vm, cl, books, docs, g, i, titles) { sel = it } } }

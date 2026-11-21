@@ -191,6 +191,9 @@ fun LibraryScreen(vm: HiloViewModel) {
     var searching by rememberSaveable { mutableStateOf(false) }
     var addMenu by remember { mutableStateOf(false) }
     var navH by remember { androidx.compose.runtime.mutableIntStateOf(220) }
+    // Con el teclado abierto (buscando) la barra de abajo y «Agregar» se esconden para no tapar los resultados
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    val imeOpen = androidx.compose.foundation.layout.WindowInsets.isImeVisible
     var menuFor by remember { mutableStateOf<Book?>(null) }
     var editFor by remember { mutableStateOf<Book?>(null) }
     var collFor by remember { mutableStateOf<List<Book>?>(null) }
@@ -461,7 +464,7 @@ fun LibraryScreen(vm: HiloViewModel) {
                 }
             }
             // Barra inferior: lo principal siempre a un toque
-            if (!selecting) Row(
+            if (!selecting && !imeOpen) Row(
                 Modifier.fillMaxWidth().background(c.surface).padding(vertical = 4.dp, horizontal = 4.dp)
                     .onSizeChanged { navH = it.height },
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -539,7 +542,7 @@ fun LibraryScreen(vm: HiloViewModel) {
                     }
                 }
             }
-            if (!selecting) Box(Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = with(LocalDensity.current) { navH.toDp() } + 16.dp)) {
+            if (!selecting && !imeOpen) Box(Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = with(LocalDensity.current) { navH.toDp() } + 16.dp)) {
                 ExtendedFloatingActionButton(
                     onClick = { addMenu = true },
                     icon = { Icon(Icons.Rounded.Add, null) },

@@ -108,10 +108,10 @@ fun ChoiceRow(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
                     .background(if (on) c.band else c.bg)
                     .border(1.dp, if (on) c.accent else c.line, RoundedCornerShape(12.dp))
                     .clickable { onSelect(i) }
-                    .padding(vertical = 11.dp),
+                    .padding(vertical = 11.dp, horizontal = 4.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(o, fontSize = 14.sp, color = c.ink, fontFamily = Fonts.inter, textAlign = TextAlign.Center, maxLines = 1)
+                Text(o, fontSize = 14.sp, color = c.ink, fontFamily = Fonts.inter, textAlign = TextAlign.Center, maxLines = 2, lineHeight = 17.sp)
             }
         }
     }
@@ -214,7 +214,7 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
                 vm.settings.update { it.copy(tapTurn = on) }
             }
 
-            SliderRow("Márgenes", if (s.margin <= 8) "Sin márgenes" else "${s.margin} dp", s.margin.toFloat(), 4f..48f, 10) { v ->
+            SliderRow("Márgenes", when { s.margin <= 8 -> "Sin márgenes"; s.margin <= 16 -> "Angostos"; s.margin <= 28 -> "Normales"; else -> "Anchos" }, s.margin.toFloat(), 4f..48f, 10) { v ->
                 vm.settings.update { it.copy(margin = v.roundToInt()) }
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -233,7 +233,7 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Label("Alineación")
-                ChoiceRow(listOf("Justificado y guiones", "Justificado", "Izquierda"), when (s.align) { 1 -> 0; 2 -> 1; else -> 2 }) { i ->
+                ChoiceRow(listOf("Con guiones", "Justificado", "Izquierda"), when (s.align) { 1 -> 0; 2 -> 1; else -> 2 }) { i ->
                     vm.settings.update { it.copy(align = when (i) { 0 -> 1; 1 -> 2; else -> 0 }) }
                 }
             }
@@ -258,7 +258,7 @@ fun SettingsSheet(vm: HiloViewModel, onDismiss: () -> Unit) {
             SliderRow("Interlineado", "$lhName · ${"%.1f".format(s.lineHeight)}", s.lineHeight, 1.0f..2.0f, 9) { v ->
                 vm.settings.update { it.copy(lineHeight = (v * 10).roundToInt() / 10f) }
             }
-            SliderRow("Espacio entre párrafos", if (s.paraSpacing < 0.05f) "Ninguno" else "%.1f".format(s.paraSpacing), s.paraSpacing, 0f..1.5f, 14) { v ->
+            SliderRow("Espacio entre párrafos", when { s.paraSpacing < 0.05f -> "Ninguno"; s.paraSpacing < 0.45f -> "Poco"; s.paraSpacing < 0.9f -> "Medio"; else -> "Mucho" }, s.paraSpacing, 0f..1.5f, 14) { v ->
                 vm.settings.update { it.copy(paraSpacing = (v * 20).roundToInt() / 20f) }
             }
 

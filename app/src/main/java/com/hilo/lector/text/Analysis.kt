@@ -86,6 +86,7 @@ object Analyzer {
         manera maneras tipo tipos parte partes modo medida cosa cosas grupo grupos clase siguiente fórmula
         destacar destaca destacan relevante relevantes evidente evidentes limitado limitada agrupado agrupada agrupados circunstancia circunstancias
         claro clara claros claras actual actuales anteriormente posteriormente igual iguales mayoría menudo respecto
+        palabra palabras adecuado adecuada intentado intentar servido servir pasado pasada
     """.trim().split(Regex("\\s+")).toSet() - setOf("grupo", "grupos", "clase")
 
     private val NOUN_AR = setOf("lugar", "poder", "mujer", "militar", "popular", "familiar", "particular", "nuclear", "escolar", "regular", "hogar", "bienestar", "placer", "saber", "deber", "ser", "par", "mar", "valor", "factor", "error", "sector", "actor", "autor", "vector", "motor", "color", "dolor", "amor", "orden", "humor", "nivel", "señor", "mayor", "menor", "interior", "exterior", "superior", "inferior", "anterior", "posterior")
@@ -272,7 +273,7 @@ object Analyzer {
         val phrases = (extraPhrases.filter { it.key !in removed } + phraseCounts.entries
             .filter { e ->
                 val ws = e.key.split(' ')
-                e.value >= minPhrase && e.key !in removed && ws.first() !in GENERIC && ws.last() !in GENERIC
+                e.value >= minPhrase && e.key !in removed && ws.last() !in GENERIC && !(ws.first() in GENERIC && ws.size == 2) && ws.first() !in setOf("siguiente", "anterior", "dicho", "dicha", "mismo", "misma", "cada", "otro", "otra")
             }
             .sortedByDescending { it.value * (1 + it.key.count { c -> c == ' ' }) * shape(it.key.split(' ').first()) }
             .take(30)

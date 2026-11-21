@@ -306,12 +306,16 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
                     contentAlignment = Alignment.Center,
                 ) {
                     val rDp = b.r / density.density
-                    val longest = b.term.label.split(' ').maxOf { it.length }.coerceAtLeast(3)
-                    val lines = if (b.term.label.contains(' ')) minOf(3, b.term.label.count { ch -> ch == ' ' } + 1) else 1
-                    val fs = minOf(rDp * 0.36f, rDp * 1.75f / (longest * 0.6f)).coerceIn(7f, 20f)
+                    // Palabras largas en burbujas chicas («comportamiento»): se parten en dos con guion para que quepan
+                    val raw = b.term.label
+                    val split = !raw.contains(' ') && raw.length > 9 && rDp * 1.75f / (raw.length * 0.6f) < 9f
+                    val label = if (split) raw.substring(0, (raw.length + 1) / 2) + "-\n" + raw.substring((raw.length + 1) / 2) else raw
+                    val longest = label.split(' ', '\n').maxOf { it.length }.coerceAtLeast(3)
+                    val lines = if (split) 2 else if (raw.contains(' ')) minOf(3, raw.count { ch -> ch == ' ' } + 1) else 1
+                    val fs = minOf(rDp * 0.36f, rDp * 1.75f / (longest * 0.6f)).coerceIn(6f, 20f)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            b.term.label, color = Color.White, fontSize = fs.sp, fontWeight = FontWeight.Bold,
+                            label, color = Color.White, fontSize = fs.sp, fontWeight = FontWeight.Bold,
                             maxLines = lines, softWrap = lines > 1, textAlign = TextAlign.Center, lineHeight = (fs * 1.05f).sp,
                             overflow = TextOverflow.Clip, modifier = Modifier.padding(horizontal = 2.dp),
                         )
@@ -480,7 +484,7 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
                     "quitadas" -> t.key in removed
                     else -> true
                 }
-            } }
+            }.let { l -> if (show == "todas") l.sortedBy { t -> if (t.key in a.common) 1 else 0 } else l } }
             Text("El ojo dice si la palabra está en las burbujas. Toca el ojo para ponerla o sacarla.", color = c.muted, fontSize = 12.sp)
             val maxC = all.firstOrNull()?.count ?: 1
             rows.take(limit).forEach { term ->
@@ -623,32 +627,23 @@ fun ConceptMapTab(
             temp = max(2f, temp * 0.98f)
             withFrameNanos { }
         }
-        // Separa los círculos que quedaron encimados (dejando lugar para el nombre)
-        repeat(120) {
-            var moved = false
-            for (i in 0 until n) for (j in i + 1 until n) {
-                val need = mapR(i) + mapR(j) + 22f
-                val d = pos[i] - pos[j]
-                val dist = d.getDistance()
-                if (dist < need) {
-                    val dir = if (dist < 0.5f) Offset(cos(i * 1.7f), sin(i * 1.7f)) else d / dist
-                    val push = dir * ((need - dist) / 2f)
-                    pos[i] += push; pos[j] -= push; moved = true
-                }
-            }
-            if (!moved) return@LaunchedEffect
-            if (it % 4 == 0) withFrameNanos { }
-        }
+        // Separa círculos y nombres encimados (cada concepto ocupa su círculo y el nombre debajo)
+        val arr = Array(n) { pos[it] }
+        untangle(arr, FloatArray(n) { mapR(it) }, FloatArray(n) { a.mapTerms[it].label.length * 13f }, 30f, 800f, 800f, 0f)
+        for (i in 0 until n) pos[i] = arr[i]
     }
 
     /** Encaja todo el mapa en el recuadro: escala y centro según dónde quedaron los conceptos. */
     fun fit(w: Float, h: Float): Pair<Float, Offset> {
         if (pos.isEmpty()) return 1f to Offset.Zero
         var minX = Float.MAX_VALUE; var maxX = -Float.MAX_VALUE; var minY = Float.MAX_VALUE; var maxY = -Float.MAX_VALUE
-        for (p in pos) { minX = min(minX, p.x); maxX = max(maxX, p.x); minY = min(minY, p.y); maxY = max(maxY, p.y) }
+        for ((i, p) in pos.withIndex()) {
+            val hw = max(mapR(i), a.mapTerms.getOrNull(i)?.label?.length?.times(6.5f) ?: 0f)
+            minX = min(minX, p.x - hw); maxX = max(maxX, p.x + hw); minY = min(minY, p.y - mapR(i)); maxY = max(maxY, p.y + mapR(i) + 30f)
+        }
         val bw = max(80f, maxX - minX)
         val bh = max(80f, maxY - minY)
-        val sc = min((w * 0.82f) / bw, (h * 0.78f) / bh)
+        val sc = min((w * 0.94f) / bw, (h * 0.94f) / bh)
         return sc to Offset((minX + maxX) / 2f, (minY + maxY) / 2f)
     }
 
@@ -726,7 +721,9 @@ fun ConceptMapTab(
                         val nl = measurer.measure(num, TextStyle(fontSize = fs.sp, fontWeight = FontWeight.Bold, color = Color(0xFF14161C).copy(alpha = if (near) 0.9f else 0.25f)))
                         drawText(nl, topLeft = sp(i) - Offset(nl.size.width / 2f, nl.size.height / 2f))
                     }
-                    val style = TextStyle(fontSize = (if (on) 14 else 11).sp, color = c.ink.copy(alpha = if (near) 1f else 0.25f), fontWeight = if (on) FontWeight.Bold else FontWeight.Medium)
+                    // El nombre crece y se achica con el mapa: así no se encima con los vecinos
+                    val lfs = (13f * base * scale / 0.56f / density / fontScale).coerceIn(7f, 15f) + (if (on) 2f else 0f)
+                    val style = TextStyle(fontSize = lfs.sp, color = c.ink.copy(alpha = if (near) 1f else 0.25f), fontWeight = if (on) FontWeight.Bold else FontWeight.Medium)
                     val lay = measurer.measure(t.label, style)
                     drawText(lay, topLeft = sp(i) + Offset(-lay.size.width / 2f, r + 3f))
                 }
@@ -821,8 +818,8 @@ fun ConceptMapTab(
                 } else editing = null
             }
         }
-        // Tabla de frecuencias, como en los programas de análisis cualitativo
-        if (n > 0) {
+        // Tabla de frecuencias, como en los programas de análisis cualitativo (no en el mapa entre documentos)
+        if (n > 0 && a.totalWords > 0) {
             var all by remember(a) { mutableStateOf(false) }
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).padding(14.dp),

@@ -20,6 +20,7 @@ object Changelog {
                 "Simulacro escribiendo: respondes con tus palabras y Hilo revisa qué ideas clave nombraste.",
                 "En tablets y con el celular acostado, Estudiar y Clases quedan centradas en vez de estirarse de borde a borde.",
             ),
+            fixed = listOf("El botón de la libreta (💭) ahora se anuncia con su nombre en TalkBack."),
         ),
         Version(
             30, "2.5.3", "21 nov 2026", "Revisión visual",

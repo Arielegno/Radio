@@ -667,6 +667,33 @@ shot 92_formatos_ocultos 2
 back 2
 shot 93_biblioteca_sin_formatos 3
 
+# 2.6: herramientas nuevas
+tap "Estudiar"
+sleep 2
+tap "Herramientas"
+sleep 2
+for i in 1 2 3 4 5 6; do adb shell input swipe 540 1900 540 800 300; sleep 0.4; done
+tap "Graficador de funciones"
+sleep 3
+shot 132_graficador 2
+back 1
+tap "Matrices"
+sleep 2
+shot 133_matrices 2
+back 1
+for i in 1 2 3 4 5 6 7 8; do adb shell input swipe 540 800 540 1900 300; sleep 0.3; done
+tap "Complejos y fasores"
+sleep 3
+shot 134_fasores 2
+back 1
+for i in 1 2 3 4 5 6 7 8 9 10; do adb shell input swipe 540 1900 540 700 300; sleep 0.3; done
+shot 135_herramientas_fin 2
+tap "Foto a texto"
+sleep 2
+shot 136_foto_texto 2
+back 1
+back 2
+
 # Apagar el color de las letras desde Ajustes
 tap "Ajustes"
 sleep 1

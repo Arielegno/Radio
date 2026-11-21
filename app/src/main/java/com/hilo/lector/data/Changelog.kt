@@ -6,6 +6,22 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            31, "2.6", "21 nov 2026", "Más herramientas, widget y copia automática",
+            added = listOf(
+                "Foto a texto: saca una foto a la pizarra o a una página y Hilo la convierte en texto sin internet; la guardas como documento o en el diario de una clase.",
+                "Graficador de funciones con raíces, máximos, mínimos y cortes entre dos curvas.",
+                "Complejos y fasores: operaciones en forma polar y rectangular, paralelo, diagrama de fasores e impedancias de R, L y C.",
+                "Matrices hasta 6×6: determinante, rango, inversa, transpuesta y sistemas A·x = b.",
+                "Comparar dos versiones de una ley: artículos iguales, cambiados (palabra por palabra), nuevos y quitados.",
+                "Plazos: agrega días inhábiles (los que declare el Poder Judicial o la Semana Morazánica de este año).",
+                "Widget para la pantalla de inicio: tarjetas para hoy, próximo examen o entrega y minutos leídos.",
+                "Copia de seguridad automática a la carpeta que elijas (también Drive), cada día, 3 días o semana.",
+                "El recordatorio diario ahora avisa también de exámenes y entregas de tus Clases, y si todavía no leíste para cuidar la racha.",
+                "Simulacro escribiendo: respondes con tus palabras y Hilo revisa qué ideas clave nombraste.",
+                "En tablets y con el celular acostado, Estudiar y Clases quedan centradas en vez de estirarse de borde a borde.",
+            ),
+        ),
+        Version(
             30, "2.5.3", "21 nov 2026", "Revisión visual",
             added = listOf("Fichas: primero las de la materia del libro (Derecho, Psicología, Ingeniería…); el resto con «Más tipos»."),
             fixed = listOf(

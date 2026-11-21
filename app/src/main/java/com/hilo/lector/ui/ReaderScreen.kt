@@ -96,6 +96,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -643,7 +645,7 @@ private fun PageBar(
                 color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(onClick = onGoTo).padding(vertical = 6.dp),
             )
-            if (onNotebook != null) IconButton(onClick = onNotebook) { Text("💭", fontSize = 19.sp) }
+            if (onNotebook != null) IconButton(onClick = onNotebook, modifier = Modifier.semantics { contentDescription = "Libreta de distracciones" }) { Text("💭", fontSize = 19.sp) }
             IconButton(onClick = onTimer) {
                 if (timer.running) Text(
                     formatClock(timer.remaining), fontSize = 12.sp, fontWeight = FontWeight.Bold,

@@ -752,6 +752,8 @@ private fun Simulacro(vm: HiloViewModel, book: Book?, onReview: (List<StudyCard>
     var picked by remember { mutableStateOf<String?>(null) }
     val results = remember { mutableStateListOf<Pair<StudyCard, Boolean>>() }
     var left by remember { mutableIntStateOf(0) }
+    var written by remember { mutableStateOf(false) }
+    var answer by remember { mutableStateOf("") }
     val pool = if (all || book == null) vm.study.cards.toList() else vm.study.cardsOf(book.id)
 
     LaunchedEffect(qs, minutes) {
@@ -770,6 +772,9 @@ private fun Simulacro(vm: HiloViewModel, book: Book?, onReview: (List<StudyCard>
             Label("Tiempo")
             ChoiceRow(listOf("Sin tiempo", "15 min", "30 min"), listOf(0, 15, 30).indexOf(minutes)) { minutes = listOf(0, 15, 30)[it] }
             if (book != null) { Label("De dónde"); ChoiceRow(listOf("Este documento", "Todos"), if (all) 1 else 0) { all = it == 1 } }
+            Label("Cómo respondes")
+            ChoiceRow(listOf("Opciones", "Escribiendo"), if (written) 1 else 0) { written = it == 1 }
+            if (written) Text("Escribes la respuesta con tus palabras y Hilo revisa si nombraste las ideas clave. Como en un examen de desarrollo.", color = c.muted, fontSize = 13.sp)
             Text("${pool.size} tarjetas disponibles.", color = c.muted, fontSize = 13.sp)
             BigButton("Empezar", {
                 qs = mixQueue(pool.shuffled().take(n)).take(n)
@@ -808,8 +813,8 @@ private fun Simulacro(vm: HiloViewModel, book: Book?, onReview: (List<StudyCard>
         LinearProgressIndicator(progress = { i / list.size.toFloat() }, color = c.accent, trackColor = c.chip, modifier = Modifier.fillMaxWidth())
         Text(q.front, color = c.ink, fontSize = 20.sp, lineHeight = 27.sp)
         // Opción múltiple cuando la respuesta es corta; si no, te autocorriges
-        val options = remember(q.id) {
-            if (q.back.length > 70) null
+        val options = remember(q.id, written) {
+            if (written || q.back.length > 70) null
             else {
                 val others = pool.filter { it.id != q.id && it.kind == q.kind && it.back.length <= 70 && it.back != q.back }.map { it.back }.distinct().shuffled().take(3)
                 if (others.size < 2) null else (others + q.back).shuffled()
@@ -817,7 +822,7 @@ private fun Simulacro(vm: HiloViewModel, book: Book?, onReview: (List<StudyCard>
         }
         fun next(correct: Boolean) {
             results.add(q to correct)
-            i++; show = false; picked = null
+            i++; show = false; picked = null; answer = ""
         }
         if (options != null) {
             options.forEach { o ->
@@ -831,6 +836,24 @@ private fun Simulacro(vm: HiloViewModel, book: Book?, onReview: (List<StudyCard>
                     .border(1.dp, c.line, RoundedCornerShape(14.dp)).clickable(enabled = picked == null) { picked = o }.padding(14.dp))
             }
             if (picked != null) BigButton("Siguiente", { next(picked == q.back) })
+        } else if (written) {
+            OutlinedTextField(answer, { answer = it }, enabled = !show, label = { Text("Tu respuesta") }, modifier = Modifier.fillMaxWidth().height(150.dp))
+            if (!show) BigButton("Revisar", { show = true }, enabled = answer.isNotBlank())
+            else {
+                val (pct, missing) = remember(q.id) { gradeWritten(answer, q.back) }
+                Text("Respuesta esperada:", color = c.muted, fontSize = 13.sp)
+                Text(q.back, color = c.accent, fontSize = 16.sp, lineHeight = 22.sp)
+                Text(
+                    if (pct >= 70) "Nombraste casi todas las ideas clave ($pct %)." else if (pct >= 40) "Nombraste parte de las ideas clave ($pct %)." else "Te faltaron la mayoría de las ideas clave ($pct %).",
+                    color = if (pct >= 70) c.lines[1] else if (pct >= 40) c.ink else c.lines[0], fontWeight = FontWeight.SemiBold,
+                )
+                if (missing.isNotEmpty()) Text("Te faltó: " + missing.joinToString(", "), color = c.ink, fontSize = 14.sp)
+                Text("Hilo solo compara palabras; tú decides si tu respuesta dice lo mismo con otras.", color = c.muted, fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { next(true) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = c.lines[1])) { Text(if (pct >= 70) "Acerté ✓" else "Acerté") }
+                    OutlinedButton(onClick = { next(false) }, modifier = Modifier.weight(1f)) { Text(if (pct < 40) "Fallé ✓" else "Fallé", color = c.ink) }
+                }
+            }
         } else {
             if (!show) BigButton("Ver respuesta", { show = true })
             else {
@@ -952,4 +975,20 @@ fun StatsView(vm: HiloViewModel, onClose: () -> Unit) {
             recalls.forEach { e -> Text("${e.title.take(40)}: ${e.score} %", color = c.ink, fontSize = 14.sp) }
         }
     }
+}
+
+
+/**
+ * Compara una respuesta escrita con la esperada: qué porcentaje de las ideas clave (palabras con contenido)
+ * aparecen, aceptando variaciones de la misma palabra (plural, género, conjugación por la raíz).
+ */
+fun gradeWritten(answer: String, expected: String): Pair<Int, List<String>> {
+    fun words(s: String) = Regex("[\\p{L}]+").findAll(s.lowercase()).map { it.value }.toList()
+    fun fold(w: String) = java.text.Normalizer.normalize(w, java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+    val stop = com.hilo.lector.text.Analyzer
+    val keys = words(expected).filter { it.length >= 4 && !stop.isStop(it) && it !in stop.GENERIC }.distinct()
+    if (keys.isEmpty()) return 100 to emptyList()
+    val stems = words(answer).map { fold(it).take(5) }.toHashSet()
+    val missing = keys.filter { fold(it).take(5) !in stems }
+    return ((keys.size - missing.size) * 100 / keys.size) to missing.take(8)
 }

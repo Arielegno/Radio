@@ -420,7 +420,7 @@ private fun MaterialsTab(vm: HiloViewModel, cl: Clase, books: List<Book>) {
     val pickPhotos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(60)) { uris ->
         vm.importInto(uris) { list -> vm.classes.addBooks(cl.id, list.map { it.id }); vm.toast = "Fotos agregadas. Hilo reconoce su texto para el mapa." }
     }
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(TABLET_WIDTH, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Text("Libros, documentos, artículos, leyes y fotos de la pizarra o de tus apuntes. Todo lo que agregues entra al mapa y a la síntesis.", color = c.muted, fontSize = 13.sp)
         }
@@ -577,7 +577,7 @@ private fun ClassMapTab(vm: HiloViewModel, cl: Clase, books: List<Book>, docs: L
     val titles = books.associate { it.id to it.title }
     val maxScore = g.concepts.maxOf { it.score }
 
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(TABLET_WIDTH, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text(
                 "${g.concepts.size} conceptos de ${docs.size} ${if (docs.size == 1) "material" else "materiales"}, agrupados en ${g.topics.size} temas. " +
@@ -755,7 +755,7 @@ private fun SynthesisTab(vm: HiloViewModel, cl: Clase, books: List<Book>, docs: 
         }
         return
     }
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(TABLET_WIDTH, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("Un resumen por temas armado con tus materiales: conceptos, definiciones, las ideas centrales de cada texto y tus subrayados.", color = c.muted, fontSize = 13.sp)
         }
@@ -827,7 +827,7 @@ private fun ClassStudyTab(vm: HiloViewModel, cl: Clase, books: List<Book>, docs:
     val due = cards.filter { it.due <= today() }
     val exam = vm.classes.nextExam(cl.id)
 
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(TABLET_WIDTH, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             SectionCard("Mazo de la clase") {
                 Text("${cards.size} tarjetas de todos los materiales · ${due.size} para hoy", color = c.muted, fontSize = 14.sp)
@@ -1009,7 +1009,7 @@ private fun DiaryTab(vm: HiloViewModel, cl: Clase) {
     val perm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) startRec() else vm.toast = "Sin permiso del micrófono no puedo grabar." }
 
     val notes = vm.classes.notesOf(cl.id)
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(TABLET_WIDTH, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             SectionCard("Hoy, ${dayText(today())}") {
                 OutlinedTextField(text, { text = it }, placeholder = { Text("¿Qué se vio en clase? ¿Qué dijo el profe?") }, minLines = 3, modifier = Modifier.fillMaxWidth())
@@ -1087,7 +1087,7 @@ private fun CalendarTab(vm: HiloViewModel, cl: Clase, books: List<Book>) {
     var day by remember { mutableStateOf(today() + 7) }
     val evs = vm.classes.eventsOf(cl.id)
     val (up, past) = evs.partition { it.day >= today() && !it.done }
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(TABLET_WIDTH, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             SectionCard("Agregar fecha") {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

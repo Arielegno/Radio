@@ -350,7 +350,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
             LazyColumn(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 40.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize(),
+                modifier = TABLET_WIDTH,
             ) {
                 if (cross && current == null) {
                     item { CrossMapView(vm) { id -> cross = false; deck = id; tab = "ruta" } }

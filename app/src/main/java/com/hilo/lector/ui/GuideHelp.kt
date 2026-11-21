@@ -534,6 +534,60 @@ internal val NEW_TOPICS = listOf(
         listOf("Hilo guarda una copia de la imagen: aunque la borres de la galería, la tarjeta sigue funcionando."),
         key = "imagen-tapada",
     ),
+    Topic(
+        "Herramientas", Icons.Rounded.Functions, "Graficador, fasores y matrices",
+        "Tres herramientas para ingeniería (en Estudiar → Herramientas).",
+        listOf(
+            "Graficador: escribe f(x) (por ejemplo 5*e^(-x/2) o sin(x)/x) y el rango de x. Ves la curva, las raíces, los máximos y los mínimos. Con g(x) comparas dos curvas y ves dónde se cortan. Toca el gráfico para leer un valor.",
+            "Complejos y fasores: escribe A y B en rectangular (3+4j) o polar (5∠53.13). Calcula suma, resta, producto, división, paralelo y 1/A, y dibuja los fasores. Abajo, las impedancias de R, L y C a una frecuencia, en serie y en paralelo.",
+            "Matrices: de 2×2 a 6×6. Determinante, rango, inversa, transpuesta y, si llenas la columna b, la solución de A·x = b (mallas y nodos).",
+        ),
+        listOf("Los ángulos del graficador van en radianes; los de los fasores, en grados."),
+        key = "tools-ingenieria",
+    ),
+    Topic(
+        "Herramientas", Icons.Rounded.Image, "Foto a texto",
+        "Saca una foto a la pizarra, a una página o a tus apuntes y Hilo reconoce el texto sin internet.",
+        listOf(
+            "Herramientas → Foto a texto → «Sacar foto» (o elige una de la galería).",
+            "Corrige lo que haga falta en el cuadro de texto.",
+            "Cópialo, guárdalo como documento en tu biblioteca o en el diario de una clase.",
+        ),
+        listOf("Reconoce muy bien la letra de imprenta; la letra a mano, solo si es clara. Los PDF escaneados se reconocen solos al abrirlos (Ajustes → «Reconocer texto en escaneados»)."),
+        key = "foto-texto",
+    ),
+    Topic(
+        "Áreas y diccionario", Icons.Rounded.Gavel, "Comparar versiones de una ley y días inhábiles",
+        "Para Derecho: ver qué cambió una reforma y calcular plazos con los días que declare el Poder Judicial.",
+        listOf(
+            "Herramientas → Comparar versiones de una ley: elige la versión vieja y la nueva. Ves cuántos artículos quedaron iguales, cuáles cambiaron (con lo quitado tachado y lo agregado en verde), cuáles son nuevos y cuáles se quitaron.",
+            "Herramientas → Plazos en días hábiles: además de fines de semana y feriados de Honduras, toca «+ Día inhábil» para agregar los días que declare el Poder Judicial o la Semana Morazánica si este año cae en otras fechas.",
+        ),
+        listOf("La comparación es por número de artículo: si la reforma renumeró, verás artículos como «nuevos» y «quitados»."),
+        key = "ley-comparar",
+    ),
+    Topic(
+        "Ajustes y ayudas", Icons.Rounded.Calculate, "Widget, recordatorio y copia automática",
+        "Para no depender de acordarte de abrir Hilo, y para no perder nada si cambias de celular.",
+        listOf(
+            "Widget: mantén el dedo en la pantalla de inicio → Widgets → Hilo. Muestra las tarjetas para hoy, el próximo examen o entrega y cuánto leíste hoy. Tócalo para repasar.",
+            "Recordatorio diario (Estudiar → Herramientas): te avisa de tus tarjetas, de exámenes y entregas de tus Clases de esta semana, y si todavía no leíste para que no pierdas la racha.",
+            "Copia automática (Estudiar → Herramientas → Copia de seguridad): elige una carpeta, por ejemplo de Drive, y Hilo deja ahí una copia cada día, cada 3 días o cada semana. Guarda las 3 últimas.",
+        ),
+        listOf("Para restaurar en otro celular: instala Hilo, toca «Restaurar» y elige la copia más nueva de esa carpeta."),
+        key = "widget-copia",
+    ),
+    Topic(
+        "Estudiar", Icons.Rounded.Code, "Simulacro escribiendo",
+        "En el simulacro puedes responder escribiendo, como en un examen de desarrollo.",
+        listOf(
+            "Simulacro → «Cómo respondes» → «Escribiendo».",
+            "Escribe la respuesta con tus palabras y toca «Revisar».",
+            "Hilo te dice qué porcentaje de las ideas clave nombraste y cuáles te faltaron. Tú decides si acertaste.",
+        ),
+        listOf("Compara palabras (acepta plural, femenino y conjugaciones), no entiende sinónimos: por eso la última palabra es tuya."),
+        key = "simulacro-escrito",
+    ),
 )
 
 /** Claves de los temas que ya estaban en la guía. */

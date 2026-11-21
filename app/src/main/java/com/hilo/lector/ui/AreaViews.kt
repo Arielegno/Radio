@@ -119,7 +119,7 @@ fun AreaSearchTab(vm: HiloViewModel, cl: Clase, books: List<Book>) {
             else vm.search.similar(Reference.keywords(run), ids, 30)
         }
     }
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(TABLET_WIDTH, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Text(
                 if (mode == 0) "Busca una palabra o frase en todos los materiales de ${if (cl.isArea) "esta área" else "esta clase"}."
@@ -171,7 +171,7 @@ fun AreaGlossaryTab(vm: HiloViewModel, cl: Clase, books: List<Book>, docs: List<
         (legal + gl).distinctBy { Smart.fold(it.first.second) + "|" + it.first.third.take(40) }.sortedBy { Smart.fold(it.first.second) }
     }
     val shown = all.filter { q.isBlank() || Smart.fold(it.first.second + " " + it.first.third).contains(Smart.fold(q)) }
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(TABLET_WIDTH, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Text(
                 "${all.size} definiciones encontradas en tus materiales: las que el texto escribe («X es…») y las definiciones legales («Para efectos de esta ley se entiende por…»).",
@@ -223,7 +223,7 @@ fun AreaVocabTab(vm: HiloViewModel, cl: Clase, books: List<Book>, docs: List<Pai
     val v = vocab
     if (v == null) { Loading(msg); return }
     val defs = remember(docs) { docs.flatMap { it.second.glossary }.associateBy { Smart.fold(it.term) } }
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(TABLET_WIDTH, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Text(
                 "Las palabras que hacen «técnico» a este campo: aparecen en estos materiales mucho más que en el resto de tu biblioteca. Toca una para buscarla en el diccionario.",
@@ -274,7 +274,7 @@ fun NormsTab(vm: HiloViewModel, cl: Clase, books: List<Book>, docs: List<Pair<St
             .map { (from, r) -> Triple(from, r, Reference.resolve(r.law, titles - from)) }
     }
     val byLevel = books.groupBy { NormLevels.levelOf(it.title) }.toSortedMap()
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(TABLET_WIDTH, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Text("Tus normas ordenadas por jerarquía, con cuántos artículos tiene cada una y a qué otras normas remiten.", color = c.muted, fontSize = 13.sp)
         }
@@ -328,7 +328,7 @@ fun DeadlinesTab(vm: HiloViewModel, cl: Clase, books: List<Book>, docs: List<Pai
     val titles = books.associate { it.id to it.title }
     var show by remember { mutableStateOf(0) }
     val authorities = remember(texts) { Reference.authorities(texts.values.flatten()) }
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(TABLET_WIDTH, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item { ChoiceRow(listOf("Plazos", "Sanciones", "Autoridades"), show) { show = it } }
         when (show) {
             0 -> {
@@ -377,7 +377,7 @@ fun TemplatesTab(vm: HiloViewModel, cl: Clase, books: List<Book>) {
     val chosen = books.filter { it.id in models }
     val (texts, msg) = rememberTexts(vm, chosen)
     var check by remember { mutableStateOf<String?>(null) }
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(TABLET_WIDTH, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Text(
                 "Marca los documentos que sirven de modelo (demandas, recursos, contratos, informes…). Hilo encuentra las partes que se repiten y arma una plantilla con su orden.",

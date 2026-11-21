@@ -12,8 +12,8 @@ android {
         applicationId = "com.hilo.lector"
         minSdk = 26
         targetSdk = 35
-        versionCode = 30
-        versionName = "2.5.3"
+        versionCode = 31
+        versionName = "2.6"
     }
 
     // Firma fija: así cada versión nueva se instala encima de la anterior sin borrar nada.

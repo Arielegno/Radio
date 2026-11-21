@@ -1,9 +1,19 @@
 package com.hilo.lector.ui
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.dp
+
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+
+/** En tablets y celulares acostados, las listas no se estiran de borde a borde: quedan centradas y legibles. */
+val TABLET_WIDTH: Modifier = Modifier.fillMaxSize().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = 760.dp)
 
 /**
  * Ordena un mapa ya armado para que se lea: los círculos y sus nombres no se enciman

@@ -84,6 +84,8 @@ object Analyzer {
         primera primero segunda segundo tercera tercero cuarto quinto mitad vez veces lugar hora horas minuto minutos semana mes meses
         capítulo capítulos apartado apartados página páginas párrafo párrafos línea líneas letra letras nombre nombres caso casos forma formas
         manera maneras tipo tipos parte partes modo medida cosa cosas grupo grupos clase siguiente fórmula
+        destacar destaca destacan relevante relevantes evidente evidentes limitado limitada agrupado agrupada agrupados circunstancia circunstancias
+        claro clara claros claras actual actuales anteriormente posteriormente igual iguales mayoría menudo respecto
     """.trim().split(Regex("\\s+")).toSet() - setOf("grupo", "grupos", "clase")
 
     private val NOUN_AR = setOf("lugar", "poder", "mujer", "militar", "popular", "familiar", "particular", "nuclear", "escolar", "regular", "hogar", "bienestar", "placer", "saber", "deber", "ser", "par", "mar", "valor", "factor", "error", "sector", "actor", "autor", "vector", "motor", "color", "dolor", "amor", "orden", "humor", "nivel", "señor", "mayor", "menor", "interior", "exterior", "superior", "inferior", "anterior", "posterior")

@@ -191,7 +191,8 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
     val rankOf = remember(all) { HashMap<String, Int>(all.size * 2).also { m -> all.forEachIndexed { i, t -> m[t.key] = i + 1 } } }
     val n = listOf(25, 45, 80)[howMany]
     val auto = remember(all, removed, withCommon, n) {
-        all.filter { it.key !in removed && (withCommon || it.key !in a.common) && it.count >= 2 }.take(n)
+        all.filter { it.key !in removed && (withCommon || it.key !in a.common) && it.count >= 2 }
+            .sortedByDescending { it.count * (if (withCommon) 1.0 else com.hilo.lector.text.Analyzer.shape(it.key)) }.take(n)
     }
     var wordEdit by remember { mutableStateOf<String?>(null) }
     wordEdit?.let { w ->

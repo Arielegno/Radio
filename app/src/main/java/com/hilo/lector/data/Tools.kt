@@ -139,7 +139,8 @@ object Reminders {
         val sp = ctx.getSharedPreferences("estudio", Context.MODE_PRIVATE)
         val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         am.cancel(pending(ctx))
-        if (!sp.getBoolean("remindOn", false)) return
+        // La alarma diaria también actualiza el widget y hace la copia automática
+        if (!sp.getBoolean("remindOn", false) && AutoBackup.folder(ctx) == null) return
         val hour = sp.getInt("remindHour", 19)
         val cal = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0)
@@ -163,10 +164,39 @@ object Reminders {
         } catch (_: Exception) { 0 to emptyList() }
     }
 
+    /** Exámenes y entregas de las Clases en los próximos 7 días: (título, tipo, días que faltan). */
+    fun classEvents(ctx: Context): List<Triple<String, String, Long>> = runCatching {
+        val o = JSONObject(File(ctx.filesDir, "clases.json").readText())
+        val names = HashMap<String, String>()
+        o.optJSONArray("clases")?.let { a -> for (i in 0 until a.length()) a.getJSONObject(i).let { names[it.getString("id")] = it.optString("nombre") } }
+        val t = today()
+        val out = ArrayList<Triple<String, String, Long>>()
+        o.optJSONArray("fechas")?.let { a ->
+            for (i in 0 until a.length()) {
+                val j = a.getJSONObject(i)
+                if (j.optBoolean("hecho")) continue
+                val k = j.optString("tipo"); if (k != "examen" && k != "entrega") continue
+                val d = j.optLong("dia") - t
+                if (d in 0..7) out.add(Triple(j.optString("titulo").ifBlank { names[j.optString("clase")] ?: "tu clase" } + (names[j.optString("clase")]?.let { " ($it)" } ?: ""), k, d))
+            }
+        }
+        out.sortedBy { it.third }
+    }.getOrDefault(emptyList())
+
+    /** Minutos leídos hoy (para avisar antes de perder la racha). */
+    fun minutesToday(ctx: Context): Int = runCatching {
+        JSONObject(File(ctx.filesDir, "estudio/motor.json").readText()).optJSONObject("kv")?.optString("min:${today()}")?.toIntOrNull() ?: 0
+    }.getOrDefault(0)
+
     fun notify(ctx: Context) {
+        HiloWidget.refresh(ctx)
+        AutoBackup.runIfDue(ctx)
+        if (!ctx.getSharedPreferences("estudio", Context.MODE_PRIVATE).getBoolean("remindOn", false)) return
         if (needsPermission(ctx)) return
         val (due, exams) = summary(ctx)
-        if (due == 0 && exams.isEmpty()) return
+        val evs = classEvents(ctx)
+        val noReading = minutesToday(ctx) == 0
+        if (due == 0 && exams.isEmpty() && evs.isEmpty() && !noReading) return
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CHANNEL) == null) {
             nm.createNotificationChannel(NotificationChannel(CHANNEL, "Recordatorio de repaso", NotificationManager.IMPORTANCE_DEFAULT))
@@ -183,6 +213,12 @@ object Reminders {
                 if (isNotEmpty()) append(" ")
                 append(when (d) { 0L -> "¡Hoy es el examen de «${titleOf(id)}»!"; 1L -> "Mañana es el examen de «${titleOf(id)}»."; else -> "Faltan $d días para el examen de «${titleOf(id)}»." })
             }
+            evs.take(2).forEach { (title, kind, d) ->
+                if (isNotEmpty()) append(" ")
+                val what = if (kind == "examen") "el examen" else "la entrega"
+                append(when (d) { 0L -> "Hoy es $what: $title."; 1L -> "Mañana es $what: $title."; else -> "En $d días es $what: $title." })
+            }
+            if (noReading && due == 0) { if (isNotEmpty()) append(" "); append("Hoy todavía no leíste: con 2 minutos mantienes la racha.") }
         }
         val open = PendingIntent.getActivity(
             ctx, 8, Intent(ctx, MainActivity::class.java).putExtra(EXTRA_STUDY, true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -190,7 +226,7 @@ object Reminders {
         )
         val n = NotificationCompat.Builder(ctx, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_hilo)
-            .setContentTitle("Hora de repasar")
+            .setContentTitle(if (due > 0 || exams.isNotEmpty() || evs.isNotEmpty()) "Hora de repasar" else "Tu racha te espera")
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(open)
@@ -213,3 +249,70 @@ class ReminderReceiver : BroadcastReceiver() {
 
 @Suppress("unused")
 private fun Uri.isZip() = toString().endsWith(".zip")
+
+
+/** Copia de seguridad automática a una carpeta elegida (Drive, la tarjeta SD o donde quieras). Sin servidores. */
+object AutoBackup {
+    private fun sp(ctx: Context) = ctx.getSharedPreferences("copia", Context.MODE_PRIVATE)
+    fun folder(ctx: Context): Uri? = sp(ctx).getString("carpeta", null)?.let { Uri.parse(it) }
+    fun every(ctx: Context) = sp(ctx).getInt("cada", 7)
+    fun last(ctx: Context) = sp(ctx).getLong("ultima", 0L)
+
+    fun setFolder(ctx: Context, uri: Uri?, days: Int) {
+        val e = sp(ctx).edit()
+        if (uri == null) e.remove("carpeta") else {
+            runCatching { ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+            e.putString("carpeta", uri.toString())
+        }
+        e.putInt("cada", days).apply()
+    }
+
+    /** Hace la copia si ya pasaron los días elegidos. Guarda las 3 últimas y borra las más viejas. */
+    fun runIfDue(ctx: Context, force: Boolean = false): Boolean {
+        val tree = folder(ctx) ?: return false
+        if (!force && System.currentTimeMillis() - last(ctx) < every(ctx) * 86_400_000L - 3_600_000L) return false
+        return runCatching {
+            val dir = androidx.documentfile.provider.DocumentFile.fromTreeUri(ctx, tree) ?: error("sin carpeta")
+            val name = "Hilo-copia-" + java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()) + ".zip"
+            dir.findFile(name)?.delete()
+            val f = dir.createFile("application/zip", name) ?: error("no pude crear")
+            ctx.contentResolver.openOutputStream(f.uri)?.use { Backup.write(ctx, it, false) } ?: error("sin salida")
+            dir.listFiles().filter { it.name?.startsWith("Hilo-copia-") == true }.sortedByDescending { it.name }.drop(3).forEach { it.delete() }
+            sp(ctx).edit().putLong("ultima", System.currentTimeMillis()).apply()
+            true
+        }.getOrDefault(false)
+    }
+}
+
+/** Widget de la pantalla de inicio: tarjetas para hoy, racha y próximo examen. */
+class HiloWidget : android.appwidget.AppWidgetProvider() {
+    override fun onUpdate(ctx: Context, mgr: android.appwidget.AppWidgetManager, ids: IntArray) = refresh(ctx)
+
+    companion object {
+        fun refresh(ctx: Context) {
+            runCatching {
+                val mgr = android.appwidget.AppWidgetManager.getInstance(ctx)
+                val ids = mgr.getAppWidgetIds(android.content.ComponentName(ctx, HiloWidget::class.java))
+                if (ids.isEmpty()) return
+                val (due, exams) = Reminders.summary(ctx)
+                val evs = Reminders.classEvents(ctx)
+                val min = Reminders.minutesToday(ctx)
+                val v = android.widget.RemoteViews(ctx.packageName, R.layout.widget_hilo)
+                v.setTextViewText(R.id.w_due, when (due) { 0 -> "Al día ✓"; 1 -> "1 tarjeta para hoy"; else -> "$due tarjetas para hoy" })
+                val next = evs.firstOrNull()?.let { (t, k, d) -> (if (k == "examen") "Examen" else "Entrega") + ": " + t + when (d) { 0L -> " · hoy"; 1L -> " · mañana"; else -> " · en $d días" } }
+                    ?: exams.firstOrNull()?.let { (_, d) -> "Examen " + when (d) { 0L -> "hoy"; 1L -> "mañana"; else -> "en $d días" } }
+                    ?: if (min > 0) "Hoy leíste $min min" else "Hoy todavía no leíste"
+                v.setTextViewText(R.id.w_next, next)
+                v.setTextViewText(R.id.w_streak, if (min > 0) "🔥 $min min" else "")
+                v.setTextViewText(R.id.w_go, if (due > 0) "Repasar" else "Abrir")
+                val open = PendingIntent.getActivity(
+                    ctx, 9, Intent(ctx, MainActivity::class.java).putExtra(Reminders.EXTRA_STUDY, due > 0).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+                v.setOnClickPendingIntent(R.id.w_root, open)
+                v.setOnClickPendingIntent(R.id.w_go, open)
+                mgr.updateAppWidget(ids, v)
+            }
+        }
+    }
+}

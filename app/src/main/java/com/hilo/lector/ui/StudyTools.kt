@@ -76,6 +76,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -1192,7 +1196,7 @@ fun HubTools(vm: HiloViewModel, onCrossMap: () -> Unit, onDeck: (String) -> Unit
         }
         Panel {
             SwitchRow(
-                "Recordatorio diario", "Te avisa si tienes tarjetas para hoy o un examen cerca.", vm.study.remindOn,
+                "Recordatorio diario", "Te avisa si tienes tarjetas para hoy, un examen o entrega de tus Clases esta semana, o si todavía no leíste (para no perder la racha).", vm.study.remindOn,
             ) { on ->
                 if (on && com.hilo.lector.data.Reminders.needsPermission(ctx)) notifPerm.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                 else {
@@ -1231,6 +1235,7 @@ fun HubTools(vm: HiloViewModel, onCrossMap: () -> Unit, onDeck: (String) -> Unit
                 ) { Text("Guardar copia") }
                 OutlinedButton(onClick = { openZip.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) { Text("Restaurar", color = c.ink) }
             }
+            AutoBackupPanel(vm)
         }
     }
     confirmRestore?.let { uri ->
@@ -1250,4 +1255,50 @@ fun exportDeck(vm: HiloViewModel, ctx: Context, book: Book) {
     val cards = vm.study.cardsOf(book.id)
     if (cards.isEmpty()) { vm.toast = "Este documento no tiene tarjetas."; return }
     runCatching { AnkiExport.share(ctx, AnkiExport.file(ctx, cards, { book.title }, book.title)) }.onFailure { vm.toast = "No pude crear el archivo." }
+}
+
+
+/** Copia automática: eliges una carpeta (puede ser de Drive) y cada tantos días Hilo deja ahí una copia. */
+@Composable
+private fun AutoBackupPanel(vm: HiloViewModel) {
+    val c = LocalHilo.current
+    val ctx = LocalContext.current
+    var tick by remember { mutableStateOf(0) }
+    val scope = rememberCoroutineScope()
+    fun copyNow(okMsg: String, badMsg: String) = scope.launch {
+        vm.busy = "Haciendo la copia…"
+        val ok = withContext(Dispatchers.IO) { com.hilo.lector.data.AutoBackup.runIfDue(ctx, force = true) }
+        vm.busy = null
+        vm.toast = if (ok) okMsg else badMsg
+        tick++
+    }
+    val folder = tick.let { com.hilo.lector.data.AutoBackup.folder(ctx) }
+    val every = com.hilo.lector.data.AutoBackup.every(ctx)
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            com.hilo.lector.data.AutoBackup.setFolder(ctx, uri, every)
+            com.hilo.lector.data.Reminders.schedule(ctx)
+            copyNow("Listo: ya hice la primera copia en esa carpeta.", "Guardé la carpeta, pero no pude escribir ahí. Prueba con otra.")
+        }
+    }
+    Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
+    Text("Copia automática", fontWeight = FontWeight.SemiBold, color = c.ink)
+    if (folder == null) {
+        Text("Elige una carpeta (en el celular o en Drive) y Hilo guarda ahí una copia sola cada semana. Se quedan las 3 últimas.", color = c.muted, fontSize = 13.sp)
+        OutlinedButton(onClick = { pick.launch(null) }) { Text("Elegir carpeta", color = c.ink) }
+    } else {
+        val last = com.hilo.lector.data.AutoBackup.last(ctx)
+        Text(
+            "Activa · " + (if (last > 0) "última copia " + agoText(last) else "todavía sin copias") + " · carpeta: " + (androidx.documentfile.provider.DocumentFile.fromTreeUri(ctx, folder)?.name ?: "elegida"),
+            color = c.muted, fontSize = 13.sp,
+        )
+        val opts = listOf(1, 3, 7)
+        ChoiceRow(listOf("Cada día", "Cada 3 días", "Cada semana"), opts.indexOf(every).coerceAtLeast(0)) { i ->
+            com.hilo.lector.data.AutoBackup.setFolder(ctx, folder, opts[i]); com.hilo.lector.data.Reminders.schedule(ctx); tick++
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { copyNow("Copia hecha.", "No pude escribir en esa carpeta.") }) { Text("Copiar ahora", color = c.ink) }
+            TextButton(onClick = { com.hilo.lector.data.AutoBackup.setFolder(ctx, null, every); com.hilo.lector.data.Reminders.schedule(ctx); tick++ }) { Text("Apagar") }
+        }
+    }
 }

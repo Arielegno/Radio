@@ -104,6 +104,7 @@ val TOOL_GROUPS = listOf(
     "matematicas" to "Matemáticas",
     "psicologia" to "Psicología y estadística",
     "programacion" to "Programación",
+    "derecho" to "Derecho",
     "general" to "Para cualquier materia",
 )
 
@@ -133,6 +134,12 @@ val TOOLS = listOf(
     Tool("corrientes", "Corrientes y autores", "Las escuelas de la psicología, sus autores e ideas.", "psicologia"),
     Tool("regex", "Probar expresiones regulares", "Ve qué encuentra tu patrón en un texto.", "programacion"),
     Tool("codigo", "Tarjeta de código", "Pregunta + código con colores para repasar.", "programacion"),
+    Tool("graficar", "Graficador de funciones", "Dibuja f(x), con raíces, máximos y mínimos.", "matematicas"),
+    Tool("matrices", "Matrices", "Determinante, inversa, rango y sistemas de hasta 6×6.", "matematicas"),
+    Tool("fasores", "Complejos y fasores", "Suma, multiplica y pone en paralelo impedancias en forma polar o rectangular.", "electrica"),
+    Tool("plazos", "Plazos en días hábiles", "Vencimiento con fines de semana, feriados de Honduras y días inhábiles que agregues.", "derecho"),
+    Tool("leydiff", "Comparar versiones de una ley", "Qué artículos cambiaron, se agregaron o se quitaron.", "derecho"),
+    Tool("foto", "Foto a texto", "Saca una foto a la pizarra o a una página y conviértela en texto.", "general"),
     Tool("problema", "Tarjeta de problema", "Enunciado y pasos que se muestran de a uno.", "general"),
     Tool("imagen", "Imagen tapada", "Tapa partes de un diagrama o circuito y repásalas.", "general"),
     Tool("formula-card", "Tarjeta de fórmula", "La fórmula bien dibujada de un lado, su nombre del otro.", "general"),
@@ -145,7 +152,7 @@ private fun groupsFor(field: String): List<String> = when (field) {
     "programacion" -> listOf("programacion", "matematicas", "general")
     "psicologia" -> listOf("psicologia", "general")
     "sociologia" -> listOf("general", "psicologia")
-    "derecho" -> listOf("general")
+    "derecho" -> listOf("derecho", "general")
     else -> TOOL_GROUPS.map { it.first }
 }
 
@@ -188,7 +195,8 @@ fun ToolsList(vm: HiloViewModel, field: String, classId: String? = null, header:
     }
     open?.let { t ->
         Dialog(onDismissRequest = { open = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            OverlayFrame(t.title, { open = null }) { ToolBody(vm, t.key, classId) }
+            if (t.key == "plazos") extraPractice(vm, null, null, "plazo-calc") { open = null }
+            else OverlayFrame(t.title, { open = null }) { ToolBody(vm, t.key, classId) }
         }
     }
 }
@@ -205,6 +213,7 @@ private fun toolGlyph(k: String) = when (k) {
     "ohm" -> "Ω"; "colores" -> "▥"; "serie" -> "∥"; "divisor" -> "÷"; "rc" -> "τ"; "rlc" -> "Z"; "potencia" -> "W"; "led" -> "◗"
     "t555" -> "⏲"; "db" -> "dB"; "awg" -> "⌀"; "prefijos" -> "µ"; "bases" -> "01"; "verdad" -> "∧"; "calc" -> "√"; "unidades" -> "⇄"
     "cuadratica" -> "x²"; "sistema" -> "{ }"; "estadistica" -> "x̄"; "correlacion" -> "r"; "ttest" -> "t"; "apa" -> "“ ”"; "corrientes" -> "Ψ"
+    "plazos" -> "⏳"; "graficar" -> "ƒ"; "matrices" -> "[ ]"; "fasores" -> "∠"; "leydiff" -> "§"; "foto" -> "📷"
     "regex" -> ".*"; "codigo" -> "</>"; "problema" -> "1·2"; "imagen" -> "▣"; "formula-card" -> "∑"; else -> "•"
 }
 
@@ -239,6 +248,11 @@ private fun ToolBody(vm: HiloViewModel, key: String, classId: String?) {
         "problema" -> ProblemCardTool(vm, classId)
         "imagen" -> OcclusionEditor(vm, classId)
         "formula-card" -> FormulaCardTool(vm, classId)
+        "graficar" -> GraphTool()
+        "matrices" -> MatrixTool()
+        "fasores" -> PhasorTool()
+        "leydiff" -> LawDiffTool(vm)
+        "foto" -> PhotoTextTool(vm, classId)
     }
 }
 
@@ -256,7 +270,7 @@ private fun Num(label: String, value: String, hint: String = "", modifier: Modif
 }
 
 @Composable
-private fun Out(vararg kv: String) {
+internal fun Out(vararg kv: String) {
     val c = LocalHilo.current
     val lines = kv.toList().chunked(2).filter { it.size == 2 }.map { it[0] to it[1] }
     Column(
@@ -273,20 +287,20 @@ private fun Out(vararg kv: String) {
 }
 
 @Composable
-private fun Note(text: String) {
+internal fun Note(text: String) {
     val c = LocalHilo.current
     Text(text, color = c.muted, fontSize = 13.sp, lineHeight = 18.sp)
 }
 
 @Composable
-private fun Eq(tex: String) {
+internal fun Eq(tex: String) {
     val c = LocalHilo.current
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.surface).padding(horizontal = 10.dp, vertical = 4.dp)) { MathView("$$" + tex + "$$", c.ink, 17f) }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Choice(options: List<Pair<String, String>>, selected: String, onPick: (String) -> Unit) {
+internal fun Choice(options: List<Pair<String, String>>, selected: String, onPick: (String) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         options.forEach { (k, l) -> Pill(l, k == selected) { onPick(k) } }
     }

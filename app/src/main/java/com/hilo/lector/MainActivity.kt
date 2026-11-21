@@ -65,6 +65,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStop() {
+        super.onStop()
+        // Al salir de Hilo: el widget muestra lo último y, si toca, se hace la copia automática
+        val app = applicationContext
+        Thread {
+            runCatching { Thread.sleep(800) }
+            com.hilo.lector.data.HiloWidget.refresh(app)
+            com.hilo.lector.data.AutoBackup.runIfDue(app)
+        }.start()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)

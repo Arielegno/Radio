@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -63,7 +65,7 @@ fun extraPractice(vm: HiloViewModel, book: Book?, a: Analysis?, mode: String, on
     when (mode) {
         "derecho" -> LawHub(vm, book, a, onClose)
         "sociologia" -> SocioHub(vm, book, a, onClose)
-        "plazo-calc" -> DeadlineCalc(null, onClose)
+        "plazo-calc" -> DeadlineCalc(vm, null, onClose)
         "kb-autores" -> OverlayFrame("Autores y paradigmas", onClose) { SocioAuthors(vm, a) }
         else -> OverlayFrame("Práctica", onClose) { Text("Esta práctica no está disponible para este documento.", color = LocalHilo.current.ink) }
     }
@@ -94,7 +96,7 @@ private fun saveFicha(vm: HiloViewModel, book: Book?, kind: String, title: Strin
 private fun LawHub(vm: HiloViewModel, book: Book?, a: Analysis?, onClose: () -> Unit) {
     var sub by remember { mutableStateOf<String?>(null) }
     when (sub) {
-        "plazos" -> { DeadlineCalc(a, onClose = { sub = null }); return }
+        "plazos" -> { DeadlineCalc(vm, a, onClose = { sub = null }); return }
         "silogismo" -> { Syllogism(vm, book, a) { sub = null }; return }
         "casos" -> { StagedCases(vm, book, a) { sub = null }; return }
         "interpretar" -> { Interpret(vm, book, a) { sub = null }; return }
@@ -134,7 +136,7 @@ private fun ArticlePicker(a: Analysis?, selected: LawArticle?, onPick: (LawArtic
 }
 
 @Composable
-private fun DeadlineCalc(a: Analysis?, onClose: () -> Unit) {
+private fun DeadlineCalc(vm: HiloViewModel, a: Analysis?, onClose: () -> Unit) {
     val c = LocalHilo.current
     var start by remember { mutableStateOf(LocalDate.now()) }
     var amount by remember { mutableStateOf("10") }
@@ -151,9 +153,25 @@ private fun DeadlineCalc(a: Analysis?, onClose: () -> Unit) {
         OutlinedButton(onClick = { picking = true }) { Text("Fecha del hecho o notificación: ${dayLabel(start.toEpochDay())}", color = c.ink) }
         OutlinedTextField(amount, { amount = it.filter { ch -> ch.isDigit() }.take(4) }, label = { Text("Cantidad") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         ChoiceRow(listOf("Días hábiles", "Días calendario", "Meses", "Años"), unit) { unit = it }
+        // Días inhábiles que declara el Poder Judicial o el feriado movido de la Semana Morazánica de este año
+        var extraRaw by remember { mutableStateOf(vm.motor["inhabiles"]) }
+        val extra = extraRaw.split(',').mapNotNull { it.trim().toLongOrNull()?.let { d -> LocalDate.ofEpochDay(d) } }.toSet()
+        var addingDay by remember { mutableStateOf(false) }
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Pill("+ Día inhábil") { addingDay = true }
+            extra.sorted().forEach { d ->
+                Pill("${dayLabel(d.toEpochDay())} ✕") {
+                    extraRaw = (extra - d).joinToString(",") { it.toEpochDay().toString() }; vm.motor.put("inhabiles", extraRaw)
+                }
+            }
+        }
+        if (extra.isEmpty()) Text("¿El Poder Judicial declaró un día inhábil, o la Semana Morazánica cae otro día este año? Agrégalo y no se cuenta.", color = c.muted, fontSize = 12.sp)
+        if (addingDay) ExamDatePicker(LocalDate.now().toEpochDay(), onPick = { d ->
+            extraRaw = (extra.map { it.toEpochDay() } + d).distinct().joinToString(","); vm.motor.put("inhabiles", extraRaw)
+        }) { addingDay = false }
         val n = amount.toIntOrNull() ?: 0
         if (n > 0) {
-            val r = remember(start, n, unit) { Plazos.compute(start, n, unit) }
+            val r = remember(start, n, unit, extra) { Plazos.compute(start, n, unit, extra) }
             Panel {
                 Text("Vence: ${dayLabel(r.end.toEpochDay())} de ${r.end.year}", fontFamily = Fonts.display, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = c.ink)
                 val left = r.end.toEpochDay() - LocalDate.now().toEpochDay()

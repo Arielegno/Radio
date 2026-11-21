@@ -670,7 +670,7 @@ shot 93_biblioteca_sin_formatos 3
 # 2.6: herramientas nuevas
 tap "Estudiar"
 sleep 2
-tap "Calculadoras de electrónica" parcial
+tap "Calculadora, graficador" parcial
 sleep 2
 for i in 1 2 3 4 5 6; do adb shell input swipe 540 1700 540 900 300; sleep 0.4; done
 tap "Graficador de funciones"

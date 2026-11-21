@@ -371,6 +371,20 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                     }
                 }
                 if (current == null && !vocabOnly) item {
+                    // Herramientas a mano (calculadora, graficador, fasores, APA…), no al fondo de la pantalla
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).clickable { vm.toolsOpen = true }.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("√", color = c.accent, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text("Herramientas", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text("Calculadora, graficador, fasores, matrices, estadística, APA, foto a texto y más.", color = c.muted, fontSize = 13.sp)
+                        }
+                        HelpButton(vm, "herramientas", size = 18.dp)
+                    }
+                }
+                if (current == null && !vocabOnly) item {
                     // Racha y plan según cómo está tu energía hoy
                     var energy by remember { mutableStateOf(false) }
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

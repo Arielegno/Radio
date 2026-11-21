@@ -629,7 +629,7 @@ fun ConceptMapTab(
         }
         // Separa círculos y nombres encimados (cada concepto ocupa su círculo y el nombre debajo)
         val arr = Array(n) { pos[it] }
-        untangle(arr, FloatArray(n) { mapR(it) }, FloatArray(n) { a.mapTerms[it].label.length * 13f }, 30f, 800f, 800f, 0f)
+        untangle(arr, FloatArray(n) { mapR(it) }, FloatArray(n) { a.mapTerms[it].label.length * 13f }, 30f, 800f, 800f, 10f)
         for (i in 0 until n) pos[i] = arr[i]
     }
 

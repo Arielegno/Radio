@@ -1,0 +1,116 @@
+PRUEBA DE ESTRÉS Y DEPURACIÓN DE HILO — 2026-11-21 16:45 UTC
+Dispositivo: sdk_gphone_x86_64 · Android 11 · Physical size: 1080x2400
+total 6680
+drwxr-xr-x  2 runner runner    4096 Nov 21 16:45 .
+drwxrwxrwt 15 root   root      4096 Nov 21 16:45 ..
+-rw-r--r--  1 runner runner 3045379 Nov 21 16:45 estudio.json
+-rw-r--r--  1 runner runner  649118 Nov 21 16:45 ley_grande.txt
+-rw-r--r--  1 runner runner 2379688 Nov 21 16:45 libro_grande.txt
+-rw-r--r--  1 runner runner  749856 Nov 21 16:45 pdf_grande.pdf
+
+1. ARRANQUE
+  Arranque en frío 1: TotalTime: 2419
+  Arranque en frío 2: TotalTime: 2593
+  Arranque en frío 3: TotalTime: 2241
+  Memoria (biblioteca):  TOTAL PSS: 175727 TOTAL RSS: 290748 TOTAL SWAP (KB): 0
+
+2. LIBRO DE 300.000 PALABRAS
+  Abierto: vivo
+  Fluidez (40 deslizadas rápidas en el libro): Total frames rendered: 562 Janky frames: 562 (100.00%) 
+  Memoria (libro abierto):  TOTAL PSS: 152123 TOTAL RSS: 269616 TOTAL SWAP (KB): 0
+  (no encontré «Opciones de Libro enorme de prueba»)
+  (no encontré «Estudiar: tarjetas y resaltados»)
+  Análisis completo de la sala de estudio: más de 240 s
+  Cuadros dibujados en 4 s sin tocar nada (debería ser casi 0): Total frames rendered: 0
+  Lectura de pantalla: UI hierchary dumped to: /sdcard/ui.xml 
+  (no encontré «Palabras»)
+  (no encontré «Mapa»)
+  (no encontré «Línea de tiempo»)
+  Memoria (análisis del libro):  TOTAL PSS: 82614 TOTAL RSS: 197392 TOTAL SWAP (KB): 0
+  Estado: vivo
+
+3. CÓDIGO DE 3000 ARTÍCULOS
+  Índice de la ley listo: 5 s
+  Memoria (código):  TOTAL PSS: 193862 TOTAL RSS: 312712 TOTAL SWAP (KB): 0
+  Estado: vivo
+
+4. PDF DE 400 PÁGINAS
+  Fluidez (60 deslizadas en el PDF): Total frames rendered: 718 Janky frames: 718 (100.00%) 
+  Memoria (PDF):  TOTAL PSS: 765551 TOTAL RSS: 885616 TOTAL SWAP (KB): 0
+  Texto de las 400 páginas analizado: 35 s
+  Estado: vivo
+
+5. 5000 TARJETAS
+  Abrir Estudio con 5000 tarjetas: ~3 s
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  (no encontré «Mostrar respuesta»)
+  (no encontré «Bien»)
+  Repasar 15 tarjetas (con lectura de pantalla entre toques): 48 s
+  Memoria (repaso):  TOTAL PSS: 90648 TOTAL RSS: 206708 TOTAL SWAP (KB): 0
+  Estado: vivo
+
+6. GIROS DE PANTALLA
+  (no encontré «Libro enorme de prueba»)
+  10 giros en el lector: vivo
+  (no encontré «Opciones de Libro enorme de prueba»)
+  (no encontré «Estudiar: tarjetas y resaltados»)
+  6 giros en la sala de estudio: vivo
+
+7. TOQUES AL AZAR (monkey, 8000 eventos)
+  Events injected: 8000
+  Cierres detectados por monkey: 0
+  Bloqueos (ANR) detectados por monkey: 0
+  Memoria (tras monkey):  TOTAL PSS: 150504 TOTAL RSS: 275096 TOTAL SWAP (KB): 0
+
+8. REGISTRO DEL SISTEMA
+  Cierres inesperados (FATAL): 0
+  Bloqueos (ANR): 0
+  Falta de memoria (OutOfMemory): 0
+  Avisos del modo estricto: 289
+      60 × DiskReadViolation en com.hilo.lector.MainActivity.getVm
+      60 × DiskReadViolation en com.hilo.lector.data.LibraryRepo.load
+      33 × DiskReadViolation en com.hilo.lector.data.Reminders.schedule
+      24 × DiskReadViolation en com.hilo.lector.HiloViewModel.onStart
+      24 × DiskReadViolation en com.hilo.lector.MainActivityKt$HiloRoot$4$1.invokeSuspend
+      19 × DiskReadViolation en com.hilo.lector.ui.ReaderScreenKt$rememberEngine$st$2$1.invokeSuspend
+      16 × DiskReadViolation en com.hilo.lector.ui.ReaderScreenKt.ReaderScreen
+      12 × LeakedClosableViolation en ?
+      11 × DiskReadViolation en com.hilo.lector.pdf.AnnotStore.load
+       9 × DiskReadViolation en com.hilo.lector.HiloViewModel.studyText
+       5 × DiskReadViolation en ?
+       4 × DiskReadViolation en com.hilo.lector.data.Dict.dir
+       3 × DiskWriteViolation en com.hilo.lector.ui.ReaderScreenKt$rememberEngine$st$2$1.invokeSuspend
+       2 × DiskReadViolation en com.hilo.lector.Stats.add
+       2 × DiskReadViolation en com.hilo.lector.Stats.today
+       2 × DiskReadViolation en com.hilo.lector.data.Dict.has
+       1 × DiskReadViolation en com.hilo.lector.ui.Speaker.onInit
+       1 × DiskReadViolation en com.hilo.lector.ui.StudyScreenKt.MarksTab
+       1 × DiskWriteViolation en com.hilo.lector.data.Dict.dir
+  Errores de Hilo en el registro: 1

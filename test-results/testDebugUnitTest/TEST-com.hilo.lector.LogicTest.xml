@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hilo.lector.LogicTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-11-21T16:41:49" hostname="runnervm0hi8g" time="3.732">
+  <properties/>
+  <testcase name="citasApa" classname="com.hilo.lector.LogicTest" time="0.088"/>
+  <testcase name="libroGrandeEnTiempoRazonable" classname="com.hilo.lector.LogicTest" time="3.024"/>
+  <testcase name="remisionesLargasNoRompen" classname="com.hilo.lector.LogicTest" time="0.024"/>
+  <testcase name="reconoceArticulosYEstructura" classname="com.hilo.lector.LogicTest" time="0.006"/>
+  <testcase name="encuentraPlazos" classname="com.hilo.lector.LogicTest" time="0.002"/>
+  <testcase name="ceroIzquierdaYBis" classname="com.hilo.lector.LogicTest" time="0.001"/>
+  <testcase name="repasoEspaciadoFsrs" classname="com.hilo.lector.LogicTest" time="0.008"/>
+  <testcase name="autoresYLineaDeTiempo" classname="com.hilo.lector.LogicTest" time="0.019"/>
+  <testcase name="palabrasClave" classname="com.hilo.lector.LogicTest" time="0.002"/>
+  <testcase name="textosRarosNoRompen" classname="com.hilo.lector.LogicTest" time="0.555"/>
+  <system-out><![CDATA[Libro de 366000 palabras analizado en 2934 ms
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

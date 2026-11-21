@@ -1,0 +1,329 @@
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/Welcome.kt:158: Error: Call requires API level 28 (current min is 26): android.content.pm.PackageInfo#getLongVersionCode [NewApi]
+            append("Hilo ${info?.versionName} (${info?.longVersionCode})\n")
+                                                       ~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "NewApi":
+   This check scans through all the Android API calls in the application and
+   warns about any calls that are not available on all versions targeted by
+   this application (according to its minimum SDK attribute in the manifest).
+
+   If you really want to use this API and don't need to support older devices
+   just set the minSdkVersion in your build.gradle or AndroidManifest.xml
+   files.
+
+   If your code is deliberately accessing newer APIs, and you have ensured
+   (e.g. with conditional execution) that this code will only ever be called
+   on a supported platform, then you can annotate your class or method with
+   the @TargetApi annotation specifying the local minimum SDK to apply, such
+   as @TargetApi(11), such that this check considers 11 rather than your
+   manifest file's minimum SDK as the required API level.
+
+   If you are deliberately setting android: attributes in style definitions,
+   make sure you place this in a values-vNN folder in order to avoid running
+   into runtime conflicts on certain devices where manufacturers have added
+   custom attributes whose ids conflict with the new ones on later platforms.
+
+   Similarly, you can use tools:targetApi="11" in an XML file to indicate that
+   the element will only be inflated in an adequate context.
+
+/home/runner/work/Radio/Radio/app/build.gradle.kts:14: Warning: Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the android.os.Build.VERSION_CODES javadoc for details. [OldTargetApi]
+        targetSdk = 35
+        ~~~~~~~~~~~~~~
+
+   Explanation for issues of type "OldTargetApi":
+   When your application runs on a version of Android that is more recent than
+   your targetSdkVersion specifies that it has been tested with, various
+   compatibility modes kick in. This ensures that your application continues
+   to work, but it may look out of place. For example, if the targetSdkVersion
+   is less than 14, your app may get an option button in the UI.
+
+   To fix this issue, set the targetSdkVersion to the highest available value.
+   Then test your app to make sure everything works correctly. You may want to
+   consult the compatibility notes to see what changes apply to each version
+   you are adding support for:
+   https://developer.android.com/reference/android/os/Build.VERSION_CODES.html
+   as well as follow this guide:
+   https://developer.android.com/distribute/best-practices/develop/target-sdk.
+   html
+
+   https://developer.android.com/distribute/best-practices/develop/target-sdk.html
+
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/LibraryScreen.kt:903: Warning: Do not hardcode "/sdcard/"; use Environment.getExternalStorageDirectory().getPath() instead [SdCardPath]
+    val rel = path.removePrefix("/storage/emulated/0/").removePrefix("/sdcard/")
+                                                                      ~~~~~~~~
+
+   Explanation for issues of type "SdCardPath":
+   Your code should not reference the /sdcard path directly; instead use
+   Environment.getExternalStorageDirectory().getPath().
+
+   Similarly, do not reference the /data/data/ path directly; it can vary in
+   multi-user scenarios. Instead, use Context.getFilesDir().getPath().
+
+   https://developer.android.com/training/data-storage#filesExternal
+
+/home/runner/work/Radio/Radio/app/build.gradle.kts:74: Warning: A newer version of androidx.core:core-ktx than 1.13.1 is available: 1.19.1 [GradleDependency]
+    implementation("androidx.core:core-ktx:1.13.1")
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/build.gradle.kts:75: Warning: A newer version of androidx.documentfile:documentfile than 1.0.1 is available: 1.1.0 [GradleDependency]
+    implementation("androidx.documentfile:documentfile:1.0.1")
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/build.gradle.kts:76: Warning: A newer version of androidx.activity:activity-compose than 1.9.3 is available: 1.13.0 [GradleDependency]
+    implementation("androidx.activity:activity-compose:1.9.3")
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/build.gradle.kts:77: Warning: A newer version of androidx.lifecycle:lifecycle-viewmodel-compose than 2.8.7 is available: 2.11.1 [GradleDependency]
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/build.gradle.kts:78: Warning: A newer version of androidx.lifecycle:lifecycle-runtime-compose than 2.8.7 is available: 2.11.1 [GradleDependency]
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "GradleDependency":
+   This detector looks for usages of libraries where the version you are using
+   is not the current stable release. Using older versions is fine, and there
+   are cases where you deliberately want to stick with an older version.
+   However, you may simply not be aware that a more recent version is
+   available, and that is what this lint check helps find.
+
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/Disciplines.kt:62: Warning: Composable functions that return Unit should start with an uppercase letter [ComposableNaming from androidx.compose.runtime]
+fun extraPractice(vm: HiloViewModel, book: Book?, a: Analysis?, mode: String, onClose: () -> Unit) {
+    ~~~~~~~~~~~~~
+
+   Explanation for issues of type "ComposableNaming":
+   @Composable functions without a return type should use similar naming to
+   classes, starting with an uppercase letter and ending with a noun.
+   @Composable functions with a return type should be treated as normal Kotlin
+   functions, starting with a lowercase letter.
+
+   Vendor: Jetpack Compose
+   Identifier: androidx.compose.runtime
+   Feedback: https://issuetracker.google.com/issues/new?component=612128
+
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/FlowView.kt:177: Warning: Modifier parameter should be the first optional parameter [ModifierParameter from androidx.compose.ui]
+    modifier: Modifier = Modifier,
+    ~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/Tools.kt:250: Warning: Modifier parameter should be the first optional parameter [ModifierParameter from androidx.compose.ui]
+private fun Num(label: String, value: String, hint: String = "", modifier: Modifier = Modifier.fillMaxWidth(), onChange: (String) -> Unit) {
+                                                                 ~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/Tools.kt:250: Warning: Optional Modifier parameter should have a default value of Modifier [ModifierParameter from androidx.compose.ui]
+private fun Num(label: String, value: String, hint: String = "", modifier: Modifier = Modifier.fillMaxWidth(), onChange: (String) -> Unit) {
+                                                                 ~~~~~~~~
+
+   Explanation for issues of type "ModifierParameter":
+   The first (or only) Modifier parameter in a Composable function should
+   follow the following rules:
+   - Be named modifier
+   - Have a type of Modifier
+   - Either have no default value, or have a default value of Modifier
+   - If optional, be the first optional parameter in the parameter list
+
+   Vendor: Jetpack Compose
+   Identifier: androidx.compose.ui
+   Feedback: https://issuetracker.google.com/issues/new?component=612128
+
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/AreaViews.kt:66: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val texts by produceState<Map<String, List<String>>?>(null, books.map { it.id }) {
+                 ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/AreaViews.kt:114: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val results by produceState<List<SearchIndex.Passage>?>(emptyList(), run, mode) {
+                   ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/AreaViews.kt:212: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val vocab by produceState<List<Pair<com.hilo.lector.text.Term, Float>>?>(null, docs) {
+                 ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/AreaViews.kt:425: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+                    val draft by produceState<List<String>?>(null, id) { value = b?.let { runCatching { vm.studyText(it) { _, _ -> } }.getOrNull() } }
+                                 ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/AreaViews.kt:452: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val res by produceState<Pair<List<Pair<String, com.hilo.lector.text.LawArticle>>, List<SearchIndex.Passage>>?>(null, text) {
+               ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ClassScreen.kt:307: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val state by produceState<Pair<List<Pair<String, Analysis>>, ClassGraph>?>(null, cl.books, needs) {
+                 ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ClassScreen.kt:607: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+                val laid by produceState<Pair<Array<Offset>, Float>?>(null, g, w, h) {
+                            ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ClassScreen.kt:718: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val sums by produceState<List<TopicSummary>?>(null, g) {
+                ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ComicView.kt:59: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val pages by produceState<List<String>?>(null, book.id) {
+                 ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ComicView.kt:106: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+            val bmp by produceState<Bitmap?>(null, i) {
+                       ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/Components.kt:499: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val img by produceState<ImageBitmap?>(null, book.id) {
+               ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/DictionaryView.kt:60: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val results by produceState<List<DictEntry>?>(null, query, vm.dictVersion) {
+                   ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/DictionaryView.kt:85: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+                        val sug by produceState(emptyList<String>(), query) {
+                                   ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/FlowView.kt:307: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val paras by produceState<List<String>?>(null, book.id, engine) {
+                 ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/LibraryScreen.kt:849: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val hits by androidx.compose.runtime.produceState<List<com.hilo.lector.data.Hit>?>(null, query) {
+                                         ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/LibraryScreen.kt:1189: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val size by androidx.compose.runtime.produceState<Long?>(null, b.id, b.file) {
+                                         ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/PdfView.kt:724: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val bmp by produceState<Bitmap?>(
+               ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/PdfView.kt:751: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val lines by produceState(engine.peekLines(page) ?: emptyList(), page, ocr, needLines) {
+                 ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ReaderScreen.kt:132: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val st by produceState<EngineState>(EngineState.Loading, id) {
+              ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ReaderScreen.kt:686: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val toc by produceState<List<Pair<String, Int>>?>(null, flow, book.id) {
+               ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ReaderScreen.kt:700: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val results by produceState<List<Triple<String, Int, String>>>(emptyList(), query, flow) {
+                   ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ReaderScreen.kt:728: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val articles by produceState<List<Pair<String, Int>>?>(null, showArticles, flow) {
+                    ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/Rich.kt:175: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val img by produceState<ImageBitmap?>(null, path) { value = withContext(Dispatchers.IO) { runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull() } }
+               ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/StudyTools.kt:417: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val an by produceState<Analysis?>(null, want != null) {
+              ~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/Tools.kt:1052: Error: produceState calls should assign value inside the producer lambda [ProduceStateDoesNotAssignValue from androidx.compose.runtime]
+    val img by produceState<ImageBitmap?>(null, p) { value = withContext(Dispatchers.IO) { runCatching { android.graphics.BitmapFactory.decodeFile(p)?.asImageBitmap() }.getOrNull() } }
+               ~~~~~~~~~~~~
+
+   Explanation for issues of type "ProduceStateDoesNotAssignValue":
+   produceState returns an observable State using values assigned inside the
+   producer lambda. If the lambda never assigns (i.e value = foo), then the
+   State will never change. Make sure to assign a value when the source you
+   are producing values from changes / emits a new value. For sample usage see
+   the produceState documentation.
+
+   Vendor: Jetpack Compose
+   Identifier: androidx.compose.runtime
+   Feedback: https://issuetracker.google.com/issues/new?component=612128
+
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/AreaViews.kt:419: Error: StateFlow.value should not be called within composition [StateFlowValueCalledInComposition from androidx.compose.runtime]
+                    vm.repo.books.value.filter { !it.trashed && it.id !in models }.sortedByDescending { it.updated }.take(12).forEach { b ->
+                                  ~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/AreaViews.kt:451: Error: StateFlow.value should not be called within composition [StateFlowValueCalledInComposition from androidx.compose.runtime]
+    val titles = vm.repo.books.value.associate { it.id to it.title }
+                               ~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ClassScreen.kt:488: Error: StateFlow.value should not be called within composition [StateFlowValueCalledInComposition from androidx.compose.runtime]
+    val all = vm.repo.books.value.filter { !it.trashed && it.type != "comic" }
+                            ~~~~~
+
+   Explanation for issues of type "StateFlowValueCalledInComposition":
+   Calling StateFlow.value within composition will not observe changes to the
+   StateFlow, so changes might not be reflected within the composition.
+   Instead you should use stateFlow.collectAsState() to observe changes to the
+   StateFlow, and recompose when it changes.
+
+   Vendor: Jetpack Compose
+   Identifier: androidx.compose.runtime
+   Feedback: https://issuetracker.google.com/issues/new?component=612128
+
+/home/runner/.gradle/caches/modules-2/files-2.1/org.bouncycastle/bcpkix-jdk15to18/1.72/32faf4d74dbc333fb3a7a6c80c30417cf888fc7a/bcpkix-jdk15to18-1.72.jar: Warning: checkClientTrusted is empty, which could cause insecure network traffic due to trusting arbitrary TLS/SSL certificates presented by peers [TrustAllX509TrustManager]
+/home/runner/.gradle/caches/modules-2/files-2.1/org.bouncycastle/bcpkix-jdk15to18/1.72/32faf4d74dbc333fb3a7a6c80c30417cf888fc7a/bcpkix-jdk15to18-1.72.jar: Warning: checkClientTrusted is empty, which could cause insecure network traffic due to trusting arbitrary TLS/SSL certificates presented by peers [TrustAllX509TrustManager]
+/home/runner/.gradle/caches/modules-2/files-2.1/org.bouncycastle/bcpkix-jdk15to18/1.72/32faf4d74dbc333fb3a7a6c80c30417cf888fc7a/bcpkix-jdk15to18-1.72.jar: Warning: checkServerTrusted is empty, which could cause insecure network traffic due to trusting arbitrary TLS/SSL certificates presented by peers [TrustAllX509TrustManager]
+
+   Explanation for issues of type "TrustAllX509TrustManager":
+   This check looks for X509TrustManager implementations whose
+   checkServerTrusted or checkClientTrusted methods do nothing (thus trusting
+   any certificate chain) which could result in insecure network traffic
+   caused by trusting arbitrary TLS/SSL certificates presented by peers.
+
+   https://goo.gle/TrustAllX509TrustManager
+
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/data/Tools.kt:171: Warning: Unnecessary; SDK_INT is always >= 26 [ObsoleteSdkInt]
+        if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CHANNEL) == null) {
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/res/mipmap-anydpi-v26: Warning: This folder configuration (v26) is unnecessary; minSdkVersion is 26. Merge all the resources in this folder into mipmap-anydpi. [ObsoleteSdkInt]
+
+   Explanation for issues of type "ObsoleteSdkInt":
+   This check flags version checks that are not necessary, because the
+   minSdkVersion (or surrounding known API level) is already at least as high
+   as the version checked for.
+
+   Similarly, it also looks for resources in -vNN folders, such as values-v14
+   where the version qualifier is less than or equal to the minSdkVersion,
+   where the contents should be merged into the best folder.
+
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/Adhd.kt:658: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var level by remember { mutableStateOf(-1) }
+                            ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/Adhd.kt:710: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var min by remember { mutableStateOf(25) }
+                          ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/Adhd.kt:711: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var wait by remember { mutableStateOf(5) }
+                           ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/AnalysisViews.kt:164: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var howMany by rememberSaveable { mutableStateOf(1) }      // 0: 25, 1: 45, 2: 80
+                                      ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/AnalysisViews.kt:458: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+            var limit by remember { mutableStateOf(80) }
+                                    ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/AreaViews.kt:109: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var mode by remember { mutableStateOf(0) }   // 0 palabras, 1 parecido
+                           ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/AreaViews.kt:329: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var show by remember { mutableStateOf(0) }
+                           ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ClassScreen.kt:575: Information: Prefer mutableFloatStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var zoom by remember { mutableStateOf(1f) }
+                           ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ClassScreen.kt:1087: Information: Prefer mutableLongStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var day by remember { mutableStateOf(today() + 7) }
+                          ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/HiloViewModel.kt:77: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var newFound by mutableStateOf(0)
+                    ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/HiloViewModel.kt:193: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var dictVersion by mutableStateOf(0)
+                       ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/HiloViewModel.kt:229: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var autoScroll by mutableStateOf(0)
+                      ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/HiloViewModel.kt:238: Information: Prefer mutableFloatStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var noiseVol by mutableStateOf(0.35f)
+                    ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/HiloViewModel.kt:449: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var minutes by mutableStateOf(15)
+                   ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ReaderScreen.kt:185: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var recapFrom by remember { mutableStateOf(-1) }
+                                ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ReaderScreen.kt:187: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var checkFrom by remember { mutableStateOf(-1) }
+                                ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ReaderScreen.kt:188: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var hyper by remember { mutableStateOf(0) }
+                            ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/ReaderScreen.kt:189: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var hyperSnooze by remember { mutableStateOf(0) }
+                                  ~~~~~~~~~~~~~~
+/home/runner/work/Radio/Radio/app/src/main/java/com/hilo/lector/ui/StudyTools.kt:261: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var limit by remember(book.id) { mutableStateOf(40) }
+                                     ~~~~~~~~~~~~~~
+
+   Explanation for issues of type "AutoboxingStateCreation":
+   Calling mutableStateOf<T>() when T is either backed by a primitive type on
+   the JVM or is a value class results in a state implementation that requires
+   all state values to be boxed. This usually causes an additional allocation
+   for each state write, and adds some additional work to auto-unbox values
+   when reading the value of the state. Instead, prefer to use a specialized
+   primitive state implementation for Int, Long, Float, and Double when the
+   state does not need to track null values and does not override the default
+   SnapshotMutationPolicy. See mutableIntStateOf(), mutableLongStateOf(),
+   mutableFloatStateOf(), and mutableDoubleStateOf() for more information.
+
+   Vendor: Jetpack Compose
+   Identifier: androidx.compose.runtime
+   Feedback: https://issuetracker.google.com/issues/new?component=612128
+
+29 errors, 16 warnings

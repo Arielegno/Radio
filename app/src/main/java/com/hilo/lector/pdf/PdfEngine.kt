@@ -72,7 +72,7 @@ class PdfEngine(private val ctx: Context, private val file: File, bookId: String
     private var pd: PDDocument? = null
     private val ocrLock = Mutex()
     private val lineCache = ConcurrentHashMap<Int, List<LineBox>>()
-    private val lineDir = File(ctx.filesDir, "lines/$bookId").apply { mkdirs() }
+    private val lineDir = File(ctx.filesDir, "lines/$bookId")   // se crea al guardar (no en la pantalla)
     private var rec: TextRecognizer? = null
     private val recognizer: TextRecognizer
         get() = rec ?: TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).also { rec = it }
@@ -83,8 +83,18 @@ class PdfEngine(private val ctx: Context, private val file: File, bookId: String
     var aspects = FloatArray(0)
         private set
 
-    val bitmaps = object : LruCache<String, Bitmap>((Runtime.getRuntime().maxMemory() / 5).toInt()) {
+    // Páginas dibujadas en memoria: hasta 1/8 de lo que Android le da a Hilo y nunca más de 64 MB
+    // (con más, un PDF grande subía a cientos de MB y Android cerraba Hilo apenas pasaba a segundo plano)
+    val bitmaps = object : LruCache<String, Bitmap>(minOf(Runtime.getRuntime().maxMemory() / 8, 64L shl 20).toInt()) {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
+    }
+
+    init { synchronized(live) { live.add(this) } }
+
+    companion object {
+        private val live = java.util.Collections.newSetFromMap(java.util.WeakHashMap<PdfEngine, Boolean>())
+        /** Al salir de Hilo: suelta las páginas dibujadas (se vuelven a dibujar al volver). */
+        fun trimAll() { synchronized(live) { live.toList() }.forEach { it.bitmaps.evictAll() } }
     }
 
     suspend fun open() = withContext(renderThread) {
@@ -93,7 +103,16 @@ class PdfEngine(private val ctx: Context, private val file: File, bookId: String
         val r = PdfRenderer(p)
         renderer = r
         pageCount = r.pageCount
-        aspects = FloatArray(pageCount) { i -> r.openPage(i).use { pg -> pg.height.toFloat() / max(1, pg.width) } }
+        // Abrir cada página para medirla tarda segundos en un PDF de cientos de páginas: se guarda la medida
+        val saved = File(lineDir, "aspectos.txt")
+        val stamp = "${file.length()}|${file.lastModified()}|$pageCount"
+        val cached = runCatching {
+            if (!saved.exists()) null else saved.readText().split('\n', limit = 2).takeIf { it.size == 2 && it[0] == stamp }
+                ?.get(1)?.split(',')?.map { it.toFloat() }?.takeIf { it.size == pageCount }?.toFloatArray()
+        }.getOrNull()
+        aspects = cached ?: FloatArray(pageCount) { i -> r.openPage(i).use { pg -> pg.height.toFloat() / max(1, pg.width) } }.also { a ->
+            runCatching { lineDir.mkdirs(); saved.writeText(stamp + "\n" + a.joinToString(",")) }
+        }
     }
 
     suspend fun shutdown() {
@@ -110,6 +129,7 @@ class PdfEngine(private val ctx: Context, private val file: File, bookId: String
         renderThread.close()
         textThread.close()
         bitmaps.evictAll()
+        synchronized(live) { live.remove(this) }
     }
 
     // ---------- dibujar ----------
@@ -204,7 +224,7 @@ class PdfEngine(private val ctx: Context, private val file: File, bookId: String
         if (settled) {
             lineCache[page] = res
             val enc = encode(res)
-            withContext(Dispatchers.IO) { runCatching { f.writeText(enc) } }
+            withContext(Dispatchers.IO) { runCatching { f.parentFile?.mkdirs(); f.writeText(enc) } }
         }
         return res
     }

@@ -601,7 +601,7 @@ fun ReaderScreen(vm: HiloViewModel, bookId: String) {
 private val ARTICLE = Regex("^\\s*(art[íi]culo|art\\.)\\s*\\d+", RegexOption.IGNORE_CASE)
 
 private fun norm(t: String): String =
-    java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "").lowercase()
+    java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFD).replace(com.hilo.lector.text.MARKS_RX, "").lowercase()
 
 private fun snippet(t: String, i: Int, len: Int): String {
     val a = (i - 45).coerceAtLeast(0)

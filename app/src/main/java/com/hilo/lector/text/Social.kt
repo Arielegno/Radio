@@ -58,7 +58,7 @@ object Social {
         "artículo", "capítulo", "ley", "código", "constitución", "república", "tribunal", "corte", "sala", "congreso",
     )
 
-    fun deaccent(s: String): String = Normalizer.normalize(s, Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+    fun deaccent(s: String): String = (if (s.all { it.code < 128 }) s else Normalizer.normalize(s, Normalizer.Form.NFD).replace(com.hilo.lector.text.MARKS_RX, ""))
 
     fun authors(paras: List<String>, sentences: List<Sent>, terms: List<Term>, phrases: List<Term>): List<AuthorInfo> {
         val counts = HashMap<String, Int>()
@@ -234,7 +234,7 @@ object Apa {
                 val (last, first) = a.split(',', limit = 2).map { it.trim() }
                 last to initials(first)
             } else {
-                val parts = a.split(Regex("\\s+"))
+                val parts = a.split(com.hilo.lector.text.WS_RX)
                 if (parts.size == 1) parts[0] to ""
                 else {
                     // Partículas: "de Tocqueville", "von Savigny"
@@ -284,7 +284,7 @@ object Apa {
     /** Cita textual completa: «…» (Autor, año, p. X). Las de 40 palabras o más van en bloque, sin comillas. */
     fun quote(text: String, authors: String, year: String, loc: String): String {
         val t = text.trim()
-        val words = t.split(Regex("\\s+")).size
+        val words = t.split(com.hilo.lector.text.WS_RX).size
         return if (words >= 40) "$t ${inText(authors, year, loc)}" else "“$t” ${inText(authors, year, loc)}"
     }
 }

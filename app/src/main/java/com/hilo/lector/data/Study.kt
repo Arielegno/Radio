@@ -134,7 +134,20 @@ data class Quote(val id: Long, val bookId: String, val text: String, val loc: St
 /** Datos del documento para la referencia APA. */
 data class BookRef(val authors: String = "", val year: String = "", val title: String = "", val publisher: String = "", val url: String = "")
 
-fun today(): Long = LocalDate.now().toEpochDay()
+@Volatile private var todayValue = 0L
+@Volatile private var todayAt = 0L
+
+/**
+ * El día de hoy (días desde 1970). Se recuerda unos segundos: se llama miles de veces seguidas
+ * (una por tarjeta al contar las pendientes) y pedir la fecha con la zona horaria cada vez es lento.
+ */
+fun today(): Long {
+    val now = System.currentTimeMillis()
+    if (now - todayAt in 0..4999) return todayValue
+    val d = LocalDate.now().toEpochDay()
+    todayValue = d; todayAt = now
+    return d
+}
 
 /**
  * FSRS-5: el algoritmo de repaso espaciado moderno (el mismo de Anki desde 2023).

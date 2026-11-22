@@ -314,7 +314,16 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
             vm.toast = "El documento es demasiado grande para analizarlo entero en este celular."
         }
     }
-    val due = study.due(deck).filter { !vocabOnly || it.kind == "vocab" }
+    // Se recalcula solo cuando cambian las tarjetas, no en cada dibujo de la pantalla
+    val due by remember(deck, vocabOnly) { androidx.compose.runtime.derivedStateOf { study.due(deck).filter { !vocabOnly || it.kind == "vocab" } } }
+    val deckStats by remember {
+        androidx.compose.runtime.derivedStateOf {
+            val t = today()
+            val m = HashMap<String, IntArray>()   // documento → [para hoy, total]
+            for (c in study.cards) { val a = m.getOrPut(c.bookId) { IntArray(2) }; a[1]++; if (c.due <= t) a[0]++ }
+            m
+        }
+    }
 
     // Repaso pedido desde otra pantalla (por ejemplo, el mazo de una clase)
     LaunchedEffect(vm.pendingReview) { vm.pendingReview?.let { if (it.isNotEmpty()) review = it; vm.pendingReview = null } }
@@ -443,13 +452,16 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
 
                 if (current == null && !vocabOnly) {
                     // Todas las barajas: una por documento, más la de idiomas
-                    val withCards = books.filter { b -> study.cards.any { it.bookId == b.id } }
+                    // Una sola pasada por las tarjetas para contar las de cada documento (antes se recorrían
+                    // todas para cada documento, en cada dibujo: con miles de tarjetas tardaba segundos)
+                    val stats = deckStats
+                    val withCards = books.filter { b -> stats.containsKey(b.id) }
                     val vocab = study.cards.filter { it.kind == "vocab" }.sortedBy { it.due }
                     // Mazos importados de Anki
-                    val decks = study.cards.map { it.bookId }.filter { it.startsWith("mazo:") }.distinct().sorted()
+                    val decks = stats.keys.filter { it.startsWith("mazo:") }.sorted()
                     if (decks.isNotEmpty()) items(decks, key = { it }) { d ->
                         val all = study.cards.filter { it.bookId == d }
-                        DeckRow("Mazo · " + d.removePrefix("mazo:"), all.count { it.due <= today() }, all.size) {
+                        DeckRow("Mazo · " + d.removePrefix("mazo:"), stats[d]?.get(0) ?: 0, stats[d]?.get(1) ?: 0) {
                             val l = mixQueue(all.filter { it.due <= today() }).take(SESSION)
                             if (l.isEmpty()) vm.toast = "Ese mazo está al día." else review = l
                         }
@@ -459,8 +471,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                     } else {
                         item { Label("Tus documentos") }
                         items(withCards, key = { it.id }) { b ->
-                            val all = study.cardsOf(b.id)
-                            DeckRow(b.title, all.count { it.due <= today() }, all.size) { deck = b.id; tab = "ruta" }
+                            DeckRow(b.title, stats[b.id]?.get(0) ?: 0, stats[b.id]?.get(1) ?: 0) { deck = b.id; tab = "ruta" }
                         }
                         if (vocab.isNotEmpty()) {
                             item {
@@ -528,8 +539,16 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                             }
                             an == null -> item {
                                 Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    CircularProgressIndicator(color = c.accent)
+                                    // Sin animación continua: dibujar 60 cuadros por segundo le quita procesador al análisis.
+                                    // Solo cambia el contador, una vez por segundo.
+                                    var secs by remember { mutableStateOf(0) }
+                                    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(1000); secs++ } }
+                                    Text("⏳", fontSize = 34.sp)
                                     Text(anProg?.let { (p, n) -> "Leyendo el documento… página ${p + 1} de $n" } ?: "Analizando el texto…", color = c.muted)
+                                    if (secs >= 3) Text(
+                                        "$secs s · un libro grande tarda la primera vez; después queda guardado y abre al instante.",
+                                        color = c.muted, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    )
                                 }
                             }
                             tab == "ruta" -> item {

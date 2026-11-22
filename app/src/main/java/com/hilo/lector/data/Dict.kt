@@ -79,7 +79,7 @@ object Dict {
         db(ctx, lang)?.rawQuery("SELECT v FROM meta WHERE k='entradas'", null)?.use { if (it.moveToFirst()) it.getString(0).toInt() else 0 } ?: 0
     }.getOrDefault(0)
 
-    private fun fold(s: String) = Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+    private fun fold(s: String) = s.lowercase().let { l -> if (l.all { it.code < 128 }) l else Normalizer.normalize(l, Normalizer.Form.NFD).replace(com.hilo.lector.text.MARKS_RX, "") }
 
     private fun rows(d: SQLiteDatabase, where: String, args: Array<String>, lang: String, from: String?): List<DictEntry> =
         d.rawQuery("SELECT word, pos, defs, ipa, tr, ety FROM w WHERE $where LIMIT 12", args).use { c ->

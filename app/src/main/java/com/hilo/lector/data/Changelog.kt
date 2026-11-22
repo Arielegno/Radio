@@ -6,6 +6,18 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            36, "2.7.2", "22 nov 2026", "Más rápido con libros y bibliotecas grandes",
+            added = listOf(),
+            fixed = listOf(
+                "La sala de estudio analiza los libros enormes mucho más rápido: el análisis ya no queda casi sin procesador, no espera a que se indexe la biblioteca y no lo frena la animación de carga.",
+                "Al buscar en la biblioteca con miles de tarjetas, Hilo ya no se traba: la búsqueda en tus tarjetas y apuntes corre en segundo plano.",
+                "Hilo abre más rápido: la biblioteca, las tarjetas y las clases se leen en paralelo.",
+                "Los PDF de cientos de páginas abren más rápido la segunda vez y usan menos memoria; al salir de Hilo se libera memoria para que Android no lo cierre.",
+                "La portada de Estudiar cuenta las tarjetas de cada documento de una sola pasada.",
+                "Desplazarse por un libro es más fluido cuando no usas colores en las letras ni la regla.",
+            ),
+        ),
+        Version(
             35, "2.7.1", "22 nov 2026", "Libros enormes más rápidos",
             added = listOf(
                 "El análisis de un libro (palabras, glosario, mapa, autores) queda guardado: si Android cierra Hilo, la sala de estudio abre al instante en vez de volver a analizar.",

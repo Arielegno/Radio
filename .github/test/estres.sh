@@ -65,7 +65,7 @@ for i in $(seq 1 40); do adb shell input swipe 540 1900 540 400 120; done
 shot e03_libro_desplazado
 jank "40 deslizadas rápidas en el libro"
 mem "libro abierto"
-room "Libro enorme de prueba"
+room "Libro enorme de prueba" enorme
 log "  Análisis completo de la sala de estudio: $(wait_for 'Autores' 240) s"
 adb shell dumpsys gfxinfo $PKG reset >/dev/null; sleep 4
 log "  Cuadros dibujados en 4 s sin tocar nada (debería ser casi 0): $(adb shell dumpsys gfxinfo $PKG | grep 'Total frames rendered' | tr -s ' ')"
@@ -96,6 +96,8 @@ for i in $(seq 1 60); do adb shell input swipe 540 1900 540 300 100; done
 shot e12_pdf_desplazado
 jank "60 deslizadas en el PDF"
 mem "PDF"
+adb shell dumpsys meminfo $PKG > $OUT/memoria_pdf.txt
+log "  Detalle de memoria del PDF: $(grep -E '^ *(Java Heap|Native Heap|Graphics|Private Other|Code|Stack):' $OUT/memoria_pdf.txt | tr -s ' ' | tr '\n' ';')"
 room "PDF de 400 páginas" PDF
 log "  Texto de las 400 páginas analizado: $(wait_for 'Autores' 600) s"
 shot e13_sala_pdf 1
@@ -108,7 +110,7 @@ t0=$(date +%s); tap "Estudio"; sleep 1; log "  Abrir Estudio con 5000 tarjetas: 
 shot e14_estudio
 tap "Repasar 15" parcial; sleep 2
 t0=$(date +%s)
-for i in $(seq 1 15); do tap "Mostrar respuesta"; tap "Bien"; done
+for i in $(seq 1 15); do tap "Dudo"; tap "Bien"; done
 log "  Repasar 15 tarjetas (con lectura de pantalla entre toques): $(( $(date +%s) - t0 )) s"
 shot e15_fin_repaso
 mem "repaso"
@@ -116,12 +118,12 @@ log "  Estado: $(alive)"
 
 log ""
 log "6. GIROS DE PANTALLA"
-start >/dev/null; tap "Libro enorme de prueba"; sleep 6
+start >/dev/null; seek enorme; tap "Libro enorme de prueba"; sleep 6
 adb shell settings put system accelerometer_rotation 0
 for i in $(seq 1 10); do adb shell settings put system user_rotation 1; sleep 2; adb shell settings put system user_rotation 0; sleep 2; done
 shot e16_tras_giros
 log "  10 giros en el lector: $(alive)"
-room "Libro enorme de prueba"; sleep 20
+room "Libro enorme de prueba" enorme; sleep 20
 for i in $(seq 1 6); do adb shell settings put system user_rotation 1; sleep 2; adb shell settings put system user_rotation 0; sleep 2; done
 log "  6 giros en la sala de estudio: $(alive)"
 
@@ -165,5 +167,8 @@ for i, l in enumerate(lines):
 for (k, w), n in c.most_common(25):
     print(f"    {n:4d} × {k} en {w}")
 P
+log ""
+log "9. TIEMPOS MEDIDOS POR HILO"
+grep "HiloPerf" $OUT/logcat.txt | sed -E 's/.*HiloPerf *: */    /' | head -60 >> $R
 log "  Errores de Hilo en el registro: $(grep -cE ' E (AndroidRuntime|Hilo|com.hilo)' $OUT/logcat.txt)"
 exit 0

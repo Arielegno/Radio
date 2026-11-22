@@ -8,6 +8,8 @@ import org.jsoup.parser.Parser
 import java.io.File
 import java.util.zip.ZipFile
 
+private val RULE_LINE_RX = Regex("^[-*_=]{3,}$")
+
 /** Formatos de texto además de EPUB y PDF: Markdown, HTML, FB2, Word (DOCX) y OpenDocument (ODT). */
 object Formats {
     /** Extensión → tipo interno. */
@@ -103,7 +105,7 @@ object Formats {
             if (raw.trimStart().startsWith("```")) { flush(); inCode = !inCode; continue }
             if (inCode) { if (raw.isNotBlank()) out.add(raw.trim()); continue }
             var line = raw.trim()
-            if (line.isEmpty() || line.matches(Regex("^[-*_=]{3,}$"))) { flush(); continue }
+            if (line.isEmpty() || line.matches(RULE_LINE_RX)) { flush(); continue }
             line = line.replace(MD_LINK, "$1").replace(MD_EMPH, "")
             when {
                 MD_HEAD.containsMatchIn(line) -> { flush(); out.add("# " + line.replace(MD_HEAD, "")) }

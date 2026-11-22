@@ -5,6 +5,12 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
 
+private val STRONG_DEF_RX = Regex("(?i)\\b(se define|se entiende|consiste en|se refiere a|significa|designa|alude a|se denomina|se llama|llamamos|denominamos|definimos)\\b")
+
+/** Marcas de tilde tras separar las letras (NFD). Compilada una vez para todo Hilo. */
+val MARKS_RX = Regex("\\p{M}+")
+val WS_RX = Regex("\\s+")
+
 /** Una palabra o frase relevante y cuántas veces aparece. */
 data class Term(val key: String, val label: String, val count: Int, val phrase: Boolean) : java.io.Serializable
 
@@ -87,20 +93,30 @@ object Analyzer {
         destacar destaca destacan relevante relevantes evidente evidentes limitado limitada agrupado agrupada agrupados circunstancia circunstancias
         claro clara claros claras actual actuales anteriormente posteriormente igual iguales mayoría menudo respecto
         palabra palabras adecuado adecuada intentado intentar servido servir pasado pasada
-    """.trim().split(Regex("\\s+")).toSet() - setOf("grupo", "grupos", "clase")
+    """.trim().split(com.hilo.lector.text.WS_RX).toSet() - setOf("grupo", "grupos", "clase")
 
     private val NOUN_AR = setOf("lugar", "poder", "mujer", "militar", "popular", "familiar", "particular", "nuclear", "escolar", "regular", "hogar", "bienestar", "placer", "saber", "deber", "ser", "par", "mar", "valor", "factor", "error", "sector", "actor", "autor", "vector", "motor", "color", "dolor", "amor", "orden", "humor", "nivel", "señor", "mayor", "menor", "interior", "exterior", "superior", "inferior", "anterior", "posterior")
 
     /** Cuánto «parece concepto» una palabra por su forma: comunismo, democracia, sociología, alienación sí; observado, utilizar no. */
-    fun shape(k: String): Double = when {
-        k.contains(' ') -> 1.25
-        Regex("(ismos?|istas?|cracias?|log[ií]as?|graf[ií]as?|arqu[ií]as?)$").containsMatchIn(k) -> 1.9
-        Regex("(ciones|ción|siones|sión|dades|dad|tades|tad|ncias?|mientos?|ajes?|uras?|ezas?|ismo)$").containsMatchIn(k) -> 1.35
-        k in NOUN_AR -> 1.0
-        k.length > 5 && Regex("(ados?|adas?|idos?|idas?)$").containsMatchIn(k) -> 0.55
-        k.length > 5 && Regex("(ar|er|ir|ando|iendo)$").containsMatchIn(k) -> 0.6
-        k.length > 6 && Regex("(ivos?|ivas?|osos?|osas?|ables?|ibles?)$").containsMatchIn(k) -> 0.8
-        else -> 1.0
+    // Compiladas una sola vez: armar una expresión regular en cada llamada es lento en Android
+    private val SHAPE_ISM = Regex("(ismos?|istas?|cracias?|log[ií]as?|graf[ií]as?|arqu[ií]as?)$")
+    private val SHAPE_NOUN = Regex("(ciones|ción|siones|sión|dades|dad|tades|tad|ncias?|mientos?|ajes?|uras?|ezas?|ismo)$")
+    private val SHAPE_PART = Regex("(ados?|adas?|idos?|idas?)$")
+    private val SHAPE_VERB = Regex("(ar|er|ir|ando|iendo)$")
+    private val SHAPE_ADJ = Regex("(ivos?|ivas?|osos?|osas?|ables?|ibles?)$")
+    private val shapeCache = java.util.concurrent.ConcurrentHashMap<String, Double>()
+
+    fun shape(k: String): Double = shapeCache.getOrPut(k) {
+        when {
+            k.contains(' ') -> 1.25
+            SHAPE_ISM.containsMatchIn(k) -> 1.9
+            SHAPE_NOUN.containsMatchIn(k) -> 1.35
+            k in NOUN_AR -> 1.0
+            k.length > 5 && SHAPE_PART.containsMatchIn(k) -> 0.55
+            k.length > 5 && SHAPE_VERB.containsMatchIn(k) -> 0.6
+            k.length > 6 && SHAPE_ADJ.containsMatchIn(k) -> 0.8
+            else -> 1.0
+        }
     }
 
     private val WORD = Regex("[\\p{L}][\\p{L}'’]*(?:-[\\p{L}]+)*")
@@ -134,7 +150,7 @@ object Analyzer {
         allí ahí acá cuyo dónde aquél aquélla aquéllos ése ésa ésos ésas sino quizá quizás acaso apenas
         hubo había hubiera hubiese habría tenido tuvo sean fuera fuese sería serían estaría estuvo
         dijo decía dice dicen digo cree creo creía queda quedan
-    """.trim().split(Regex("\\s+")).toSet()
+    """.trim().split(com.hilo.lector.text.WS_RX).toSet()
 
     /** Palabras que no aportan contenido: artículos, conectores, adverbios en «-mente» (claramente, precisamente), números. */
     internal fun isStop(k: String) = k.length < 3 || k in STOP || k.all { it.isDigit() } || (k.length > 7 && k.endsWith("mente"))
@@ -175,7 +191,13 @@ object Analyzer {
         return out
     }
 
+    /** Para medir: recibe cada etapa del análisis y cuánto tardó (ms). */
+    @Volatile var timing: ((String, Long) -> Unit)? = null
+
     fun analyze(paras: List<String>, removed: Set<String>, tune: Tune = Tune()): Analysis {
+        val tm = timing
+        var t0 = System.nanoTime()
+        fun lap(stage: String) { if (tm != null) { val n = System.nanoTime(); tm(stage, (n - t0) / 1_000_000); t0 = n } }
         // ---------- palabras ----------
         val counts = HashMap<String, Int>()
         val labels = HashMap<String, HashMap<String, Int>>()
@@ -310,6 +332,7 @@ object Analyzer {
             .map { Term(it.key, tune.labels[it.key] ?: it.key, it.value, true) })
             .distinctBy { it.key }
 
+        lap("palabras")
         // ---------- oraciones ----------
         val sentences = sentRaw.filter { it.first.length in 25..600 }.map { (s, pi) ->
             val keys = WORD.findAll(s).map { canon(it.value.lowercase()) }.filter { !isStop(it) }.toHashSet()
@@ -318,6 +341,7 @@ object Analyzer {
             Sent(s, pi, keys)
         }
 
+        lap("oraciones")
         // ---------- mapa de conceptos ----------
         // Mapa: los más repetidos, pero pesando la forma de la palabra (los «-ismo», «-ción», «-dad» suben;
         // los verbos y el relleno bajan). Los fijados por el usuario entran siempre.
@@ -342,9 +366,11 @@ object Analyzer {
         for (n in mapTerms.indices) allEdges.filter { it.a == n || it.b == n }.take(3).forEach { keep.add(it) }
         allEdges.take(45).forEach { keep.add(it) }
 
+        lap("mapa")
         // ---------- glosario ----------
         val glossary = findDefinitions(sentences, terms.take(80).map { it.key }.toSet() + phrases.map { it.key })
 
+        lap("glosario")
         // ---------- guía por capítulo ----------
         val weight = HashMap<String, Double>()
         val maxC = (terms.firstOrNull()?.count ?: 1).toDouble()
@@ -394,13 +420,17 @@ object Analyzer {
             ChapterGuide(ch, words, ideas, concepts.map { labelFor[it] ?: it }, qs)
         }
 
+        lap("guias")
         val law = runCatching { Law.parse(paras) }.getOrElse { LawIndex(emptyList(), emptyList(), emptyList()) }
+        lap("ley")
         val authors = runCatching { Social.authors(paras, sentences, terms, phrases) }.getOrDefault(emptyList())
+        lap("autores")
         val timeline = runCatching { Social.timeline(sentences, authors) }.getOrDefault(emptyList())
         // Todas las palabras: las de contenido y las comunes, de la más a la menos repetida
         val allWords = (counts.entries.map { Term(it.key, labelOf(it.key), it.value, false) } +
             stopCounts.entries.map { Term(it.key, labelOf(it.key), it.value, false) })
             .sortedByDescending { it.count }
+        lap("resto")
         return Analysis(
             total, distinct + stopCounts.size, terms, phrases, sentences, mapTerms, keep.toList(), glossary, guides, law, authors, timeline,
             allWords = allWords, common = (stopCounts.keys + counts.keys.filter { it in GENERIC && it !in tune.pinned }).toHashSet(), paraCount = paras.size,
@@ -432,14 +462,14 @@ object Analyzer {
             if (s.text.length > 420) continue
             val m = DEF1.find(s.text) ?: DEF2.find(s.text) ?: continue
             val term = m.groupValues[1].trim().trimEnd(',', ':')
-            val words = term.split(Regex("\\s+"))
+            val words = term.split(com.hilo.lector.text.WS_RX)
             if (words.size > 5 || words.all { isStop(it.lowercase()) }) continue
             // No es una definición si empieza con «Esta…», «Eso…», «Situación que…», o si lo que sigue es una opinión
             val w0 = words.first().lowercase()
             if (w0 in NOT_TERM || words.any { it.lowercase() in setOf("que", "cual", "cuales", "donde", "cuando", "quien") }) continue
             val rest = m.groupValues[2].trimStart().lowercase()
-            val strongVerb = Regex("(?i)\\b(se define|se entiende|consiste en|se refiere a|significa|designa|alude a|se denomina|se llama|llamamos|denominamos|definimos)\\b").containsMatchIn(s.text.take(term.length + 40))
-            val r0 = rest.split(Regex("\\s+")).firstOrNull().orEmpty()
+            val strongVerb = STRONG_DEF_RX.containsMatchIn(s.text.take(term.length + 40))
+            val r0 = rest.split(com.hilo.lector.text.WS_RX).firstOrNull().orEmpty()
             if (!strongVerb && (r0 in OPINION || r0 !in DEF_START)) continue
             if (term.firstOrNull()?.isDigit() == true) continue
             val key = term.lowercase()

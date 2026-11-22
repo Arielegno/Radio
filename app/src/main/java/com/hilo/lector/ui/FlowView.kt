@@ -235,7 +235,9 @@ fun FlowParagraph(
                     )
                 }
             }
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            // La capa aparte solo hace falta para pintar las letras (colores) o tapar líneas (regla).
+            // Antes se pedía siempre, para cada párrafo y en cada cuadro: costaba fluidez al desplazar.
+            .then(if ((s.colors && palette.isNotEmpty()) || rulerOn) Modifier.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen } else Modifier)
             .drawWithContent {
                 drawContent()
                 val l = layout ?: return@drawWithContent

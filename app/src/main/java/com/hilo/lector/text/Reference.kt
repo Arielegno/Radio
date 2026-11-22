@@ -2,6 +2,8 @@ package com.hilo.lector.text
 
 import kotlin.math.ln
 
+private val DEFS_START_RX = Regex("(?i)(para\\s+(los\\s+)?efectos|se\\s+entender[áa]|definiciones)")
+
 /** «artículo 45 del Código Civil»: una remisión a otra norma. */
 data class CrossRef(val article: String, val law: String, val para: Int, val sentence: String)
 
@@ -30,7 +32,7 @@ object Reference {
         paras.forEachIndexed { i, p ->
             if (p.length < 20) return@forEachIndexed
             XREF.findAll(p).forEach { m ->
-                val law = m.groupValues[2].trim().replace(Regex("^(?i)(la|el)\\s+"), "").replace(Regex("\\s+"), " ")
+                val law = m.groupValues[2].trim().replace(Regex("^(?i)(la|el)\\s+"), "").replace(com.hilo.lector.text.WS_RX, " ")
                 if (law.length < 6) return@forEach
                 val start = p.lastIndexOfAny(charArrayOf('.', ';'), m.range.first).let { if (it < 0) 0 else it + 1 }
                 val end = p.indexOfAny(charArrayOf('.', ';'), m.range.last).let { if (it < 0) p.length else it + 1 }
@@ -75,7 +77,7 @@ object Reference {
         val out = ArrayList<LegalDef>()
         var inDefs = 0
         paras.forEachIndexed { i, p ->
-            if (Regex("(?i)(para\\s+(los\\s+)?efectos|se\\s+entender[áa]|definiciones)").containsMatchIn(p)) inDefs = 12
+            if (DEFS_START_RX.containsMatchIn(p)) inDefs = 12
             DEF1.findAll(p).forEach { out.add(LegalDef(it.groupValues[1].trim(), it.groupValues[2].trim(), i)) }
             DEF2.findAll(p).forEach { out.add(LegalDef(it.groupValues[1].trim(), (it.value.substringAfter(it.groupValues[1]).trimStart(',', ':', ' ')).trim(), i)) }
             if (inDefs > 0) {
@@ -91,7 +93,7 @@ object Reference {
     fun authorities(paras: List<String>): List<Named> {
         val cnt = HashMap<String, Int>()
         for (p in paras) AUTH.findAll(p).forEach { m ->
-            val k = m.value.trim().replace(Regex("\\s+"), " ")
+            val k = m.value.trim().replace(com.hilo.lector.text.WS_RX, " ")
             cnt[k] = (cnt[k] ?: 0) + 1
         }
         return cnt.entries.filter { it.value >= 2 }.sortedByDescending { it.value }.take(40).map { Named(it.key, it.value) }
@@ -141,7 +143,7 @@ object Reference {
         return (letters.length >= 4 && upper >= letters.length * 0.8) || HEAD_WORDS.containsMatchIn(t) && t.split(' ').size <= 6
     }
 
-    private fun canon(h: String) = fold(h.removePrefix("# ").trim().trimEnd(':', '.')).replace(Regex("^(primero|segundo|tercero|cuarto|quinto|[ivx]+|\\d+)[.)\\-:]?\\s+"), "").replace(Regex("\\s+"), " ")
+    private fun canon(h: String) = fold(h.removePrefix("# ").trim().trimEnd(':', '.')).replace(Regex("^(primero|segundo|tercero|cuarto|quinto|[ivx]+|\\d+)[.)\\-:]?\\s+"), "").replace(com.hilo.lector.text.WS_RX, " ")
 
     /** Partes que se repiten en varios documentos modelo, en el orden en que suelen ir. */
     fun template(models: List<List<String>>): List<TemplatePart> {

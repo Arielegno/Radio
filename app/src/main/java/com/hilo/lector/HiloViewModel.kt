@@ -57,21 +57,32 @@ sealed interface Screen {
  */
 private val analysisThread = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
     Thread({
-        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+        // Un poco por debajo de lo normal. «BACKGROUND» lo dejaba casi sin procesador mientras la pantalla
+        // se dibujaba (más de 4 minutos para un libro de 300.000 palabras en la prueba de estrés).
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_LESS_FAVORABLE * 4)
         r.run()
     }, "hilo-analisis")
 }.asCoroutineDispatcher()
 
+/** Índice de búsqueda: trabajo de fondo sin apuro, en su propio hilo y con la prioridad más baja. */
+private val indexThread = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+    Thread({
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+        r.run()
+    }, "hilo-indice")
+}.asCoroutineDispatcher()
+
 class HiloViewModel(app: Application) : AndroidViewModel(app) {
     private val ctx: Context get() = getApplication()
-    val repo = LibraryRepo(app)
-    val settings = SettingsStore(app)
+    private val tInit = System.currentTimeMillis()
+    val repo = Preload.repo(app)
+    val settings = Preload.settings(app)
     val timer = FocusTimer(app, viewModelScope)
-    val study = StudyStore(app)
+    val study = Preload.study(app)
     /** Motor de estudio: registro de repasos, ruta de estudio, escritos y estadísticas. */
     /** Búsqueda en el texto de toda la biblioteca. */
     val search = com.hilo.lector.data.SearchIndex(app)
-    val motor = com.hilo.lector.data.Motor(app).also { m -> study.onReview = { c, g, conf -> m.log(c, g, conf) }; study.onRemoveBook = { id -> m.removeBook(id); runCatching { search.remove(id) }; runCatching { classes.forgetBook(id) } } }
+    val motor = Preload.motor(app).also { m -> study.onReview = { c, g, conf -> m.log(c, g, conf) }; study.onRemoveBook = { id -> m.removeBook(id); runCatching { search.remove(id) }; runCatching { classes.forgetBook(id) } } }
 
     /** Documentos nuevos encontrados en el celular en la última revisión (para el aviso "Ver"). */
     var newFound by mutableStateOf(0)
@@ -101,7 +112,7 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Últimos análisis (pocos, porque un libro grande ocupa mucha memoria). */
     private val analyses = object : LinkedHashMap<String, Pair<String, Analysis>>(8, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<String, Analysis>>?) = size > 12
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<String, Analysis>>?) = size > 3
     }
 
     /** Sube cada vez que el usuario fija, une, renombra o agrega conceptos: el análisis se recalcula. */
@@ -130,13 +141,22 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
         analyses[book.id]?.let { (r, a) -> if (r == key) return a }
         // Guardado en el celular: si Android cerró Hilo, no hay que volver a analizar un libro enorme
         withContext(Dispatchers.IO) { loadAnalysis(book, key) }?.let { analyses[book.id] = key to it; return it }
+        val t0 = System.currentTimeMillis()
         val paras = studyText(book, progress)
-        val a = withContext(analysisThread) { Analyzer.analyze(paras, removed, tune) }
+        val t1 = System.currentTimeMillis()
+        val a = withContext(analysisThread) {
+            Analyzer.timing = { st, ms -> android.util.Log.i("HiloPerf", "análisis $st: $ms ms") }
+            Analyzer.analyze(paras, removed, tune)
+        }
+        android.util.Log.i("HiloPerf", "análisis total: texto ${t1 - t0} ms + análisis ${System.currentTimeMillis() - t1} ms (${a.totalWords} palabras)")
         analyses[book.id] = key to a
-        val stamp = analysisStamp(book, key)
+        val stamp = withContext(Dispatchers.IO) { analysisStamp(book, key) }
         Hilo.scope.launch(Dispatchers.IO) { saveAnalysis(book.id, stamp, a) }
         return a
     }
+
+    /** Suelta los análisis en memoria (quedan guardados en el celular y se leen rápido al volver). */
+    fun dropAnalyses() { analyses.clear() }
 
     private fun analysisFile(id: String) = File(getApplication<Application>().cacheDir, "analisis/$id.bin")
 
@@ -208,7 +228,7 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
     var restored by mutableStateOf(false)
 
     // ---------- Clases ----------
-    val classes = com.hilo.lector.data.ClassStore(app)
+    val classes = Preload.classes(app).also { android.util.Log.i("HiloPerf", "pantalla esperó la carga: ${System.currentTimeMillis() - tInit} ms") }
     /** Repaso que se abre al entrar a Estudio (por ejemplo, el mazo de una clase). */
     var pendingReview by mutableStateOf<List<com.hilo.lector.data.StudyCard>?>(null)
 
@@ -359,7 +379,8 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
         // Índice de búsqueda: de a poco y con baja prioridad
         viewModelScope.launch {
             kotlinx.coroutines.delay(4000)
-            withContext(analysisThread) { runCatching { search.catchUp(repo.books.value, { repo.fileOf(it) }) } }
+            // Hilo propio: si compartiera el del análisis, abrir la sala de estudio esperaría a que se indexe toda la biblioteca
+            withContext(indexThread) { runCatching { search.catchUp(repo.books.value, { repo.fileOf(it) }) } }
         }
         // Versión 1.7: arreglar una vez los títulos que eran solo números o códigos
         val sp = ctx.getSharedPreferences("arreglos", android.content.Context.MODE_PRIVATE)
@@ -468,7 +489,9 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
             if (paras.isNotEmpty()) {
                 cache.parentFile?.mkdirs()
                 cache.writeText(paras.joinToString("\n\n"))
-                runCatching { search.index(book.id, paras.filter { it.isNotBlank() }, cache.length() + cache.lastModified()) }
+                // El índice de búsqueda se arma aparte: no tiene que demorar el análisis
+                val stamp = cache.length() + cache.lastModified()
+                Hilo.scope.launch(Dispatchers.IO) { runCatching { search.index(book.id, paras.filter { it.isNotBlank() }, stamp) } }
             }
             paras
         }

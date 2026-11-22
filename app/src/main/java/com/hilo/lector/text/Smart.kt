@@ -44,7 +44,7 @@ data class Quiz(val prompt: String, val options: List<String>, val answer: Int, 
 object Smart {
     private val WORD = Regex("[\\p{L}]{4,}")
 
-    fun fold(s: String) = Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+    fun fold(s: String) = s.lowercase().let { l -> if (l.all { it.code < 128 }) l else Normalizer.normalize(l, Normalizer.Form.NFD).replace(com.hilo.lector.text.MARKS_RX, "") }
 
     private fun words(s: String): Set<String> =
         WORD.findAll(s.lowercase()).map { it.value }.filter { !Analyzer.isStop(it) }.map { if (it.length > 4 && it.endsWith("s")) it.dropLast(1) else it }.toSet()

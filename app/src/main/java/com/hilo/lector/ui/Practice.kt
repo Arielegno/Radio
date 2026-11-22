@@ -990,7 +990,7 @@ fun StatsView(vm: HiloViewModel, onClose: () -> Unit) {
  */
 fun gradeWritten(answer: String, expected: String): Pair<Int, List<String>> {
     fun words(s: String) = Regex("[\\p{L}]+").findAll(s.lowercase()).map { it.value }.toList()
-    fun fold(w: String) = java.text.Normalizer.normalize(w, java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+    fun fold(w: String) = java.text.Normalizer.normalize(w, java.text.Normalizer.Form.NFD).replace(com.hilo.lector.text.MARKS_RX, "")
     val stop = com.hilo.lector.text.Analyzer
     val keys = words(expected).filter { it.length >= 4 && !stop.isStop(it) && it !in stop.GENERIC }.distinct()
     if (keys.isEmpty()) return 100 to emptyList()

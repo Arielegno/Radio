@@ -44,7 +44,20 @@ class AnnotStore(ctx: Context, bookId: String) {
     private val history = ArrayList<Long>()
     private var nextId = System.currentTimeMillis()
 
-    init { load() }
+    @Volatile private var loaded = false
+    private var dirty = false
+
+    // Leer el archivo fuera de la pantalla: con muchos trazos tardaba al abrir el PDF
+    init {
+        Hilo.scope.launch(Dispatchers.IO) {
+            val (s, n) = load()
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                strokes.addAll(0, s); notes.addAll(0, n)
+                loaded = true
+                if (dirty) save()   // lo que dibujaste mientras se leía también queda guardado
+            }
+        }
+    }
 
     val isEmpty get() = strokes.isEmpty() && notes.isEmpty()
     val canUndo get() = history.isNotEmpty()
@@ -89,9 +102,11 @@ class AnnotStore(ctx: Context, bookId: String) {
         save()
     }
 
-    private fun load() {
+    private fun load(): Pair<List<InkStroke>, List<PdfNote>> {
+        val strokes = ArrayList<InkStroke>()
+        val notes = ArrayList<PdfNote>()
         try {
-            if (!file.exists()) return
+            if (!file.exists()) return strokes to notes
             val o = JSONObject(file.readText())
             val sa = o.optJSONArray("strokes") ?: JSONArray()
             for (i in 0 until sa.length()) {
@@ -111,9 +126,11 @@ class AnnotStore(ctx: Context, bookId: String) {
                 notes.add(PdfNote(n.getLong("id"), n.getInt("page"), n.getDouble("x").toFloat(), n.getDouble("y").toFloat(), n.getString("text")))
             }
         } catch (_: Exception) {}
+        return strokes to notes
     }
 
     private fun save() {
+        if (!loaded) { dirty = true; return }
         val sa = JSONArray()
         for (s in strokes) {
             val p = JSONArray()

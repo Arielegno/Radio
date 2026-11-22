@@ -1,5 +1,9 @@
 package com.hilo.lector.text
 
+private val ART_TITLE_RX = Regex("^([^.\\n]{3,70})\\.\\s+\\S")
+
+private val NUM_SEP_RX = Regex("[\\s-]")
+
 /** Un artículo de una ley o código. [para] es el párrafo donde empieza. */
 data class LawArticle(
     val num: String,
@@ -73,7 +77,7 @@ object Law {
     }
 
     fun normNum(n: String): String {
-        val k = n.lowercase().replace(Regex("[\\s-]"), "")
+        val k = n.lowercase().replace(NUM_SEP_RX, "")
         val t = k.trimStart('0')
         return if (t.isEmpty() || !t[0].isDigit()) k else t
     }
@@ -139,7 +143,7 @@ object Law {
                 if (next == null && p - s.para > 12) break
             }
             val body = sb.toString().trim().removePrefix("# ").trim()
-            val title = Regex("^([^.\\n]{3,70})\\.\\s+\\S").find(body)?.groupValues?.get(1)?.takeIf { t ->
+            val title = ART_TITLE_RX.find(body)?.groupValues?.get(1)?.takeIf { t ->
                 t.split(' ').size <= 8 && t.first().isUpperCase()
             }.orEmpty()
             // "artículo 5 de la Ley de…" remite a otra ley: igual se muestra, se aclara en la vista
@@ -176,7 +180,7 @@ object Law {
                 if (lead.startsWith("hasta") && art == null) continue
                 val (a, b) = sentenceBounds(text, m.range.first)
                 val sent = text.substring(a, b).trim()
-                out.add(Deadline(m.groupValues[2].replace(Regex("\\s+"), " ").trim(), m.value.trim(), art, para, if (sent.length > 420) sent.take(420) + "…" else sent))
+                out.add(Deadline(m.groupValues[2].replace(com.hilo.lector.text.WS_RX, " ").trim(), m.value.trim(), art, para, if (sent.length > 420) sent.take(420) + "…" else sent))
                 if (out.size >= 300) return
             }
         }

@@ -25,7 +25,7 @@ class SearchIndex(private val ctx: Context) : SQLiteOpenHelper(ctx, "busqueda.db
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {}
 
-    private fun fold(s: String) = Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+    private fun fold(s: String) = s.lowercase().let { l -> if (l.all { it.code < 128 }) l else Normalizer.normalize(l, Normalizer.Form.NFD).replace(com.hilo.lector.text.MARKS_RX, "") }
 
     /** Agrega o actualiza el texto de un libro si cambió. Devuelve true si lo indexó. */
     fun index(bookId: String, paras: List<String>, stamp: Long): Boolean {

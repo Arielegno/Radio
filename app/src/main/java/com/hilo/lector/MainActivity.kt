@@ -58,11 +58,21 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (savedInstanceState == null) handleIntent(intent)
-        runCatching { com.hilo.lector.data.Reminders.schedule(this) }
+        // Programar recordatorios lee ajustes del disco: no hace falta esperarlo para mostrar la pantalla
+        val app = applicationContext
+        Thread { runCatching { com.hilo.lector.data.Reminders.schedule(app) } }.start()
         setContent {
             val s by vm.settings.state.collectAsStateWithLifecycle()
             HiloTheme(s.theme) { HiloRoot(vm) }
         }
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        // Menos memoria en segundo plano = menos chances de que Android cierre Hilo mientras no lo miras
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) com.hilo.lector.pdf.PdfEngine.trimAll()
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) vm.dropAnalyses()
     }
 
     override fun onStop() {

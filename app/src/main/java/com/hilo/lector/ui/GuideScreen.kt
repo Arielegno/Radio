@@ -481,7 +481,7 @@ private val BASE_TOPICS = listOf(
     ),
 )
 
-private fun fold(s: String) = Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+private fun fold(s: String) = Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(com.hilo.lector.text.MARKS_RX, "")
 
 @Composable
 fun GuideScreen(vm: HiloViewModel) {

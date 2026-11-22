@@ -603,7 +603,7 @@ private fun AuthorGlossary(vm: HiloViewModel, a: Analysis?, chosen: List<com.hil
     val rows = remember(chosen, a, ver) {
         val own = runCatching { org.json.JSONObject(vm.motor["glosautor"].ifBlank { "{}" }) }.getOrDefault(org.json.JSONObject())
         val extra = runCatching { org.json.JSONArray(vm.motor["glosautor+"].ifBlank { "[]" }) }.getOrDefault(org.json.JSONArray())
-        fun fold(t: String) = java.text.Normalizer.normalize(t.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+        fun fold(t: String) = java.text.Normalizer.normalize(t.lowercase(), java.text.Normalizer.Form.NFD).replace(com.hilo.lector.text.MARKS_RX, "")
         fun fromDoc(au: com.hilo.lector.text.AuthorCard, concept: String): com.hilo.lector.text.Sent? {
             if (a == null) return null
             val stem = fold(concept).split(' ').filter { it.length > 2 }.map { it.take(maxOf(4, it.length - 2)) }

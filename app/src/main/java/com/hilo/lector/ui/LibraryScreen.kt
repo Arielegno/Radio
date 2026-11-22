@@ -239,7 +239,7 @@ fun LibraryScreen(vm: HiloViewModel) {
             askLegacy.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
     }
-    val dueToday = vm.study.due().size
+    val dueToday by remember { androidx.compose.runtime.derivedStateOf { val t = com.hilo.lector.data.today(); vm.study.cards.count { it.due <= t } } }
     BackHandler(enabled = drawer.isOpen || section.kind != "all" || searching || selecting || showFilters) {
         when {
             selecting -> selected = emptySet()
@@ -257,7 +257,7 @@ fun LibraryScreen(vm: HiloViewModel) {
     }
 
     // Búsqueda sin importar mayúsculas ni tildes: «codigo» encuentra «Código»
-    fun fold(t: String) = java.text.Normalizer.normalize(t.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+    fun fold(t: String) = java.text.Normalizer.normalize(t.lowercase(), java.text.Normalizer.Form.NFD).replace(com.hilo.lector.text.MARKS_RX, "")
     val q = fold(query.trim())
     val list = books
         .filter { it.inSection(section) }
@@ -841,6 +841,23 @@ private fun FilterBar(vm: HiloViewModel, books: List<Book>, filters: List<String
     }
 }
 
+private val MARKS = com.hilo.lector.text.MARKS_RX
+
+/** Minúsculas y sin tildes, para comparar lo que escribes con el texto. */
+internal fun foldSearch(t: String): String =
+    java.text.Normalizer.normalize(t.lowercase(), java.text.Normalizer.Form.NFD).let { if (it.length == t.length) it else MARKS.replace(it, "") }
+
+private fun searchMine(vm: HiloViewModel, fq: String): List<Triple<String, String, String>> {
+    val out = ArrayList<Triple<String, String, String>>()   // tipo, texto, libro
+        vm.study.cards.filter { foldSearch(it.front + " " + it.back).contains(fq) }.take(8).forEach { out.add(Triple("Tarjeta", it.front, it.bookId)) }
+        vm.study.notes.filter { foldSearch(it.value).contains(fq) }.forEach { (b, t) -> out.add(Triple("Apuntes", t.lines().firstOrNull { l -> foldSearch(l).contains(fq) } ?: t.take(80), b)) }
+        vm.study.marks.filter { foldSearch(it.text).contains(fq) }.take(6).forEach { out.add(Triple("Resaltado", it.text, it.bookId)) }
+        vm.study.fichas.filter { f -> foldSearch(f.title + f.fields.joinToString { it.second }).contains(fq) }.take(5).forEach { out.add(Triple("Ficha", it.title, it.bookId)) }
+        vm.motor.entries.filter { foldSearch(it.title + " " + it.text).contains(fq) }.take(6).forEach { out.add(Triple("Escrito", it.title.ifBlank { it.text.take(60) }, it.book)) }
+        vm.study.quotes.filter { foldSearch(it.text).contains(fq) }.take(5).forEach { out.add(Triple("Cita", it.text, it.bookId)) }
+    return out
+}
+
 /** Búsqueda en el texto de todos los libros y en tus tarjetas, apuntes y escritos. */
 @Composable
 private fun GlobalResults(vm: HiloViewModel, query: String) {
@@ -852,23 +869,18 @@ private fun GlobalResults(vm: HiloViewModel, query: String) {
         kotlinx.coroutines.delay(350)
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { vm.search.search(query, 120) }.getOrDefault(emptyList()) }
     }
-    fun fold(t: String) = java.text.Normalizer.normalize(t.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
-    val fq = fold(query)
-    val mine = remember(query) {
-        val out = ArrayList<Triple<String, String, String>>()   // tipo, texto, libro
-        vm.study.cards.filter { fold(it.front + " " + it.back).contains(fq) }.take(8).forEach { out.add(Triple("Tarjeta", it.front, it.bookId)) }
-        vm.study.notes.filter { fold(it.value).contains(fq) }.forEach { (b, t) -> out.add(Triple("Apuntes", t.lines().firstOrNull { l -> fold(l).contains(fq) } ?: t.take(80), b)) }
-        vm.study.marks.filter { fold(it.text).contains(fq) }.take(6).forEach { out.add(Triple("Resaltado", it.text, it.bookId)) }
-        vm.study.fichas.filter { f -> fold(f.title + f.fields.joinToString { it.second }).contains(fq) }.take(5).forEach { out.add(Triple("Ficha", it.title, it.bookId)) }
-        vm.motor.entries.filter { fold(it.title + " " + it.text).contains(fq) }.take(6).forEach { out.add(Triple("Escrito", it.title.ifBlank { it.text.take(60) }, it.book)) }
-        vm.study.quotes.filter { fold(it.text).contains(fq) }.take(5).forEach { out.add(Triple("Cita", it.text, it.bookId)) }
-        out
+    val fq = foldSearch(query)
+    // Recorrer miles de tarjetas y apuntes es trabajo pesado: en segundo plano y cuando dejas de escribir
+    // (en el hilo principal trababa la app: lo mostró la prueba de estrés con 5000 tarjetas)
+    val mine by androidx.compose.runtime.produceState(emptyList<Triple<String, String, String>>(), query) {
+        kotlinx.coroutines.delay(300)
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { runCatching { searchMine(vm, fq) }.getOrDefault(emptyList()) }
     }
     // Lo que Hilo trae: herramientas, temas de la guía y tus clases (para encontrar «la calculadora» sin saber dónde está)
     var openTool by remember { mutableStateOf<String?>(null) }
     val app = remember(query) {
         val words = fq.split(' ').filter { it.length > 1 }
-        fun hit(t: String) = words.isNotEmpty() && fold(t).let { f -> words.all { f.contains(it) } }
+        fun hit(t: String) = words.isNotEmpty() && foldSearch(t).let { f -> words.all { f.contains(it) } }
         val out = ArrayList<Triple<String, String, () -> Unit>>()
         com.hilo.lector.ui.TOOLS.filter { hit(it.title + " " + it.desc + " " + it.key) }.take(6)
             .forEach { t -> out.add(Triple("Herramienta", t.title + " — " + t.desc) { openTool = t.key }) }

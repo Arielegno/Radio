@@ -6,7 +6,7 @@ package com.hilo.lector.text
  */
 object TextTools {
     private val TERM = Regex("[.!?…:»\"”)\\]]$")
-    private val WS = Regex("\\s+")
+    private val WS = com.hilo.lector.text.WS_RX
     private val TRAIL_WS = Regex("[ \\t]+\\n")
     private val TWO_LETTERS = Regex("\\p{L}{2}")
     private val JUNK = Regex("^[^\\p{L}]{0,6}$")

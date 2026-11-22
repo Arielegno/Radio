@@ -378,7 +378,6 @@ fun LibraryScreen(vm: HiloViewModel) {
                                 modifier = Modifier.fillMaxWidth().focusRequester(focus),
                             )
                         }
-                        if (searching && query.trim().length >= 3) GlobalResults(vm, query.trim())
                         if (showFilters || filters.isNotEmpty()) FilterBar(vm, books, filters) { filters = it }
                         if (!access && !hideAccess && section.kind == "all") {
                             Column(
@@ -454,6 +453,9 @@ fun LibraryScreen(vm: HiloViewModel) {
                         onColl = { collFor = listOf(b) },
                     ) else BookCard(vm, b, sel, selecting, onOpen = open, onLong = long, onMenu = { menuFor = b })
                 }
+
+                // Primero los libros que coinciden; debajo, lo que aparece dentro de ellos y en Hilo
+                if (searching && query.trim().length >= 3) item(span = { GridItemSpan(maxLineSpan) }) { GlobalResults(vm, query.trim()) }
 
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     val n = books.count { !it.trashed }

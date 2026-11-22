@@ -43,6 +43,18 @@ tap() {   # tap "texto o descripción" [parcial]
   if [ -n "$xy" ]; then adb shell input tap $xy; echo "TAP OK: $1" >> $OUT/steps.txt
   else echo "NO ENCONTRADO: $1" >> $OUT/steps.txt; cp /tmp/ui.xml "$OUT/ui-$(echo $1 | tr ' /' '__').xml" 2>/dev/null; fi
 }
+stap() {  # como tap, pero si no está a la vista desplaza la pantalla (abajo y luego arriba) hasta encontrarlo
+  local xy i
+  for i in 0 1 2 3 4 5 6 7 8 9 10; do
+    rm -f /tmp/ui.xml; ui
+    xy=$(python3 $F/find.py /tmp/ui.xml "$1" $2)
+    if [ -n "$xy" ]; then adb shell input tap $xy; echo "TAP OK: $1" >> $OUT/steps.txt; return 0; fi
+    if [ $i -lt 4 ]; then adb shell input swipe 540 1700 540 900 300; else adb shell input swipe 540 900 540 1700 300; fi
+    sleep 0.6
+  done
+  echo "NO ENCONTRADO: $1" >> $OUT/steps.txt; cp /tmp/ui.xml "$OUT/ui-$(echo $1 | tr ' /' '__').xml" 2>/dev/null
+}
+restart() { adb shell am force-stop $PKG; adb shell am start -W -n $PKG/.MainActivity; sleep 3; }
 put() {   # put archivo-local destino-en-la-app
   adb push "$1" /data/local/tmp/x.bin >/dev/null
   adb shell "cat /data/local/tmp/x.bin | run-as $PKG sh -c 'cat > $2'"
@@ -201,7 +213,7 @@ tap "Más"
 shot 22b_seleccion_mas 2
 tap "Estudiar: tarjetas y palabras clave"
 shot 23_hoja_estudio 3
-tap "sociología"
+# La hoja ya trae elegida la palabra clave del párrafo («anomia»)
 shot 23b_hoja_elegida 2
 tap "Completar"
 sleep 2
@@ -233,7 +245,7 @@ tap "Opciones de Libro EPUB de prueba"
 sleep 1
 tap "Estudiar: tarjetas y resaltados"
 shot 26_sala_ruta 3
-tap "Prueba previa" parcial
+stap "Prueba previa" parcial
 shot 26b_prueba_previa 3
 back 2
 tap "Resaltados"
@@ -286,7 +298,7 @@ frames palabras
 adb shell input swipe 540 2000 540 900 400
 sleep 2
 shot 44_lista_palabras 2
-tap "¿Cómo elige Hilo las palabras?" parcial
+stap "¿Cómo elige Hilo las palabras?" parcial
 shot 44b_como_elige 2
 tap "Comunes" parcial
 shot 44c_comunes 2
@@ -373,7 +385,7 @@ tap "Plazos"
 shot 55_plazos 3
 tap "Fichas"
 sleep 1
-tap "+ caso o sentencia"
+tap "+ caso"
 shot 56_ficha_caso 3
 back 2
 # ---------- Sociología: autores, cuadro, línea de tiempo, citas, Feynman ----------
@@ -407,8 +419,10 @@ sleep 1
 tap "Comparar"
 shot 62_feynman 3
 tap "Listo"
-# Fecha de examen
-tap "Pon la fecha" parcial
+# Fecha de examen (está en la pestaña Ruta)
+tap "Ruta"
+sleep 1
+stap "Pon la fecha" parcial
 shot 63_fecha_examen 3
 back 2
 # ---------- Estudio general: herramientas y mapa entre documentos ----------
@@ -445,10 +459,10 @@ tap "Menú"
 sleep 2
 tap "Estudio"
 shot 34_estudio_general 3
-tap "Estadísticas"
+stap "Estadísticas"
 shot 35_estadisticas 3
 back 2
-tap "Simulacro"
+stap "Simulacro"
 shot 36_simulacro 3
 back 2
 back
@@ -508,7 +522,7 @@ adb shell input swipe 300 1800 300 500 400
 sleep 1
 tap "Cómo usar Hilo"
 shot 89_guia_nueva 3
-tap "Elegir texto (selección)"
+tap "Elegir texto y subrayar"
 shot 90_guia_tema 3
 
 # ---------- 2.3: ayudas TDAH y botones de ayuda ----------
@@ -530,7 +544,7 @@ tap "Cada 3 pág."
 adb shell input swipe 540 1800 540 700 400
 sleep 1
 shot 98_panel_tdah_3 2
-tap "Iniciar"
+stap "Iniciar"
 sleep 4
 shot 99_teleprompter 2
 tap "Detener desplazamiento"
@@ -593,11 +607,11 @@ shot 108_clase_sintesis 3
 tap "Estudiar"
 sleep 3
 shot 109_clase_estudiar 2
-tap "Empezar simulacro"
+stap "Empezar simulacro"
 sleep 2
 shot 110_clase_simulacro 2
 back 1
-tap "Diario"
+stap "Diario"
 sleep 1
 adb shell input text "El%sprofe%sdijo%sque%sla%sanomia%sva%sal%sexamen"
 tap "Va para el examen"
@@ -648,7 +662,7 @@ tap "Ley de Ohm y potencia"
 sleep 3
 shot 119_ohm 2
 back 1
-tap "Tabla de verdad"
+stap "Tabla de verdad"
 sleep 2
 shot 120_tabla_verdad 2
 back 1
@@ -665,10 +679,10 @@ adb shell input text "12%s15%s9%s20%s14%s11%s18"
 sleep 1
 shot 122_estadistica 2
 back 1
-tap "Referencia APA 7"
+stap "Referencia APA 7"
 sleep 1
 shot 123_apa 2
-back 2
+restart
 tap "Ajustes"
 sleep 1
 for i in 1 2 3 4 5 6 7; do adb shell input swipe 540 1900 540 700 300; sleep 0.5; done
@@ -703,28 +717,23 @@ tap "Matrices"
 sleep 2
 shot 133_matrices 2
 back 1
-for i in 1 2 3 4 5 6 7 8; do adb shell input swipe 540 900 540 1700 300; sleep 0.3; done
-tap "Complejos y fasores"
+stap "Complejos y fasores"
 sleep 3
 shot 134_fasores 2
 back 1
-for i in 1 2 3 4 5 6 7 8 9 10; do adb shell input swipe 540 1700 540 900 300; sleep 0.3; done
 shot 135_herramientas_fin 2
-tap "Foto a texto"
+stap "Foto a texto"
 sleep 2
 shot 136_foto_texto 2
-back 1
-back 2
 
 # Apagar el color de las letras desde Ajustes
+restart
 tap "Ajustes"
 sleep 1
-for i in 1 2 3; do adb shell input swipe 540 1900 540 900 300; sleep 0.5; done
-tap "Color en las letras"
+stap "Color en las letras"
 sleep 1
 shot 126_ajuste_color 2
-back 1
-tap "Libro EPUB de prueba"
+open_book "Libro EPUB de prueba" EPUB
 sleep 3
 shot 127_sin_color 2
 back 1
@@ -738,6 +747,7 @@ shot 125_letra_grande 2
 tap "Estudiar"
 sleep 2
 shot 128_letra_grande_estudiar 2
+back 1
 tap "Ajustes"
 sleep 2
 shot 129_letra_grande_ajustes 2

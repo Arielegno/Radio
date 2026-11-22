@@ -278,7 +278,11 @@ internal fun Out(vararg kv: String) {
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         lines.forEach { (k, v) ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Resultados largos (listas de raíces, fórmulas) van debajo de su nombre para no apretarlo
+            if (v.length > 16 || v.contains('\n')) Column {
+                if (k.isNotBlank()) Text(k, color = c.muted, fontSize = 14.sp)
+                Text(v, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = FontFamily.Monospace, lineHeight = 22.sp)
+            } else Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(k, color = c.muted, fontSize = 14.sp, modifier = Modifier.weight(1f))
                 Text(v, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, fontFamily = FontFamily.Monospace)
             }

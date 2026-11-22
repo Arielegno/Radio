@@ -6,6 +6,19 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            35, "2.7.1", "22 nov 2026", "Libros enormes más rápidos",
+            added = listOf(
+                "El análisis de un libro (palabras, glosario, mapa, autores) queda guardado: si Android cierra Hilo, la sala de estudio abre al instante en vez de volver a analizar.",
+                "Si Hilo se traba, la próxima vez te ofrece enviar un informe con lo que estaba haciendo.",
+            ),
+            fixed = listOf(
+                "Las palabras sin tilde de los escaneos («teoria») cuentan junto con la forma con tilde («teoría»).",
+                "Los encabezados que se repiten en cada página («TEORÍA SOCIOLÓGICA CONTEMPORÁNEA») ya no inflan las burbujas.",
+                "En las burbujas chicas, las palabras de 7 letras o más se parten con guion en vez de cortarse («comunismo»).",
+                "Al buscar en la biblioteca, los libros que coinciden aparecen primero.",
+            ),
+        ),
+        Version(
             34, "2.7", "21 nov 2026", "Reformas, autores y búsqueda universal",
             added = listOf(
                 "Comparar versiones de una ley avisa si la reforma toca lo que resaltaste, citaste o pasaste a tarjetas, y actualiza esas tarjetas con el texto nuevo.",

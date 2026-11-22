@@ -308,7 +308,7 @@ fun WordsTab(vm: HiloViewModel, book: Book, a: Analysis, onCard: (StudyCard) -> 
                     val rDp = b.r / density.density
                     // Palabras largas en burbujas chicas («comportamiento»): se parten en dos con guion para que quepan
                     val raw = b.term.label
-                    val split = !raw.contains(' ') && raw.length > 9 && rDp * 1.75f / (raw.length * 0.6f) < 9f
+                    val split = !raw.contains(' ') && raw.length > 6 && rDp * 1.75f / (raw.length * 0.6f) < 9f
                     val label = if (split) raw.substring(0, (raw.length + 1) / 2) + "-\n" + raw.substring((raw.length + 1) / 2) else raw
                     val longest = label.split(' ', '\n').maxOf { it.length }.coerceAtLeast(3)
                     val lines = if (split) 2 else if (raw.contains(' ')) minOf(3, raw.count { ch -> ch == ' ' } + 1) else 1

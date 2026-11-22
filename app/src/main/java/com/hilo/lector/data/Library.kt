@@ -143,6 +143,7 @@ class LibraryRepo(private val ctx: Context) {
         File(ctx.filesDir, "annot/$id.json").delete()
         File(ctx.filesDir, "lines/$id").deleteRecursively()
         File(ctx.filesDir, "flow/$id.txt").delete()
+        File(ctx.cacheDir, "analisis/$id.bin").delete()
         _books.value = _books.value.filter { it.id != id }
         save()
     }

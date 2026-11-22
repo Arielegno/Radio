@@ -6,19 +6,19 @@ import kotlin.math.min
 import kotlin.math.sqrt
 
 /** Una palabra o frase relevante y cuántas veces aparece. */
-data class Term(val key: String, val label: String, val count: Int, val phrase: Boolean)
+data class Term(val key: String, val label: String, val count: Int, val phrase: Boolean) : java.io.Serializable
 
 /** Una oración del documento y el párrafo donde está. */
-data class Sent(val text: String, val para: Int, val keys: Set<String>)
+data class Sent(val text: String, val para: Int, val keys: Set<String>) : java.io.Serializable
 
-data class Chapter(val title: String, val startPara: Int, val endPara: Int)
+data class Chapter(val title: String, val startPara: Int, val endPara: Int) : java.io.Serializable
 
-data class Gloss(val term: String, val definition: String, val para: Int)
+data class Gloss(val term: String, val definition: String, val para: Int) : java.io.Serializable
 
-data class Edge(val a: Int, val b: Int, val w: Int)
+data class Edge(val a: Int, val b: Int, val w: Int) : java.io.Serializable
 
 /** kind: def (definición), cloze (completar), open (explicar con tus palabras). */
-data class Question(val q: String, val a: String, val kind: String, val para: Int)
+data class Question(val q: String, val a: String, val kind: String, val para: Int) : java.io.Serializable
 
 data class ChapterGuide(
     val chapter: Chapter,
@@ -26,7 +26,7 @@ data class ChapterGuide(
     val ideas: List<Sent>,
     val concepts: List<String>,
     val questions: List<Question>,
-)
+) : java.io.Serializable
 
 class Analysis(
     val totalWords: Int,
@@ -46,7 +46,7 @@ class Analysis(
     /** Las palabras comunes (artículos, conectores…) que no van a las burbujas salvo que las actives. */
     val common: Set<String> = emptySet(),
     val paraCount: Int = 0,
-) {
+) : java.io.Serializable {
     fun labelOf(key: String): String = (terms.firstOrNull { it.key == key } ?: phrases.firstOrNull { it.key == key })?.label ?: key
 
     fun sentencesWith(key: String, limit: Int = 30): List<Sent> = sentences.filter { key in it.keys }.take(limit)
@@ -139,6 +139,14 @@ object Analyzer {
     /** Palabras que no aportan contenido: artículos, conectores, adverbios en «-mente» (claramente, precisamente), números. */
     internal fun isStop(k: String) = k.length < 3 || k in STOP || k.all { it.isDigit() } || (k.length > 7 && k.endsWith("mente"))
 
+    /** La palabra sin tildes ni diéresis («teoría» → «teoria»); la ñ se queda. */
+    internal fun plain(k: String): String {
+        if (k.all { it.code < 128 }) return k
+        val sb = StringBuilder(k.length)
+        for (ch in k) sb.append(when (ch) { 'á', 'à', 'â', 'ä' -> 'a'; 'é', 'è', 'ê', 'ë' -> 'e'; 'í', 'ì', 'î', 'ï' -> 'i'; 'ó', 'ò', 'ô', 'ö' -> 'o'; 'ú', 'ù', 'û', 'ü' -> 'u'; else -> ch })
+        return sb.toString()
+    }
+
     private fun splitSentences(p: String): List<String> = p.split(SENT_SPLIT).map { it.trim() }.filter { it.isNotEmpty() }
 
     fun chapters(paras: List<String>): List<Chapter> {
@@ -175,7 +183,13 @@ object Analyzer {
         val stopCounts = HashMap<String, Int>()
         val sentRaw = ArrayList<Pair<String, Int>>()
         var total = 0
+        // Encabezados que se repiten en cada página de un PDF («6 TEORÍA SOCIOLÓGICA CONTEMPORÁNEA»): no cuentan como texto
+        fun headKey(p: String) = p.trim().lowercase().filter { !it.isDigit() }.trim()
+        val shortSeen = HashMap<String, Int>()
+        for (p in paras) if (p.length < 90) { val k = headKey(p); if (k.length >= 4) shortSeen[k] = (shortSeen[k] ?: 0) + 1 }
+        val headers = shortSeen.filterValues { it >= maxOf(8, paras.size / 60) }.keys
         paras.forEachIndexed { pi, raw ->
+            if (headers.isNotEmpty() && raw.length < 90 && headKey(raw) in headers) return@forEachIndexed
             val p = raw.removePrefix("# ")
             for (s in splitSentences(p)) {
                 sentRaw.add(s to pi)
@@ -228,6 +242,22 @@ object Analyzer {
         for ((k, base) in alias) {
             counts[base] = (counts[base] ?: 0) + (counts.remove(k) ?: 0)
             labels[k]?.forEach { (l, n) -> labels.getOrPut(base) { HashMap() }.let { it[l] = (it[l] ?: 0) + n } }
+        }
+        // La misma palabra sin tilde (escaneos, títulos en mayúscula: «TEORIA SOCIOLOGICA») cuenta con la que la lleva
+        val accented = HashMap<String, String>()
+        for ((k, n) in counts) {
+            val s = plain(k)
+            if (s != k) { val cur = accented[s]; if (cur == null || n > (counts[cur] ?: 0)) accented[s] = k }
+        }
+        for (k in counts.keys.toList()) {
+            val t = accented[k] ?: continue
+            val nk = counts[k] ?: continue
+            if ((counts[t] ?: 0) * 10 < nk * 3) continue   // la forma con tilde es rara: mejor no juntarlas
+            counts[t] = (counts[t] ?: 0) + nk
+            counts.remove(k)
+            labels[k]?.forEach { (l, n) -> labels.getOrPut(t) { HashMap() }.let { it[l] = (it[l] ?: 0) + n } }
+            alias.entries.forEach { e -> if (e.value == k) e.setValue(t) }
+            alias[k] = t
         }
         // Uniones hechas por el usuario: «estados» y «estado nación» → «estado», etc.
         for ((src0, dst0) in tune.merged) {

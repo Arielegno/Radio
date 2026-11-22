@@ -128,6 +128,21 @@ class LogicTest {
         assertTrue(Social.timeline(listOf(Sent("En el siglo MMMMXX y en 99999.", 0, emptySet())), emptyList()).isEmpty())
     }
 
+    @Test fun tildesYEncabezadosDePagina() {
+        val paras = List(20) { "TEORIA SOCIOLOGICA CONTEMPORANEA ${it + 1}" } +
+            List(20) { "La teoría de la sociedad estudia la acción social y la teoría del conflicto." } +
+            listOf("Una teoria escrita sin tilde en el escaneo.")
+        val a = Analyzer.analyze(paras, emptySet())
+        val teoria = a.allWords.first { it.key == "teoría" }
+        assertEquals(41, teoria.count)                       // «teoria» suelta cuenta con «teoría», sin el encabezado
+        assertTrue(a.allWords.none { it.key == "teoria" || it.key == "contemporanea" })
+        // Y el análisis se puede guardar y volver a leer
+        val bytes = java.io.ByteArrayOutputStream().also { java.io.ObjectOutputStream(it).use { o -> o.writeObject(a) } }.toByteArray()
+        val b = java.io.ObjectInputStream(bytes.inputStream()).use { it.readObject() } as com.hilo.lector.text.Analysis
+        assertEquals(a.totalWords, b.totalWords)
+        assertEquals(a.sentences.size, b.sentences.size)
+    }
+
     @Test fun libroGrandeEnTiempoRazonable() {
         val words = listOf("sociedad", "capitalismo", "ideología", "clase", "estado", "poder", "norma", "Marx", "Weber", "de", "la", "que", "en")
         val r = kotlin.random.Random(3)

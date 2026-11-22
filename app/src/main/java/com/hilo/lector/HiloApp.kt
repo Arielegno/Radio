@@ -15,6 +15,8 @@ class HiloApp : Application() {
         super.onCreate()
         com.hilo.lector.ui.CrashLog.install(applicationContext)
         PDFBoxResourceLoader.init(applicationContext)
+        // Si Android marcó a Hilo como «no responde», guarda qué estaba haciendo para poder arreglarlo
+        Thread { runCatching { com.hilo.lector.ui.CrashLog.captureAnr(applicationContext) } }.start()
         // Modo de depuración: registra en el log el trabajo lento en la pantalla y los archivos sin cerrar.
         // Solo se activa si existe el archivo files/depurar (lo crea la prueba automática).
         if (java.io.File(filesDir, "depurar").exists()) {

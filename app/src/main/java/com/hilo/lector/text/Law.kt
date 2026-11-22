@@ -8,17 +8,17 @@ data class LawArticle(
     val text: String,
     val path: List<String>,
     val refs: List<String>,
-) {
+) : java.io.Serializable {
     val label: String get() = "Art. $num"
 }
 
 /** Libro, título, capítulo o sección. [level] 0 = el más grande. */
-data class LawHeading(val level: Int, val label: String, val para: Int)
+data class LawHeading(val level: Int, val label: String, val para: Int) : java.io.Serializable
 
 /** Un plazo que aparece en el texto: "dentro de tres días hábiles". */
-data class Deadline(val amount: String, val phrase: String, val article: String?, val para: Int, val sentence: String)
+data class Deadline(val amount: String, val phrase: String, val article: String?, val para: Int, val sentence: String) : java.io.Serializable
 
-class LawIndex(val articles: List<LawArticle>, val headings: List<LawHeading>, val deadlines: List<Deadline>) {
+class LawIndex(val articles: List<LawArticle>, val headings: List<LawHeading>, val deadlines: List<Deadline>) : java.io.Serializable {
     val isLaw: Boolean get() = articles.size >= 3
     private val byNum = HashMap<String, LawArticle>().apply { articles.forEach { putIfAbsent(Law.normNum(it.num), it) } }
     fun find(num: String): LawArticle? = byNum[Law.normNum(num)]

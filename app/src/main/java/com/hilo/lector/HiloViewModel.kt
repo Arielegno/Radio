@@ -128,10 +128,46 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
         val tune = tuneOf(book.id)
         val key = removed.sorted().joinToString("|") + "#" + tune.hashCode()
         analyses[book.id]?.let { (r, a) -> if (r == key) return a }
+        // Guardado en el celular: si Android cerró Hilo, no hay que volver a analizar un libro enorme
+        withContext(Dispatchers.IO) { loadAnalysis(book, key) }?.let { analyses[book.id] = key to it; return it }
         val paras = studyText(book, progress)
         val a = withContext(analysisThread) { Analyzer.analyze(paras, removed, tune) }
         analyses[book.id] = key to a
+        val stamp = analysisStamp(book, key)
+        Hilo.scope.launch(Dispatchers.IO) { saveAnalysis(book.id, stamp, a) }
         return a
+    }
+
+    private fun analysisFile(id: String) = File(getApplication<Application>().cacheDir, "analisis/$id.bin")
+
+    /** Qué tiene que coincidir para usar el análisis guardado: correcciones, texto del libro y versión de Hilo. */
+    private fun analysisStamp(book: Book, key: String): String {
+        val flow = File(getApplication<Application>().filesDir, "flow/${book.id}.txt")
+        val src = if (flow.exists()) flow else repo.fileOf(book)
+        val ver = runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).longVersionCode }.getOrDefault(0L)
+        return "$key|${src.length()}|${src.lastModified()}|$ver"
+    }
+
+    private fun loadAnalysis(book: Book, key: String): Analysis? = runCatching {
+        val f = analysisFile(book.id)
+        if (!f.exists()) return null
+        java.io.ObjectInputStream(java.io.BufferedInputStream(f.inputStream(), 1 shl 16)).use { inp ->
+            if (inp.readUTF() != analysisStamp(book, key)) return null
+            inp.readObject() as Analysis
+        }
+    }.getOrNull()
+
+    private fun saveAnalysis(id: String, stamp: String, a: Analysis) {
+        val f = analysisFile(id)
+        val tmp = File(f.parentFile, "$id.tmp")
+        runCatching {
+            f.parentFile?.mkdirs()
+            java.io.ObjectOutputStream(java.io.BufferedOutputStream(tmp.outputStream(), 1 shl 16)).use { out ->
+                out.writeUTF(stamp)
+                out.writeObject(a)
+            }
+            tmp.renameTo(f)
+        }.onFailure { tmp.delete() }
     }
 
     /** Abre el documento justo donde está el texto de una tarjeta o un resaltado. */

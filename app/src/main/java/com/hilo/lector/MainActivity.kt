@@ -164,10 +164,17 @@ fun HiloRoot(vm: HiloViewModel) {
     }
     // Si Hilo se cerró la última vez, ofrece enviar el informe
     var crash by remember { mutableStateOf(com.hilo.lector.ui.CrashLog.file(ctx).takeIf { it.exists() }?.readText()) }
+    // El aviso de «se trabó» se arma en segundo plano al abrir: se mira de nuevo un momento después
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(2500)
+        if (crash == null) crash = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.hilo.lector.ui.CrashLog.file(ctx).takeIf { it.exists() }?.readText()
+        }
+    }
     crash?.let { text ->
         AlertDialog(
             onDismissRequest = { crash = null },
-            title = { Text("Hilo se cerró la última vez") },
+            title = { Text(if (text.startsWith("Hilo dejó de responder")) "Hilo se trabó la última vez" else "Hilo se cerró la última vez") },
             text = { Text("Perdón por eso. Si envías el informe (solo datos técnicos, sin tus libros), es más fácil arreglarlo.") },
             confirmButton = { TextButton(onClick = {
                 com.hilo.lector.ui.shareText(ctx, "Informe de Hilo", text)

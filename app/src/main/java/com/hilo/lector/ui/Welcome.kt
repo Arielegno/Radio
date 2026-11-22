@@ -146,6 +146,32 @@ object CrashLog {
         }
     }
 
+    /**
+     * Android 11 en adelante guarda por qué terminó Hilo. Si la última vez fue porque «no responde» (ANR),
+     * copia la parte del informe que dice qué hacía Hilo en ese momento, para ofrecer enviarlo.
+     */
+    fun captureAnr(ctx: Context) {
+        if (Build.VERSION.SDK_INT < 30) return
+        val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val sp = ctx.getSharedPreferences("anr", Context.MODE_PRIVATE)
+        val seen = sp.getLong("visto", 0L)
+        val r = am.getHistoricalProcessExitReasons(ctx.packageName, 0, 5)
+            .filter { it.reason == android.app.ApplicationExitInfo.REASON_ANR && it.timestamp > seen }
+            .maxByOrNull { it.timestamp } ?: return
+        sp.edit().putLong("visto", r.timestamp).apply()
+        if (seen == 0L && System.currentTimeMillis() - r.timestamp > 3L * 24 * 3600 * 1000) return
+        val trace = runCatching { r.traceInputStream?.bufferedReader()?.use { it.readText() } }.getOrNull().orEmpty()
+        // Lo importante: el hilo principal («main») y los de Hilo
+        val parts = trace.split(Regex("\n(?=\")")).filter { it.startsWith("\"main\"") || it.contains("hilo-") }
+        val info = runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0) }.getOrNull()
+        if (file(ctx).exists()) return
+        file(ctx).writeText(
+            "Hilo dejó de responder (ANR)\nHilo ${info?.versionName} · Android ${Build.VERSION.RELEASE} (${Build.VERSION.SDK_INT}) · ${Build.MANUFACTURER} ${Build.MODEL}\n" +
+                "Fecha: ${java.util.Date(r.timestamp)}\n${r.description.orEmpty()}\n\n" +
+                (parts.joinToString("\n").ifBlank { trace }).take(14000)
+        )
+    }
+
     /** Datos para soporte: versión, equipo, memoria, biblioteca y el registro reciente de Hilo. */
     fun diagnostics(ctx: Context, vm: HiloViewModel): String {
         val info = runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0) }.getOrNull()

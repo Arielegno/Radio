@@ -13,10 +13,10 @@ data class AuthorInfo(
     val conceptLabels: List<String>,
     val sentences: List<Sent>,
     val paras: Set<Int>,
-)
+) : java.io.Serializable
 
 /** Un hecho con fecha: el año y la oración donde aparece. */
-data class TimeEvent(val year: Int, val label: String, val text: String, val para: Int, val author: String?)
+data class TimeEvent(val year: Int, val label: String, val text: String, val para: Int, val author: String?) : java.io.Serializable
 
 /** Una fila del cuadro comparativo: el concepto y lo que dice cada autor (o null si no lo trata). */
 data class CompareRow(val concept: String, val cells: List<Sent?>)

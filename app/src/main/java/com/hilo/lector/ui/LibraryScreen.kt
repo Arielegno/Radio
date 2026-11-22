@@ -906,7 +906,7 @@ private fun GlobalResults(vm: HiloViewModel, query: String) {
             Text("En Hilo: herramientas, clases y guía", color = c.ink, fontWeight = FontWeight.Bold)
             app.forEach { (kind, text, go) ->
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { go() }.padding(vertical = 4.dp)) {
-                    Text(kind.uppercase(), color = c.muted, fontSize = 10.sp, modifier = Modifier.width(76.dp).padding(top = 2.dp))
+                    Text(kind.uppercase(), color = c.muted, fontSize = 10.sp, modifier = Modifier.width(96.dp).padding(top = 2.dp), maxLines = 1, softWrap = false)
                     Text(text, color = c.ink, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }

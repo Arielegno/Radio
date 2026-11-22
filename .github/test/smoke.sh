@@ -243,7 +243,7 @@ shot 28_apuntes 2
 tap "Tarjetas"
 sleep 1
 # Repaso
-tap "Repasar 1" parcial
+tap "Repasar ›"
 sleep 2
 shot 29_repaso_frente 2
 tap "Dudo"

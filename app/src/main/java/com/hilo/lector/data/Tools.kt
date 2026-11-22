@@ -147,7 +147,12 @@ object Reminders {
             set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0)
             if (timeInMillis <= System.currentTimeMillis() + 30_000) add(Calendar.DAY_OF_YEAR, 1)
         }
-        am.setInexactRepeating(AlarmManager.RTC_WAKEUP, cal.timeInMillis, AlarmManager.INTERVAL_DAY, pending(ctx))
+        // Aviso a la hora exacta (si el sistema lo permite); se vuelve a programar cada vez que suena
+        val exact = android.os.Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
+        runCatching {
+            if (exact) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cal.timeInMillis, pending(ctx))
+            else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cal.timeInMillis, pending(ctx))
+        }.onFailure { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cal.timeInMillis, pending(ctx)) }
     }
 
     /** Cuántas tarjetas tocan hoy y qué exámenes se acercan, leyendo el archivo de estudio. */
@@ -243,7 +248,7 @@ class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED -> Reminders.schedule(ctx)
-            else -> Reminders.notify(ctx)
+            else -> { Reminders.notify(ctx); Reminders.schedule(ctx) }   // la de mañana
         }
     }
 }
@@ -290,6 +295,17 @@ class HiloWidget : android.appwidget.AppWidgetProvider() {
     override fun onUpdate(ctx: Context, mgr: android.appwidget.AppWidgetManager, ids: IntArray) = refresh(ctx)
 
     companion object {
+        const val EXTRA_BOOK = "abrir_libro"
+
+        /** (id, título, % leído) del último libro abierto sin terminar, leído del índice de la biblioteca. */
+        fun lastBook(ctx: Context): Triple<String, String, Int>? = runCatching {
+            val a = org.json.JSONArray(File(ctx.filesDir, "library.json").readText())
+            (0 until a.length()).map { a.getJSONObject(it) }
+                .filter { it.optLong("updated") > 0 && !it.optBoolean("done") }
+                .maxByOrNull { it.optLong("updated") }
+                ?.let { Triple(it.getString("id"), it.optString("title"), (it.optDouble("progress") * 100).toInt().coerceIn(0, 100)) }
+        }.getOrNull()
+
         fun refresh(ctx: Context) {
             runCatching {
                 val mgr = android.appwidget.AppWidgetManager.getInstance(ctx)
@@ -312,6 +328,18 @@ class HiloWidget : android.appwidget.AppWidgetProvider() {
                 )
                 v.setOnClickPendingIntent(R.id.w_root, open)
                 v.setOnClickPendingIntent(R.id.w_go, open)
+                // Continuar leyendo: el último libro abierto que no esté terminado
+                val last = lastBook(ctx)
+                if (last == null) v.setViewVisibility(R.id.w_book, android.view.View.GONE)
+                else {
+                    v.setViewVisibility(R.id.w_book, android.view.View.VISIBLE)
+                    v.setTextViewText(R.id.w_book_title, last.second)
+                    v.setTextViewText(R.id.w_book_pct, "${last.third} % leído")
+                    v.setOnClickPendingIntent(R.id.w_book, PendingIntent.getActivity(
+                        ctx, 10, Intent(ctx, MainActivity::class.java).putExtra(EXTRA_BOOK, last.first).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                    ))
+                }
                 mgr.updateAppWidget(ids, v)
             }
         }

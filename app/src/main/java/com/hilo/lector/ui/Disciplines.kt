@@ -182,6 +182,10 @@ private fun DeadlineCalc(vm: HiloViewModel, a: Analysis?, onClose: () -> Unit) {
                     val weekends = r.skipped.count { it.second.startsWith("fin de semana") }
                     if (weekends > 0) Text("• $weekends días de fin de semana", color = c.ink, fontSize = 13.sp)
                 }
+                // Guardar el vencimiento en el calendario de una clase: el recordatorio diario lo avisa en la semana
+                var naming by remember { mutableStateOf(false) }
+                if (left >= 0) OutlinedButton(onClick = { naming = true }) { Text("Guardar en el calendario", color = c.ink) }
+                if (naming) SaveDeadlineDialog(vm, r.end.toEpochDay(), "Vence plazo de $n " + listOf("días hábiles", "días", "meses", "años")[unit]) { naming = false }
             }
         }
         Panel {
@@ -673,4 +677,43 @@ private fun Essay(vm: HiloViewModel, book: Book?, a: Analysis?, onClose: () -> U
             }) { Text("Exportar a Word") }
         }
     }
+}
+
+
+/** Elegir clase y nombre para guardar un vencimiento como entrega (así entra en el recordatorio y en el widget). */
+@Composable
+private fun SaveDeadlineDialog(vm: HiloViewModel, day: Long, suggestion: String, onDone: () -> Unit) {
+    val c = LocalHilo.current
+    var title by remember { mutableStateOf(suggestion) }
+    var cls by remember { mutableStateOf(vm.classes.courses.firstOrNull()?.id) }
+    var newName by remember { mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDone,
+        title = { Text("Guardar el vencimiento") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Vence el ${dayLabel(day)}. Queda en el Calendario de la clase y te avisa el recordatorio diario la semana antes.", color = c.muted, fontSize = 14.sp)
+                androidx.compose.material3.OutlinedTextField(title, { title = it }, label = { Text("Qué vence") }, modifier = Modifier.fillMaxWidth())
+                val courses = vm.classes.courses
+                if (courses.isEmpty()) {
+                    Text("Todavía no tienes clases. Escribe un nombre y la creo:", color = c.muted, fontSize = 13.sp)
+                    androidx.compose.material3.OutlinedTextField(newName, { newName = it }, label = { Text("Clase (por ejemplo Derecho Procesal)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                } else Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    courses.forEach { cl -> Pill(cl.name, cl.id == cls) { cls = cl.id } }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val id = cls ?: newName.takeIf { it.isNotBlank() }?.let { vm.classes.create(it, com.hilo.lector.data.CLASS_COLORS[0], "", field = "derecho").id }
+                if (id != null) {
+                    vm.classes.putEvent(com.hilo.lector.data.ClassEvent(vm.classes.newId(), id, day, "entrega", title.trim().ifBlank { suggestion }))
+                    com.hilo.lector.data.Reminders.schedule(vm.getApplication<android.app.Application>())
+                    vm.toast = "Guardado en el calendario de la clase."
+                }
+                onDone()
+            }, enabled = cls != null || newName.isNotBlank()) { Text("Guardar") }
+        },
+        dismissButton = { TextButton(onClick = onDone) { Text("Cancelar") } },
+    )
 }

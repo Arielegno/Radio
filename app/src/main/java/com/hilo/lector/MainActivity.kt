@@ -84,6 +84,11 @@ class MainActivity : ComponentActivity() {
     /** Recibe archivos y textos de "Abrir con" y del menú Compartir. */
     private fun handleIntent(i: Intent?) {
         if (i == null) return
+        i.getStringExtra(com.hilo.lector.data.HiloWidget.EXTRA_BOOK)?.let { id ->
+            i.removeExtra(com.hilo.lector.data.HiloWidget.EXTRA_BOOK)
+            vm.repo.books.value.firstOrNull { it.id == id }?.let { vm.open(it) }
+            return
+        }
         if (i.getBooleanExtra(com.hilo.lector.data.Reminders.EXTRA_STUDY, false)) {
             i.removeExtra(com.hilo.lector.data.Reminders.EXTRA_STUDY)
             vm.openStudy(null)

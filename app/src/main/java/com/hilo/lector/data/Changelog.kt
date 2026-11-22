@@ -6,6 +6,19 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            32, "2.6.1", "21 nov 2026", "Continuar leyendo y plazos al calendario",
+            added = listOf(
+                "Widget: «Continuar leyendo» con el último libro sin terminar; un toque lo abre donde quedaste.",
+                "Plazos: «Guardar en el calendario» deja el vencimiento en una clase, y el recordatorio diario lo avisa la semana antes.",
+                "Cierre del día: ahora también anotas qué tan seguro te sientes con el tema.",
+                "Gesto de volver de Android 14 y 15 con vista previa.",
+            ),
+            fixed = listOf(
+                "El recordatorio diario llega a la hora elegida (antes Android podía atrasarlo).",
+                "La copia de seguridad ya no incluye los diccionarios descargados (más de 100 MB): se vuelven a descargar.",
+            ),
+        ),
+        Version(
             31, "2.6", "21 nov 2026", "Más herramientas, widget y copia automática",
             added = listOf(
                 "Foto a texto: saca una foto a la pizarra o a una página y Hilo la convierte en texto sin internet; la guardas como documento o en el diario de una clase.",

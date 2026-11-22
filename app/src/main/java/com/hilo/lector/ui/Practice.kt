@@ -721,6 +721,7 @@ fun SessionClose(vm: HiloViewModel, bookId: String?) {
     var a by remember { mutableStateOf("") }
     var b by remember { mutableStateOf("") }
     var d by remember { mutableStateOf("") }
+    var conf by remember { mutableIntStateOf(0) }
     var saved by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Cierre del día (1 minuto)", color = c.ink, fontWeight = FontWeight.Bold)
@@ -728,8 +729,13 @@ fun SessionClose(vm: HiloViewModel, bookId: String?) {
         OutlinedTextField(a, { a = it }, label = { Text("¿Qué aprendí hoy?") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(b, { b = it }, label = { Text("¿Qué me costó?") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(d, { d = it }, label = { Text("¿Qué repaso mañana?") }, modifier = Modifier.fillMaxWidth())
+        Text("¿Qué tan seguro te sientes con el tema?", color = c.muted, fontSize = 13.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("Nada", "Poco", "Algo", "Bastante", "Mucho").forEachIndexed { i, l -> Pill(l, conf == i + 1) { conf = i + 1 } }
+        }
         OutlinedButton(onClick = {
-            vm.motor.add(Entry(vm.motor.newId(), bookId.orEmpty(), "cierre", "Cierre", "Aprendí: $a\nMe costó: $b\nMañana: $d", System.currentTimeMillis()))
+            val confTxt = if (conf > 0) "\nSeguridad: ${listOf("nada", "poca", "algo", "bastante", "mucha")[conf - 1]} ($conf/5)" else ""
+            vm.motor.add(Entry(vm.motor.newId(), bookId.orEmpty(), "cierre", "Cierre", "Aprendí: $a\nMe costó: $b\nMañana: $d$confTxt", System.currentTimeMillis()))
             if (bookId != null) vm.motor.setFlag("fase:$bookId:5", true)
             saved = true
         }, enabled = a.isNotBlank()) { Text("Guardar cierre", color = c.ink) }

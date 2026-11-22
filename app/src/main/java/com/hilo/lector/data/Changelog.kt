@@ -6,6 +6,14 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            37, "2.7.3", "22 nov 2026", "Pasar páginas sin saltos",
+            added = listOf(),
+            fixed = listOf(
+                "Al pasar páginas hacia el lado (PDF y texto), durante el pase se veía la página que venía después de la siguiente y al terminar saltaba a la correcta. Ahora se ve la página que corresponde.",
+                "En modo noche, una página que todavía se estaba preparando ya no aparece blanca por un instante.",
+            ),
+        ),
+        Version(
             36, "2.7.2", "22 nov 2026", "Más rápido con libros y bibliotecas grandes",
             added = listOf(),
             fixed = listOf(

@@ -722,8 +722,10 @@ private fun PdfPageFull(
     val c = LocalHilo.current
     val aspect = engine.aspects.getOrElse(page) { 1.41f }.takeIf { it > 0.05f } ?: 1.41f
 
+    // En modo noche no se muestra la página blanca sin teñir mientras se prepara (destello blanco al pasar)
     val bmp by produceState<Bitmap?>(
-        engine.bitmaps.get(engine.styledKey(page, renderW, style)) ?: engine.bitmaps.get(engine.rawKey(page, renderW)),
+        engine.bitmaps.get(engine.styledKey(page, renderW, style))
+            ?: engine.bitmaps.get(engine.rawKey(page, renderW)).takeIf { !style.dark },
         page, renderW, style,
     ) {
         val sk = engine.styledKey(page, renderW, style)

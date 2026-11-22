@@ -60,10 +60,18 @@ fun Modifier.pageTurn(state: PagerState, page: Int): Modifier {
         .zIndex(if (off() < 0f) 0f else 1f)
         .graphicsLayer {
             val o = off()
-            if (o < 0f) {
+            if (o <= -1f) {
+                // Dos o más páginas adelante: no se dibuja. Antes quedaba encima de la que se está
+                // destapando y durante el pase se veía la página equivocada, que luego «saltaba» a la correcta.
+                alpha = 0f
+                translationX = o * size.width
+                shadowElevation = 0f
+            } else if (o < 0f) {
+                alpha = 1f
                 translationX = o * size.width
                 shadowElevation = 0f
             } else {
+                alpha = 1f
                 shadowElevation = if (o > 0.002f) 28f else 0f
             }
         }

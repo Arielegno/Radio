@@ -173,13 +173,17 @@ fun HiloRoot(vm: HiloViewModel) {
         if (vm.settings.value.profile.isBlank() && !java.io.File(ctx.filesDir, "library.json").exists() && vm.screen == Screen.Library) vm.screen = Screen.Welcome
     }
     // Si Hilo se cerró la última vez, ofrece enviar el informe
-    var crash by remember { mutableStateOf(com.hilo.lector.ui.CrashLog.file(ctx).takeIf { it.exists() }?.readText()) }
-    // El aviso de «se trabó» se arma en segundo plano al abrir: se mira de nuevo un momento después
+    var crash by remember { mutableStateOf<String?>(null) }
+    // El informe de un cierre o de «se trabó» se lee fuera de la pantalla; el de «se trabó» se arma
+    // en segundo plano al abrir, por eso se mira otra vez un momento después
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(2500)
-        if (crash == null) crash = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        suspend fun read() = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             com.hilo.lector.ui.CrashLog.file(ctx).takeIf { it.exists() }?.readText()
         }
+        val first = read()
+        if (first != null) { crash = first; return@LaunchedEffect }
+        kotlinx.coroutines.delay(2500)
+        crash = read()
     }
     crash?.let { text ->
         AlertDialog(

@@ -87,6 +87,29 @@ class PdfEngine(private val ctx: Context, private val file: File, bookId: String
     // (con más, un PDF grande subía a cientos de MB y Android cerraba Hilo apenas pasaba a segundo plano)
     val bitmaps = object : LruCache<String, Bitmap>(minOf(Runtime.getRuntime().maxMemory() / 8, 64L shl 20).toInt()) {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
+        override fun entryRemoved(evicted: Boolean, key: String, oldValue: Bitmap, newValue: Bitmap?) {
+            if (oldValue !== newValue) recycleLater(oldValue)
+        }
+    }
+
+    // La memoria de cada página dibujada está fuera de Java: Android la devuelve recién cuando limpia la memoria
+    // de Java, que en un PDF casi no se usa. Sin devolverla a mano, la prueba de estrés llegó a 645 MB.
+    // Se devuelve cuando la página ya no está en memoria ni en pantalla (con un segundo de margen).
+    private val inUse = HashMap<Bitmap, Int>()
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /** Una página en pantalla (o en uso) avisa que la está usando, para no liberarla. */
+    fun acquire(b: Bitmap) { synchronized(inUse) { inUse[b] = (inUse[b] ?: 0) + 1 } }
+    fun release(b: Bitmap) {
+        synchronized(inUse) { val n = (inUse[b] ?: 1) - 1; if (n <= 0) inUse.remove(b) else inUse[b] = n }
+        recycleLater(b)
+    }
+
+    private fun recycleLater(b: Bitmap) {
+        main.postDelayed({
+            val busy = synchronized(inUse) { inUse.containsKey(b) }
+            if (!busy && !b.isRecycled && !bitmaps.snapshot().values.any { it === b }) b.recycle()
+        }, 1000)
     }
 
     init { synchronized(live) { live.add(this) } }

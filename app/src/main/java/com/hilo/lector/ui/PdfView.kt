@@ -55,6 +55,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -736,16 +737,27 @@ private fun PdfPageFull(
             null
         } ?: return@produceState
         if (!style.colors && !style.dark) { value = raw; return@produceState }
-        if (style.dark) {
-            value = withContext(Dispatchers.Default) { Coloring.bake(raw, emptyList(), style) }
-        } else if (value == null) {
-            value = raw
+        engine.acquire(raw)   // que no se libere mientras se pinta encima
+        try {
+            if (style.dark) {
+                value = withContext(Dispatchers.Default) { Coloring.bake(raw, emptyList(), style) }
+            } else if (value == null) {
+                value = raw
+            }
+            if (!style.colors) { value?.let { engine.bitmaps.put(sk, it) }; return@produceState }
+            val lines = engine.lines(page, ocr)
+            val baked = withContext(Dispatchers.Default) { Coloring.bake(raw, lines, style) }
+            engine.bitmaps.put(sk, baked)
+            value = baked
+        } finally {
+            engine.release(raw)
         }
-        if (!style.colors) { value?.let { engine.bitmaps.put(sk, it) }; return@produceState }
-        val lines = engine.lines(page, ocr)
-        val baked = withContext(Dispatchers.Default) { Coloring.bake(raw, lines, style) }
-        engine.bitmaps.put(sk, baked)
-        value = baked
+    }
+    // La página en pantalla retiene su imagen; al cambiarla o salir de la pantalla, la suelta
+    DisposableEffect(bmp) {
+        val b = bmp
+        b?.let { engine.acquire(it) }
+        onDispose { b?.let { engine.release(it) } }
     }
 
     val lines by produceState(engine.peekLines(page) ?: emptyList(), page, ocr, needLines) {

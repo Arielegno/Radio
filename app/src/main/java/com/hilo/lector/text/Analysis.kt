@@ -327,9 +327,11 @@ object Analyzer {
                 val ws = e.key.split(' ')
                 e.value >= minPhrase && e.key !in removed && ws.last() !in GENERIC && !(ws.first() in GENERIC && ws.size == 2) && ws.first() !in setOf("siguiente", "anterior", "dicho", "dicha", "mismo", "misma", "cada", "otro", "otra")
             }
-            .sortedByDescending { it.value * (1 + it.key.count { c -> c == ' ' }) * shape(it.key.split(' ').first()) }
+            // Puntaje calculado una vez por frase: ordenar lo pedía en cada comparación (miles de frases)
+            .map { it to it.value * (1 + it.key.count { c -> c == ' ' }) * shape(it.key.substringBefore(' ')) }
+            .sortedByDescending { it.second }
             .take(30)
-            .map { Term(it.key, tune.labels[it.key] ?: it.key, it.value, true) })
+            .map { (e, _) -> Term(e.key, tune.labels[e.key] ?: e.key, e.value, true) })
             .distinctBy { it.key }
 
         lap("palabras")
@@ -377,21 +379,28 @@ object Analyzer {
         terms.forEach { weight[it.key] = 0.3 + it.count / maxC }
         phrases.forEach { weight[it.key] = 0.5 + it.count / maxC * 2 }
         val chs = chapters(paras)
+        // Calculado una vez (antes se rehacía en cada capítulo)
+        val globalCount = (terms + phrases).associate { it.key to it.count }
+        val labelFor = (terms + phrases).associate { it.key to it.label }
+        // Las oraciones están en orden de párrafo: cada capítulo toma su tramo sin recorrerlas todas
+        val sentParas = IntArray(sentences.size) { sentences[it].para }
+        fun firstAtOrAfter(p: Int): Int { var lo = 0; var hi = sentParas.size; while (lo < hi) { val m = (lo + hi) ushr 1; if (sentParas[m] < p) lo = m + 1 else hi = m }; return lo }
+        val ordered = (1 until sentParas.size).all { sentParas[it - 1] <= sentParas[it] }
         val guides = chs.map { ch ->
-            val chSents = sentences.filter { it.para >= ch.startPara && it.para < ch.endPara }
+            val chSents = if (ordered) sentences.subList(firstAtOrAfter(ch.startPara), firstAtOrAfter(ch.endPara)).toList()
+                else sentences.filter { it.para >= ch.startPara && it.para < ch.endPara }
             val chCount = HashMap<String, Int>()
             chSents.forEach { s -> s.keys.forEach { k -> if (weight.containsKey(k)) chCount[k] = (chCount[k] ?: 0) + 1 } }
-            val globalCount = (terms + phrases).associate { it.key to it.count }
             val concepts = chCount.entries
                 .sortedByDescending { e -> e.value * (1.0 + ln(1.0 + e.value.toDouble() / max(1, globalCount[e.key] ?: 1) * chs.size)) }
                 .take(6).map { it.key }
-            val labelFor = (terms + phrases).associate { it.key to it.label }
             fun score(s: Sent): Double {
                 val base = s.keys.sumOf { k -> (weight[k] ?: 0.0) * (if (k in concepts) 2.0 else 1.0) }
                 return base / sqrt(max(8.0, s.text.length / 6.0))
             }
-            val ideas = chSents.filter { it.text.length in 60..420 }.sortedByDescending { score(it) }.take(3)
-                .sortedBy { it.para }
+            // El puntaje se calcula una vez por oración (ordenar lo pedía en cada comparación)
+            val ideas = chSents.filter { it.text.length in 60..420 }.map { it to score(it) }.sortedByDescending { it.second }.take(3)
+                .map { it.first }.sortedBy { it.para }
             val qs = ArrayList<Question>()
             glossary.filter { it.para >= ch.startPara && it.para < ch.endPara }.take(3).forEach {
                 qs.add(Question("¿Qué es «${it.term}»?", it.definition, "def", it.para))

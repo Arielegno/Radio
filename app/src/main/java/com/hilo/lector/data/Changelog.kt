@@ -12,7 +12,7 @@ object Changelog {
                 "La sala de estudio analiza los libros enormes mucho más rápido: el análisis ya no queda casi sin procesador, no espera a que se indexe la biblioteca y no lo frena la animación de carga.",
                 "Al buscar en la biblioteca con miles de tarjetas, Hilo ya no se traba: la búsqueda en tus tarjetas y apuntes corre en segundo plano.",
                 "Hilo abre más rápido: la biblioteca, las tarjetas y las clases se leen en paralelo.",
-                "Los PDF de cientos de páginas abren más rápido la segunda vez y usan menos memoria; al salir de Hilo se libera memoria para que Android no lo cierre.",
+                "Los PDF de cientos de páginas abren más rápido la segunda vez y usan mucha menos memoria: las páginas que ya no se ven se liberan enseguida, y al salir de Hilo se suelta lo demás para que Android no lo cierre.",
                 "La portada de Estudiar cuenta las tarjetas de cada documento de una sola pasada.",
                 "Desplazarse por un libro es más fluido cuando no usas colores en las letras ni la regla.",
             ),

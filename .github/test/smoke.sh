@@ -45,14 +45,19 @@ tap() {   # tap "texto o descripción" [parcial]
 }
 stap() {  # como tap, pero si no está a la vista desplaza la pantalla (abajo y luego arriba) hasta encontrarlo
   local xy i
-  for i in 0 1 2 3 4 5 6 7 8 9 10; do
+  local down=6; [ "$3" = arriba ] && down=0
+  for i in $(seq 0 18); do
     rm -f /tmp/ui.xml; ui
     xy=$(python3 $F/find.py /tmp/ui.xml "$1" $2)
     if [ -n "$xy" ]; then adb shell input tap $xy; echo "TAP OK: $1" >> $OUT/steps.txt; return 0; fi
-    if [ $i -lt 4 ]; then adb shell input swipe 540 1700 540 900 300; else adb shell input swipe 540 900 540 1700 300; fi
+    if [ $i -lt $down ]; then adb shell input swipe 540 1700 540 900 300; else adb shell input swipe 540 900 540 1700 300; fi
     sleep 0.6
   done
   echo "NO ENCONTRADO: $1" >> $OUT/steps.txt; cp /tmp/ui.xml "$OUT/ui-$(echo $1 | tr ' /' '__').xml" 2>/dev/null
+}
+hscroll() {  # desplaza a la izquierda la fila donde está un elemento (pestañas)
+  rm -f /tmp/ui.xml; ui; local p; p=$(python3 $F/find.py /tmp/ui.xml "$1" $2)
+  [ -n "$p" ] && adb shell input swipe 950 ${p#* } 150 ${p#* } 300; sleep 1
 }
 restart() { adb shell am force-stop $PKG; adb shell am start -W -n $PKG/.MainActivity; sleep 3; }
 put() {   # put archivo-local destino-en-la-app
@@ -298,7 +303,7 @@ frames palabras
 adb shell input swipe 540 2000 540 900 400
 sleep 2
 shot 44_lista_palabras 2
-stap "¿Cómo elige Hilo las palabras?" parcial
+stap "¿Cómo elige Hilo las palabras?" parcial arriba
 shot 44b_como_elige 2
 tap "Comunes" parcial
 shot 44c_comunes 2
@@ -346,7 +351,7 @@ shot 74_lista 2
 seek Word
 hold "Documento Word de prueba"
 shot 75_seleccion 2
-tap "Todos"
+tap "Ninguno"
 shot 77_todos 2
 back 2
 tap "Menú"
@@ -420,7 +425,7 @@ tap "Comparar"
 shot 62_feynman 3
 tap "Listo"
 # Fecha de examen (está en la pestaña Ruta)
-tap "Ruta"
+stap "Ruta" "" arriba
 sleep 1
 stap "Pon la fecha" parcial
 shot 63_fecha_examen 3
@@ -544,7 +549,10 @@ tap "Cada 3 pág."
 adb shell input swipe 540 1800 540 700 400
 sleep 1
 shot 98_panel_tdah_3 2
-stap "Iniciar"
+back 1
+tap "Ayudas para concentrarte"
+sleep 1
+tap "Iniciar"
 sleep 4
 shot 99_teleprompter 2
 tap "Detener desplazamiento"
@@ -611,7 +619,11 @@ stap "Empezar simulacro"
 sleep 2
 shot 110_clase_simulacro 2
 back 1
-stap "Diario"
+hscroll "Estudiar"
+tap "Más…"
+sleep 1
+hscroll "Estudiar"
+tap "Diario"
 sleep 1
 adb shell input text "El%sprofe%sdijo%sque%sla%sanomia%sva%sal%sexamen"
 tap "Va para el examen"
@@ -665,8 +677,7 @@ back 1
 stap "Tabla de verdad"
 sleep 2
 shot 120_tabla_verdad 2
-back 1
-back 2
+restart
 tap "Estudiar"
 sleep 2
 tap "Herramientas"

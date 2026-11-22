@@ -160,7 +160,11 @@ tap "Noche"
 back 3
 tap "Texto"
 shot 10_texto_paginas_noche 10
-swipe_left
+# Pase lento: a mitad de camino debajo tiene que asomar la página 2 (no la 3)
+adb shell input swipe 950 1300 250 1300 3000 &
+sleep 1.2
+shot 10b_pase_a_medias 0
+wait
 shot 11_texto_pagina_2 3
 
 # Horizontal con dos páginas en PDF

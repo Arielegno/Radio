@@ -70,7 +70,8 @@ object Backup {
             z.closeEntry()
             files.walkTopDown().filter { it.isFile }.forEach { f ->
                 val rel = f.relativeTo(files).path.replace('\\', '/')
-                if (rel.startsWith(SKIP_CACHE) || rel.startsWith("lines/") || rel.endsWith(".tmp")) return@forEach
+                // los diccionarios (más de 100 MB) y el índice de búsqueda se vuelven a descargar o armar solos
+                if (rel.startsWith(SKIP_CACHE) || rel.startsWith("lines/") || rel.startsWith("diccionarios/") || rel.startsWith("busqueda.db") || rel.endsWith(".tmp")) return@forEach
                 if (!withBooks && rel.startsWith("books/")) return@forEach
                 z.putNextEntry(ZipEntry("files/$rel"))
                 f.inputStream().use { it.copyTo(z) }

@@ -296,6 +296,10 @@ private fun tabsFor(cl: Clase): List<Pair<String, String>> {
 private fun ClassDetail(vm: HiloViewModel, cl: Clase) {
     val c = LocalHilo.current
     var tab by rememberSaveable(cl.id) { mutableStateOf(if (cl.books.isEmpty()) "materiales" else "mapa") }
+    // Modo simple: solo las pestañas esenciales; «Más…» muestra todas
+    var allTabs by rememberSaveable(cl.id) { mutableStateOf(false) }
+    val simpleTabs = vm.settings.value.simple && !allTabs
+    val shownTabs = tabsFor(cl).filter { !simpleTabs || it.first in setOf("materiales", "mapa", "estudiar", "calendario", "buscar", "glosario") || it.first == tab }
     var editing by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     BackHandler { vm.screen = Screen.Classes() }
@@ -336,13 +340,17 @@ private fun ClassDetail(vm: HiloViewModel, cl: Clase) {
                 horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
             ) {
                 HelpButton(vm, "clase-$tab", tint = c.accent)
-                tabsFor(cl).forEach { (k, t) ->
+                shownTabs.forEach { (k, t) ->
                     val on = k == tab
                     Text(
                         t, color = if (on) c.accentInk else c.ink, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
                         modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Color(cl.color) else c.surface).clickable { tab = k }.padding(horizontal = 14.dp, vertical = 9.dp),
                     )
                 }
+                if (simpleTabs && shownTabs.size < tabsFor(cl).size) Text(
+                    "Más…", color = c.accent, fontSize = 14.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(c.surface).clickable { allTabs = true }.padding(horizontal = 14.dp, vertical = 9.dp),
+                )
             }
             Box(Modifier.fillMaxSize()) {
                 when (tab) {

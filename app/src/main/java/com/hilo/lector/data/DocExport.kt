@@ -16,9 +16,25 @@ object DocExport {
         return "<w:p><w:r><w:rPr>${if (bold) "<w:b/>" else ""}<w:sz w:val=\"$size\"/></w:rPr>$runs</w:r></w:p>"
     }
 
-    /** Escribe un .docx con un título y párrafos. */
-    fun docx(out: File, title: String, paragraphs: List<String>) {
-        val body = para(title, bold = true, size = 32) + paragraphs.joinToString("") { para(it) }
+    /** Tabla de Word con bordes; la primera fila va en negrita. */
+    private fun table(rows: List<List<String>>): String {
+        if (rows.isEmpty()) return ""
+        val cols = rows.maxOf { it.size }
+        val border = "<w:tblBorders>" + listOf("top", "left", "bottom", "right", "insideH", "insideV").joinToString("") { "<w:$it w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"888888\"/>" } + "</w:tblBorders>"
+        val sb = StringBuilder("<w:tbl><w:tblPr><w:tblW w:w=\"5000\" w:type=\"pct\"/>$border</w:tblPr><w:tblGrid>")
+        repeat(cols) { sb.append("<w:gridCol w:w=\"${9360 / cols}\"/>") }
+        sb.append("</w:tblGrid>")
+        rows.forEachIndexed { i, r ->
+            sb.append("<w:tr>")
+            for (k in 0 until cols) sb.append("<w:tc><w:tcPr><w:tcW w:w=\"0\" w:type=\"auto\"/></w:tcPr>").append(para(r.getOrElse(k) { "" }, bold = i == 0, size = 20)).append("</w:tc>")
+            sb.append("</w:tr>")
+        }
+        return sb.append("</w:tbl>").toString()
+    }
+
+    /** Escribe un .docx con un título y párrafos (y, si hay, una tabla al final). */
+    fun docx(out: File, title: String, paragraphs: List<String>, rows: List<List<String>> = emptyList()) {
+        val body = para(title, bold = true, size = 32) + paragraphs.joinToString("") { para(it) } + table(rows) + (if (rows.isNotEmpty()) "<w:p/>" else "")
         val doc = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>$body<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>"""
         val types = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -48,6 +64,13 @@ object DocExport {
     fun share(ctx: Context, title: String, paragraphs: List<String>) {
         val f = file(ctx, title, "docx")
         docx(f, title, paragraphs)
+        send(ctx, f, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    }
+
+    /** Comparte un .docx con una tabla (cuadros comparativos, glosarios por autor). */
+    fun shareTable(ctx: Context, title: String, intro: List<String>, rows: List<List<String>>) {
+        val f = file(ctx, title, "docx")
+        docx(f, title, intro, rows)
         send(ctx, f, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     }
 

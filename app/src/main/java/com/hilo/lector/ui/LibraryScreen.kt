@@ -859,8 +859,24 @@ private fun GlobalResults(vm: HiloViewModel, query: String) {
         vm.study.marks.filter { fold(it.text).contains(fq) }.take(6).forEach { out.add(Triple("Resaltado", it.text, it.bookId)) }
         vm.study.fichas.filter { f -> fold(f.title + f.fields.joinToString { it.second }).contains(fq) }.take(5).forEach { out.add(Triple("Ficha", it.title, it.bookId)) }
         vm.motor.entries.filter { fold(it.title + " " + it.text).contains(fq) }.take(6).forEach { out.add(Triple("Escrito", it.title.ifBlank { it.text.take(60) }, it.book)) }
+        vm.study.quotes.filter { fold(it.text).contains(fq) }.take(5).forEach { out.add(Triple("Cita", it.text, it.bookId)) }
         out
     }
+    // Lo que Hilo trae: herramientas, temas de la guía y tus clases (para encontrar «la calculadora» sin saber dónde está)
+    var openTool by remember { mutableStateOf<String?>(null) }
+    val app = remember(query) {
+        val words = fq.split(' ').filter { it.length > 1 }
+        fun hit(t: String) = words.isNotEmpty() && fold(t).let { f -> words.all { f.contains(it) } }
+        val out = ArrayList<Triple<String, String, () -> Unit>>()
+        com.hilo.lector.ui.TOOLS.filter { hit(it.title + " " + it.desc + " " + it.key) }.take(6)
+            .forEach { t -> out.add(Triple("Herramienta", t.title + " — " + t.desc) { openTool = t.key }) }
+        vm.classes.classes.filter { hit(it.name + " " + it.teacher) }.take(4)
+            .forEach { cl -> out.add(Triple(if (cl.isArea) "Área" else "Clase", cl.name) { vm.screen = com.hilo.lector.Screen.Classes(cl.id) }) }
+        ALL_TOPICS.filter { hit(it.title + " " + it.what) }.take(5)
+            .forEach { tp -> out.add(Triple("Guía", tp.title + " — " + tp.what.take(90)) { vm.help = tp.key.ifBlank { tp.title } }) }
+        out
+    }
+    openTool?.let { k -> com.hilo.lector.ui.ToolDialog(vm, k) { openTool = null } }
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -882,6 +898,16 @@ private fun GlobalResults(vm: HiloViewModel, query: String) {
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { vm.openAt(id, true, hit.para) }.padding(vertical = 4.dp, horizontal = 6.dp),
                         )
                     }
+                }
+            }
+        }
+        if (app.isNotEmpty()) {
+            HorizontalDivider(color = c.line)
+            Text("En Hilo: herramientas, clases y guía", color = c.ink, fontWeight = FontWeight.Bold)
+            app.forEach { (kind, text, go) ->
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { go() }.padding(vertical = 4.dp)) {
+                    Text(kind.uppercase(), color = c.muted, fontSize = 10.sp, modifier = Modifier.width(76.dp).padding(top = 2.dp))
+                    Text(text, color = c.ink, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
         }

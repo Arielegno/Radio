@@ -563,7 +563,10 @@ internal val NEW_TOPICS = listOf(
             "Herramientas → Comparar versiones de una ley: elige la versión vieja y la nueva. Ves cuántos artículos quedaron iguales, cuáles cambiaron (con lo quitado tachado y lo agregado en verde), cuáles son nuevos y cuáles se quitaron.",
             "Herramientas → Plazos en días hábiles: además de fines de semana y feriados de Honduras, toca «+ Día inhábil» para agregar los días que declare el Poder Judicial o la Semana Morazánica si este año cae en otras fechas.",
         ),
-        listOf("La comparación es por número de artículo: si la reforma renumeró, verás artículos como «nuevos» y «quitados»."),
+        listOf(
+            "Si resaltaste, citaste o hiciste tarjetas en la versión vieja, arriba sale «⚠ La reforma toca lo que estudiaste», y la opción «Lo que estudié» muestra solo esos artículos. «Actualizar mis tarjetas» les pone el texto nuevo y las deja para repasar hoy; las de artículos quitados pasan a «En revisión».",
+            "La comparación es por número de artículo: si la reforma renumeró, verás artículos como «nuevos» y «quitados».",
+        ),
         key = "ley-comparar",
     ),
     Topic(
@@ -644,6 +647,7 @@ private val KEY_TITLES = mapOf(
 
 internal fun topicFor(key: String): Topic? =
     ALL_TOPICS.firstOrNull { it.key == key } ?: KEY_TITLES[key]?.let { t -> ALL_TOPICS.firstOrNull { it.title == t } }
+        ?: ALL_TOPICS.firstOrNull { it.title == key }
 
 /** El «?» que abre la explicación de este apartado. */
 @Composable

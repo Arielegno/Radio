@@ -6,6 +6,17 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            34, "2.7", "21 nov 2026", "Reformas, autores y búsqueda universal",
+            added = listOf(
+                "Comparar versiones de una ley avisa si la reforma toca lo que resaltaste, citaste o pasaste a tarjetas, y actualiza esas tarjetas con el texto nuevo.",
+                "Sociología: cuadro comparativo de hasta 5 autores, exportable a Word.",
+                "Glosario por autor en tres columnas (concepto, autor, qué significa para él), con oraciones de tu texto o tus definiciones; a Word o a tarjetas.",
+                "La búsqueda de la biblioteca encuentra también herramientas, clases, áreas, temas de la guía y citas.",
+                "Modo simple más limpio: en Estudiar y en cada clase solo lo esencial; lo demás en «Más…».",
+            ),
+            fixed = listOf(),
+        ),
+        Version(
             33, "2.6.2", "21 nov 2026", "Qué pasó cuando fallas",
             added = listOf(
                 "Al tocar «Otra vez» eliges qué pasó: «No lo sabía», «Lo confundí con…» o «La pregunta estaba mal».",

@@ -201,6 +201,16 @@ fun ToolsList(vm: HiloViewModel, field: String, classId: String? = null, header:
     }
 }
 
+/** Abre una herramienta suelta (desde la búsqueda universal). */
+@Composable
+fun ToolDialog(vm: HiloViewModel, key: String, onClose: () -> Unit) {
+    val t = TOOLS.firstOrNull { it.key == key } ?: return
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        if (t.key == "plazos") extraPractice(vm, null, null, "plazo-calc", onClose)
+        else OverlayFrame(t.title, onClose) { ToolBody(vm, t.key, null) }
+    }
+}
+
 /** Pantalla con todas las herramientas (desde Estudiar). */
 @Composable
 fun ToolsScreen(vm: HiloViewModel, onClose: () -> Unit) {

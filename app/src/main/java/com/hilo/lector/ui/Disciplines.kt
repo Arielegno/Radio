@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -522,7 +523,7 @@ fun SocioAuthors(vm: HiloViewModel, a: Analysis?) {
     val inText = a?.authors?.map { it.key }?.toSet().orEmpty()
     var sel by remember { mutableStateOf(SocioKb.authors.filter { it.key in inText }.map { it.key }.take(3).ifEmpty { listOf("marx", "weber", "durkheim") }) }
     Text("Mapa de paradigmas", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-    Text("Los autores de este documento aparecen en color. Toca para compararlos (hasta 3).", color = c.muted, fontSize = 13.sp)
+    Text("Los autores de este documento llevan ●. Toca para compararlos (hasta 5).", color = c.muted, fontSize = 13.sp)
     SocioKb.paradigms.forEach { p ->
         Panel {
             Text(p.name, color = c.accent, fontWeight = FontWeight.Bold)
@@ -534,7 +535,7 @@ fun SocioAuthors(vm: HiloViewModel, a: Analysis?) {
                         au.name.substringAfterLast(' ') + if (au.key in inText) " ●" else "", fontSize = 13.sp,
                         color = if (on) c.accentInk else c.ink,
                         modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) c.accent else c.band)
-                            .clickable { sel = if (on) sel - au.key else (sel + au.key).takeLast(3) }.padding(horizontal = 10.dp, vertical = 5.dp),
+                            .clickable { sel = if (on) sel - au.key else (sel + au.key).takeLast(5) }.padding(horizontal = 10.dp, vertical = 5.dp),
                     )
                 }
             }
@@ -545,11 +546,17 @@ fun SocioAuthors(vm: HiloViewModel, a: Analysis?) {
     Text("Cuadro comparativo", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 17.sp)
     val ctx = LocalContext.current
     val out = StringBuilder("Cuadro comparativo: " + chosen.joinToString(" / ") { it.name } + "\n\n")
+    // Con 4 o 5 autores las columnas no entran: el cuadro se desliza de lado
+    val wide = chosen.size > 3
+    val hs = rememberScrollState()
     SocioKb.compareRows.forEach { (row, get) ->
         Text(row, color = c.accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            (if (wide) Modifier.horizontalScroll(hs) else Modifier.fillMaxWidth()).height(androidx.compose.foundation.layout.IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             chosen.forEach { au ->
-                Column(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(c.surface).padding(8.dp)) {
+                Column((if (wide) Modifier.width(150.dp) else Modifier.weight(1f)).fillMaxHeight().clip(RoundedCornerShape(10.dp)).background(c.surface).padding(8.dp)) {
                     Text(au.name.substringAfterLast(' '), color = c.muted, fontSize = 11.sp)
                     Text(get(au), color = c.ink, fontSize = 13.sp)
                 }
@@ -557,19 +564,150 @@ fun SocioAuthors(vm: HiloViewModel, a: Analysis?) {
         }
         out.append("■ $row\n"); chosen.forEach { out.append("  ${it.name}: ${get(it)}\n") }; out.append("\n")
     }
+    if (wide) Text("Desliza el cuadro de lado para ver todos los autores.", color = c.muted, fontSize = 12.sp)
     // Lo que dice este texto de cada autor
     a?.authors?.filter { au -> chosen.any { it.key == au.key } }?.forEach { au ->
         au.sentences.firstOrNull()?.let { Text("En este texto, ${au.name}: «${it.text.take(220)}»", color = c.ink, fontSize = 13.sp) }
     }
     Row {
-        TextButton(onClick = { shareText(ctx, "Cuadro comparativo", out.toString()) }) { Text("Compartir cuadro") }
+        TextButton(onClick = {
+            val rows = listOf(listOf("") + chosen.map { it.name }) + SocioKb.compareRows.map { (row, get) -> listOf(row) + chosen.map { get(it) } }
+            com.hilo.lector.data.DocExport.shareTable(ctx, "Cuadro comparativo", listOf(chosen.joinToString(" · ") { "${it.name} (${it.years})" }), rows)
+        }) { Text("Word") }
+        TextButton(onClick = { shareText(ctx, "Cuadro comparativo", out.toString()) }) { Text("Texto") }
         TextButton(onClick = {
             chosen.forEach { au ->
                 vm.study.add(StudyCard(vm.study.newId(), "", "qa", "¿Qué entiende ${au.name} por sociedad y cómo cambia?", au.society + "\n" + au.change, source = "Autores", due = today(), created = System.currentTimeMillis()))
                 vm.study.add(StudyCard(vm.study.newId(), "", "qa", "Conceptos centrales de ${au.name}", au.concepts, source = "Autores", due = today(), created = System.currentTimeMillis()))
             }
             vm.toast = "Creé ${chosen.size * 2} tarjetas de autores."
-        }) { Text("Tarjetas de estos autores") }
+        }) { Text("Tarjetas") }
+    }
+    AuthorGlossary(vm, a, chosen)
+}
+
+/** Una fila del glosario por autor: el concepto, el autor y qué significa para ese autor. */
+private data class AuthorGloss(val concept: String, val author: String, val authorName: String, val meaning: String, val fromText: Int, val mine: Boolean)
+
+/**
+ * Glosario de autor en tres columnas. El significado sale de una oración del documento donde el concepto
+ * aparece junto al autor (se marca «del texto»), o lo escribes tú. Hilo no inventa definiciones.
+ */
+@Composable
+private fun AuthorGlossary(vm: HiloViewModel, a: Analysis?, chosen: List<com.hilo.lector.text.AuthorCard>) {
+    val c = LocalHilo.current
+    val ctx = LocalContext.current
+    var ver by remember { mutableIntStateOf(0) }
+    var edit by remember { mutableStateOf<AuthorGloss?>(null) }
+    var adding by remember { mutableStateOf(false) }
+    val rows = remember(chosen, a, ver) {
+        val own = runCatching { org.json.JSONObject(vm.motor["glosautor"].ifBlank { "{}" }) }.getOrDefault(org.json.JSONObject())
+        val extra = runCatching { org.json.JSONArray(vm.motor["glosautor+"].ifBlank { "[]" }) }.getOrDefault(org.json.JSONArray())
+        fun fold(t: String) = java.text.Normalizer.normalize(t.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+        fun fromDoc(au: com.hilo.lector.text.AuthorCard, concept: String): com.hilo.lector.text.Sent? {
+            if (a == null) return null
+            val stem = fold(concept).split(' ').filter { it.length > 2 }.map { it.take(maxOf(4, it.length - 2)) }
+            if (stem.isEmpty()) return null
+            fun has(t: String) = fold(t).let { f -> stem.all { f.contains(it) } }
+            val info = a.authors.firstOrNull { it.key == au.key }
+            return info?.sentences?.firstOrNull { has(it.text) }
+                ?: info?.paras?.let { ps -> a.sentences.firstOrNull { it.para in ps && has(it.text) } }
+        }
+        val list = ArrayList<AuthorGloss>()
+        chosen.forEach { au ->
+            au.concepts.split(',').map { it.trim() }.filter { it.isNotEmpty() }.forEach { cc ->
+                val k = au.key + "|" + cc.lowercase()
+                val mine = own.optString(k)
+                val doc = if (mine.isBlank()) fromDoc(au, cc) else null
+                list.add(AuthorGloss(cc, au.key, au.name, mine.ifBlank { doc?.text?.take(400).orEmpty() }, doc?.para ?: -1, mine.isNotBlank()))
+            }
+            for (i in 0 until extra.length()) {
+                val o = extra.optJSONObject(i) ?: continue
+                if (o.optString("a") == au.key) list.add(AuthorGloss(o.optString("c"), au.key, au.name, own.optString(au.key + "|" + o.optString("c").lowercase()).ifBlank { o.optString("m") }, -1, true))
+            }
+        }
+        list.toList()
+    }
+    Text("Glosario por autor", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+    Text("El mismo concepto cambia según el autor. «Del texto»: oración de tu documento donde aparece. Toca una fila para escribir tu definición.", color = c.muted, fontSize = 13.sp)
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Concepto", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(0.28f))
+        Text("Autor", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(0.2f))
+        Text("Qué significa para el autor", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(0.52f))
+    }
+    rows.forEach { r ->
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.surface).clickable { edit = r }.padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(r.concept, color = c.accent, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(0.28f))
+            Text(r.authorName.substringAfterLast(' '), color = c.ink, fontSize = 13.sp, modifier = Modifier.weight(0.2f))
+            Column(Modifier.weight(0.52f)) {
+                if (r.meaning.isBlank()) Text("Tocar para escribir", color = c.muted, fontSize = 13.sp)
+                else Text(r.meaning, color = c.ink, fontSize = 13.sp, maxLines = 5, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                if (r.fromText >= 0) Text("del texto · párr. ${r.fromText + 1}", color = c.muted, fontSize = 11.sp)
+                else if (r.mine && r.meaning.isNotBlank()) Text("tuya", color = c.muted, fontSize = 11.sp)
+            }
+        }
+    }
+    Row {
+        TextButton(onClick = { adding = true }) { Text("Agregar concepto") }
+        TextButton(onClick = {
+            val t = listOf(listOf("Concepto", "Autor", "Qué significa para el autor")) + rows.map { listOf(it.concept, it.authorName, it.meaning) }
+            com.hilo.lector.data.DocExport.shareTable(ctx, "Glosario por autor", listOf("Definiciones tomadas del texto o escritas por mí."), t)
+        }) { Text("Word") }
+        TextButton(onClick = {
+            val filled = rows.filter { it.meaning.isNotBlank() }
+            filled.forEach { r -> vm.study.add(StudyCard(vm.study.newId(), "", "qa", "¿Qué significa «${r.concept}» para ${r.authorName}?", r.meaning, source = "Glosario por autor", due = today(), created = System.currentTimeMillis())) }
+            vm.toast = if (filled.isEmpty()) "Primero completa alguna definición." else "Creé ${filled.size} tarjetas."
+        }) { Text("Tarjetas") }
+    }
+    edit?.let { r ->
+        var t by remember(r) { mutableStateOf(r.meaning) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { edit = null },
+            title = { Text("«${r.concept}» en ${r.authorName}") },
+            text = { OutlinedTextField(t, { t = it }, minLines = 3, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Con tus palabras: qué entiende este autor por este concepto") }) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val own = runCatching { org.json.JSONObject(vm.motor["glosautor"].ifBlank { "{}" }) }.getOrDefault(org.json.JSONObject())
+                    val k = r.author + "|" + r.concept.lowercase()
+                    if (t.isBlank()) own.remove(k) else own.put(k, t.trim())
+                    vm.motor.put("glosautor", own.toString()); ver++; edit = null
+                }) { Text("Guardar") }
+            },
+            dismissButton = { TextButton(onClick = { edit = null }) { Text("Cancelar") } },
+        )
+    }
+    if (adding) {
+        var cc by remember { mutableStateOf("") }
+        var mm by remember { mutableStateOf("") }
+        var who by remember { mutableStateOf(chosen.firstOrNull()?.key.orEmpty()) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { adding = false },
+            title = { Text("Nuevo concepto") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        chosen.forEach { au ->
+                            val on = au.key == who
+                            Text(au.name.substringAfterLast(' '), fontSize = 13.sp, color = if (on) c.accentInk else c.ink,
+                                modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) c.accent else c.band).clickable { who = au.key }.padding(horizontal = 10.dp, vertical = 5.dp))
+                        }
+                    }
+                    OutlinedTextField(cc, { cc = it }, singleLine = true, label = { Text("Concepto") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(mm, { mm = it }, minLines = 2, label = { Text("Qué significa para el autor") }, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = cc.isNotBlank() && who.isNotBlank(), onClick = {
+                    val extra = runCatching { org.json.JSONArray(vm.motor["glosautor+"].ifBlank { "[]" }) }.getOrDefault(org.json.JSONArray())
+                    extra.put(org.json.JSONObject().put("a", who).put("c", cc.trim()).put("m", mm.trim()))
+                    vm.motor.put("glosautor+", extra.toString()); ver++; adding = false
+                }) { Text("Agregar") }
+            },
+            dismissButton = { TextButton(onClick = { adding = false }) { Text("Cancelar") } },
+        )
     }
 }
 

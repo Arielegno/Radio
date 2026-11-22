@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.hilo.lector.data.StudyCard
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -483,6 +484,7 @@ fun LawDiffTool(vm: HiloViewModel) {
     var b by remember { mutableStateOf<Book?>(null) }
     var picking by remember { mutableStateOf(0) }
     var show by remember { mutableStateOf("cambiados") }
+    var tick by remember { mutableIntStateOf(0) }
     Note("Elige la versión vieja y la nueva de una ley o código (por ejemplo una reforma). Hilo compara artículo por artículo.")
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = { picking = 1 }, modifier = Modifier.weight(1f)) { Text(a?.title?.take(22) ?: "Versión vieja", color = c.ink, maxLines = 1) }
@@ -497,25 +499,86 @@ fun LawDiffTool(vm: HiloViewModel) {
     }
     val x = a; val y = b
     if (x == null || y == null) return
-    val result by produceState<LawDiff?>(null, x.id, y.id) {
+    val result by produceState<Pair<LawDiff, Map<String, IntRange>>?>(null, x.id, y.id) {
         value = withContext(Dispatchers.Default) {
             val pa = Law.parse(vm.studyText(x) { _, _ -> }); val pb = Law.parse(vm.studyText(y) { _, _ -> })
-            diffLaws(pa.articles.associate { Law.normNum(it.num) to it.text }, pb.articles.associate { Law.normNum(it.num) to it.text })
+            // Párrafos que ocupa cada artículo de la versión vieja, para saber qué resaltaste en cada uno
+            val sorted = pa.articles.sortedBy { it.para }
+            val ranges = HashMap<String, IntRange>()
+            sorted.forEachIndexed { i, ar -> ranges.putIfAbsent(Law.normNum(ar.num), ar.para until (sorted.getOrNull(i + 1)?.para ?: (ar.para + 1)).coerceAtLeast(ar.para + 1)) }
+            diffLaws(pa.articles.associate { Law.normNum(it.num) to it.text }, pb.articles.associate { Law.normNum(it.num) to it.text }) to ranges
         }
     }
-    val r = result ?: run { LinearProgressIndicator(Modifier.fillMaxWidth()); Note("Leyendo y comparando…"); return }
+    val (r, ranges) = result ?: run { LinearProgressIndicator(Modifier.fillMaxWidth()); Note("Leyendo y comparando…"); return }
     if (r.same + r.changed.size + r.added.size + r.removed.size == 0) { Note("No encontré artículos («Artículo 1.-…») en estos documentos."); return }
+    // Lo que estudiaste de la versión vieja en los artículos que cambiaron o se quitaron
+    val study = vm.study
+    fun touch(num: String, oldText: String): Triple<Int, List<StudyCard>, Int> {
+        val rg = ranges[num]
+        val flat = normWs(oldText).lowercase()
+        val marks = study.marks.count { m -> m.bookId == x.id && ((rg != null && m.para in rg) || (m.text.length >= 12 && flat.contains(normWs(m.text).lowercase()))) }
+        val cards = study.cards.filter { k -> k.bookId == x.id && (Law.normNum(k.source.removePrefix("art.").trim()) == num && k.source.startsWith("art.") || (rg != null && k.sourceFlow && k.sourcePos in rg)) }
+        val quotes = study.quotes.count { q -> q.bookId == x.id && q.flow && rg != null && q.pos in rg }
+        return Triple(marks, cards, quotes)
+    }
+    val hits = remember(r, study.cards.size, study.marks.size, tick) {
+        (r.changed.map { Triple(it.first, it.second, it.third) } + r.removed.map { Triple(it.first, it.second, "") })
+            .mapNotNull { (n, o, nw) -> touch(n, o).takeIf { it.first + it.second.size + it.third > 0 }?.let { n to Triple(o, nw, it) } }.toMap()
+    }
+    if (hits.isNotEmpty()) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.lines[2].copy(alpha = 0.14f)).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text("⚠ La reforma toca lo que estudiaste", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text(
+                "${hits.size} ${if (hits.size == 1) "artículo cambiado o quitado tiene" else "artículos cambiados o quitados tienen"} tus resaltados, citas o tarjetas en «${x.title.take(40)}».",
+                color = c.ink, fontSize = 14.sp,
+            )
+            val cardsAll = hits.values.flatMap { it.third.second }
+            if (cardsAll.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    var up = 0; var held = 0
+                    hits.values.forEach { (_, nw, t) -> t.second.forEach { k -> if (nw.isBlank()) { study.hold(k, "Derogado o quitado en la reforma"); held++ } else { study.update(updatedCard(k, nw)); up++ } } }
+                    tick++
+                    vm.toast = listOfNotNull(up.takeIf { it > 0 }?.let { "$it ${if (it == 1) "tarjeta actualizada" else "tarjetas actualizadas"} con el texto nuevo" }, held.takeIf { it > 0 }?.let { "$it en revisión (derogadas)" }).joinToString(" · ") + "."
+                }) { Text("Actualizar mis ${cardsAll.size} ${if (cardsAll.size == 1) "tarjeta" else "tarjetas"}", color = c.ink) }
+            }
+            Text("Actualizar cambia la respuesta por el texto nuevo y la pone para repasar hoy; las de artículos quitados quedan «En revisión».", color = c.muted, fontSize = 12.sp)
+        }
+    }
     Out("Iguales", "${r.same}", "Cambiados", "${r.changed.size}", "Nuevos", "${r.added.size}", "Derogados o quitados", "${r.removed.size}")
-    Choice(listOf("cambiados" to "Cambiados", "nuevos" to "Nuevos", "quitados" to "Quitados"), show) { show = it }
-    val list = when (show) { "cambiados" -> r.changed; "nuevos" -> r.added.map { Triple(it.first, "", it.second) }; else -> r.removed.map { Triple(it.first, it.second, "") } }
+    Choice(listOfNotNull("cambiados" to "Cambiados", "nuevos" to "Nuevos", "quitados" to "Quitados", if (hits.isNotEmpty()) "mios" to "Lo que estudié" else null), show) { show = it }
+    val list = when (show) {
+        "cambiados" -> r.changed
+        "nuevos" -> r.added.map { Triple(it.first, "", it.second) }
+        "mios" -> hits.map { (n, v) -> Triple(n, v.first, v.second) }
+        else -> r.removed.map { Triple(it.first, it.second, "") }
+    }
     if (list.isEmpty()) Note("Ninguno.")
     list.take(80).forEach { (num, old, new) ->
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Artículo $num", color = c.accent, fontWeight = FontWeight.Bold)
+            hits[num]?.third?.let { (m, k, q) ->
+                Text(
+                    "Estudiaste: " + listOfNotNull(
+                        m.takeIf { it > 0 }?.let { "$it ${if (it == 1) "resaltado" else "resaltados"}" },
+                        k.size.takeIf { it > 0 }?.let { "$it ${if (it == 1) "tarjeta" else "tarjetas"}" },
+                        q.takeIf { it > 0 }?.let { "$it ${if (it == 1) "cita" else "citas"}" },
+                    ).joinToString(" · "),
+                    color = c.lines[2], fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                )
+            }
             Text(wordDiff(old, new, c.lines[0], c.lines[3]), color = c.ink, fontSize = 14.sp, lineHeight = 20.sp)
         }
     }
     Note("Tachado en rojo: lo que se quitó. En verde: lo que se agregó. Compara por número de artículo: si la reforma renumeró, verás artículos «nuevos» y «quitados».")
+}
+
+/** La tarjeta de un artículo con la respuesta reemplazada por el texto reformado; se repasa hoy. */
+private fun updatedCard(k: StudyCard, newText: String): StudyCard {
+    val body = normWs(newText).replace(Regex("^(Art[íi]culo|ART[ÍI]CULO|Art\\.)\\s*[\\w.]+\\s*[.:\\-–]*\\s*"), "").take(1500)
+    return k.copy(back = body.ifBlank { newText.take(1500) }, due = today(), held = "")
 }
 
 data class LawDiff(val same: Int, val changed: List<Triple<String, String, String>>, val added: List<Pair<String, String>>, val removed: List<Pair<String, String>>)

@@ -461,6 +461,15 @@ sleep 8
 tap "Buscar"; sleep 1; adb shell input text "sociedad"; sleep 3
 shot 82_busqueda_global 2
 back 1
+# Búsqueda universal: herramientas y guía (sin saber dónde están)
+adb shell am force-stop $PKG
+adb shell am start -W -n $PKG/.MainActivity
+sleep 6
+tap "Buscar"; sleep 1; adb shell input text "calculadora"; sleep 3
+adb shell input keyevent 111
+sleep 1
+shot 82b_busqueda_herramientas 2
+back 1
 adb shell am force-stop $PKG
 adb shell am start -W -n $PKG/.MainActivity
 sleep 3

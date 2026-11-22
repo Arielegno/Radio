@@ -366,7 +366,8 @@ private val BASE_TOPICS = listOf(
         listOf(
             "Sala de estudio → Autores: los autores que aparecen en el texto y los conceptos que se tratan junto a cada uno.",
             "Marca dos o tres autores y toca Comparar: un cuadro con lo que dice cada uno.",
-            "Métodos para Sociología: 18 autores clave, paradigmas, escuelas y una línea de tiempo.",
+            "Métodos para Sociología → Autores y paradigmas: elige hasta 5 autores para el cuadro comparativo (con 4 o 5 se desliza de lado) y compártelo en Word.",
+            "Debajo, el glosario por autor en tres columnas: concepto, autor y qué significa para ese autor. Si tu documento tiene una oración donde aparecen juntos, la pone y dice «del texto»; si no, tócala y escribe tu definición. También se exporta a Word o se vuelve tarjetas.",
             "Línea de tiempo: las fechas y siglos del texto, en orden.",
         ),
     ),
@@ -412,7 +413,8 @@ private val BASE_TOPICS = listOf(
         listOf(
             "Toca la lupa en la biblioteca y escribe. Puedes escribir sin tildes.",
             "Arriba ves «Dentro de tus libros»: los párrafos donde aparece. Tócalos para abrir el libro justo ahí.",
-            "Debajo ves lo que coincide en tus tarjetas, apuntes y escritos.",
+            "«En Hilo»: herramientas, clases, áreas y temas de la guía que coinciden. Escribe «calculadora», «fasores» o «plazos» y tócalo para abrirlo.",
+            "Debajo ves lo que coincide en tus tarjetas, apuntes, resaltados, fichas, citas y escritos.",
             "Para una frase exacta, escríbela entre comillas: \"capital cultural\".",
         ),
         listOf("Los PDF se suman a la búsqueda después de abrirlos una vez en modo Texto o en su sala de estudio."),
@@ -471,7 +473,7 @@ private val BASE_TOPICS = listOf(
         "Ajustes y ayudas", Icons.Rounded.Tune, "Modo simple, vibración y movimiento",
         "Para una app más tranquila.",
         listOf(
-            "Modo simple: solo leer, resaltar y repasar; el resto queda en «Más herramientas».",
+            "Modo simple (Ajustes): solo leer, resaltar y repasar. En Estudiar se ven tus clases y el repaso; en cada clase, Materiales, Mapa, Estudiar, Calendario y Buscar. Lo demás queda a un toque en «Más…».",
             "Vibración suave: un toque al pasar página y al responder tarjetas. Se apaga en Más ajustes.",
             "Si tu celular tiene las animaciones desactivadas, Hilo tampoco anima.",
             "Si Hilo se cierra de golpe, al abrirlo otra vez te ofrece enviar el informe.",

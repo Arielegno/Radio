@@ -371,7 +371,15 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                         HelpButton(vm, "clases", size = 18.dp)
                     }
                 }
-                if (current == null && !vocabOnly) item {
+                // Modo simple: la portada muestra solo clases y el repaso; lo demás, a un toque
+                val hubSimple = vm.settings.value.simple && !moreTabs
+                if (current == null && !vocabOnly && hubSimple) item {
+                    Text(
+                        "Más: herramientas, energía y racha…", color = c.accent, fontSize = 14.sp,
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(c.surface).clickable { moreTabs = true }.padding(horizontal = 14.dp, vertical = 8.dp),
+                    )
+                }
+                if (current == null && !vocabOnly && !hubSimple) item {
                     // Herramientas a mano (calculadora, graficador, fasores, APA…), no al fondo de la pantalla
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).clickable { vm.toolsOpen = true }.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -385,7 +393,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                         HelpButton(vm, "herramientas", size = 18.dp)
                     }
                 }
-                if (current == null && !vocabOnly) item {
+                if (current == null && !vocabOnly && !hubSimple) item {
                     // Racha y plan según cómo está tu energía hoy
                     var energy by remember { mutableStateOf(false) }
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

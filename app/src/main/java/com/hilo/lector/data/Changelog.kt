@@ -6,6 +6,18 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            33, "2.6.2", "21 nov 2026", "Qué pasó cuando fallas",
+            added = listOf(
+                "Al tocar «Otra vez» eliges qué pasó: «No lo sabía», «Lo confundí con…» o «La pregunta estaba mal».",
+                "«Lo confundí con…» guarda con qué la confundiste y te avisa la próxima vez que veas la respuesta.",
+                "«La pregunta estaba mal» aparta la tarjeta sin contarla como fallo ni cambiar su memoria; queda en «En revisión» para corregirla.",
+                "Al terminar la ronda ves cuántos fallos fueron por no saber, por confusión o por preguntas mal hechas.",
+            ),
+            fixed = listOf(
+                "Las tarjetas en revisión no entran en el simulacro, la nota estimada ni las estadísticas.",
+            ),
+        ),
+        Version(
             32, "2.6.1", "21 nov 2026", "Continuar leyendo y plazos al calendario",
             added = listOf(
                 "Widget: «Continuar leyendo» con el último libro sin terminar; un toque lo abre donde quedaste.",

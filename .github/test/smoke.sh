@@ -248,6 +248,16 @@ sleep 2
 shot 29_repaso_frente 2
 tap "Dudo"
 shot 30_repaso_respuesta 2
+# Tipos de error: «Otra vez» pregunta qué pasó
+tap "Otra vez"
+shot 30b_que_paso 2
+tap "Lo confundí" parcial
+shot 30c_confundi_con 2
+tap "Volver"
+sleep 1
+tap "No lo sabía"
+sleep 2
+tap "Dudo"
 tap "Bien"
 shot 31_repaso_fin 2
 back

@@ -46,12 +46,17 @@ data class StudyCard(
     val stab: Float = 0f,          // FSRS: estabilidad (días para bajar al 90 % de recuerdo)
     val diff: Float = 0f,          // FSRS: dificultad (1 fácil … 10 difícil)
     val last: Long = -1,           // último repaso (día)
+    val confused: List<String> = emptyList(), // con qué la confundiste al fallarla (las últimas 5)
+    val held: String = "",         // en revisión: la pregunta estaba mal (motivo). No entra al repaso ni a FSRS
 ) {
     /** Probabilidad de recordarla hoy (0 a 1). */
     fun recall(day: Long = today()): Float = if (last < 0 || stab <= 0f) (if (reps == 0) 0f else 0.5f) else Fsrs.retrievability((day - last).toFloat(), stab)
     /** Tarjeta frágil: la fallaste varias veces o es muy probable que la olvides. */
-    val fragile: Boolean get() = lapses >= 3 || (reps > 0 && diff >= 8.5f)
+    val fragile: Boolean get() = held.isEmpty() && (lapses >= 3 || (reps > 0 && diff >= 8.5f))
 }
+
+/** Día de repaso de una tarjeta en revisión: tan lejos que ningún contador la ve como pendiente. */
+const val HELD_DUE = 99_999_999L
 
 /** Texto resaltado en el modo de texto: párrafo y rango de letras. */
 data class TextMark(
@@ -294,6 +299,23 @@ class StudyStore(ctx: Context) {
         sp.edit().putLong("lastDay", t).putInt("streak", streak).putInt("todayCount", todayCount).apply()
     }
 
+    /** «Lo confundí con…»: cuenta como fallo (Otra vez) y guarda con qué la confundiste. */
+    fun confuse(c: StudyCard, with: String, conf: Int = 0) {
+        grade(c, Grade.AGAIN, conf)
+        val w = with.trim().take(120)
+        if (w.isEmpty()) return
+        val cur = cards.firstOrNull { it.id == c.id } ?: return
+        update(cur.copy(confused = (cur.confused.filterNot { it.equals(w, true) } + w).takeLast(5)))
+    }
+
+    /** «La pregunta estaba mal»: la aparta del repaso sin tocar su memoria (FSRS) ni tus estadísticas. */
+    fun hold(c: StudyCard, why: String) = update(c.copy(held = why.ifBlank { "Revisar" }, due = HELD_DUE))
+
+    /** Vuelve al repaso una tarjeta que estaba en revisión. */
+    fun release(c: StudyCard) = update(c.copy(held = "", due = today()))
+
+    val heldCards: List<StudyCard> get() = cards.filter { it.held.isNotEmpty() }
+
     fun addMark(m: TextMark) { marks.add(m); save() }
     fun deleteMark(id: Long) { marks.removeAll { it.id == id }; save() }
     fun marksOf(bookId: String) = marks.filter { it.bookId == bookId }
@@ -390,6 +412,8 @@ class StudyStore(ctx: Context) {
                             interval = j.optInt("iv"), reps = j.optInt("reps"), lapses = j.optInt("lapses"),
                             due = j.optLong("due"), created = j.optLong("created"),
                             stab = j.optDouble("s", 0.0).toFloat(), diff = j.optDouble("d", 0.0).toFloat(), last = j.optLong("last", -1),
+                            confused = j.optJSONArray("cf")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
+                            held = j.optString("held"),
                         )
                     )
                 }
@@ -456,6 +480,7 @@ class StudyStore(ctx: Context) {
                         .put("srcPos", c.sourcePos).put("srcFlow", c.sourceFlow).put("ease", c.ease.toDouble())
                         .put("iv", c.interval).put("reps", c.reps).put("lapses", c.lapses).put("due", c.due).put("created", c.created)
                         .put("s", c.stab.toDouble()).put("d", c.diff.toDouble()).put("last", c.last)
+                        .apply { if (c.confused.isNotEmpty()) put("cf", JSONArray(c.confused)); if (c.held.isNotEmpty()) put("held", c.held) }
                 )
             }
             val ma = JSONArray()

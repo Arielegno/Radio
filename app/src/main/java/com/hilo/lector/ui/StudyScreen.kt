@@ -276,6 +276,7 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
     var cross by rememberSaveable { mutableStateOf(false) }
     var ficha by remember { mutableStateOf<Ficha?>(null) }
     var editing by remember { mutableStateOf<StudyCard?>(null) }
+    var heldOpen by remember { mutableStateOf(false) }
     var quiz by remember { mutableStateOf<Pair<String, List<Question>>?>(null) }
     val study = vm.study
     val speaker = remember { Speaker(ctx) }
@@ -413,6 +414,22 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
                 item {
                     if (!compactTop) TodayCard(due.size, study.streak, study.todayCount, onStart = { startReview(SESSION) }, onQuick = { startReview(5) })
                     else if (due.isNotEmpty()) CompactToday(due.size) { startReview(SESSION) }
+                }
+                // Tarjetas apartadas porque la pregunta estaba mal
+                val held = study.heldCards.filter { current == null || it.bookId == current.id }
+                if (held.isNotEmpty() && !vocabOnly) item {
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).clickable { heldOpen = true }.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("🛠", fontSize = 20.sp)
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text("En revisión (${held.size})", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text("Tarjetas que marcaste como mal hechas. Corrígelas y vuelven al repaso.", color = c.muted, fontSize = 13.sp)
+                        }
+                        HelpButton(vm, "tipos-error", size = 18.dp)
+                    }
+                    if (heldOpen) HeldDialog(vm, held, onEdit = { heldOpen = false; editing = it }) { heldOpen = false }
                 }
                 if (current != null && !vocabOnly && !compactTop) item { ExamCard(vm, current, analysis) }
 
@@ -556,9 +573,10 @@ fun StudyScreen(vm: HiloViewModel, bookId: String?) {
             onDismiss = { editing = null },
             onSave = { nc ->
                 if (nc.id == 0L) study.add(nc.copy(id = study.newId(), created = System.currentTimeMillis()))
+                else if (nc.held.isNotEmpty()) study.update(nc.copy(held = "", due = today()))
                 else study.update(nc)
                 editing = null
-                vm.toast = "Tarjeta guardada."
+                vm.toast = if (nc.held.isNotEmpty()) "Corregida: vuelve al repaso hoy." else "Tarjeta guardada."
             },
             onDelete = if (card.id != 0L) ({ study.delete(card.id); editing = null; vm.undoable("Tarjeta borrada") { study.add(card) } }) else null,
         )
@@ -701,6 +719,7 @@ private fun LangRow(lang: String, onLang: (String) -> Unit) {
 }
 
 private fun dueLabel(c: StudyCard): String {
+    if (c.held.isNotEmpty()) return "en revisión"
     val d = c.due - today()
     return when {
         d <= 0 -> "hoy"
@@ -901,6 +920,12 @@ private fun ReviewSession(
     var conf by remember(cards) { mutableIntStateOf(0) }
     var overconf by remember(cards) { mutableIntStateOf(0) }
     var streakOk by remember(cards) { mutableIntStateOf(0) }
+    // Al tocar «Otra vez»: 0 nada, 1 elegir qué pasó, 2 con qué la confundiste, 3 qué tenía de malo
+    var failing by remember(cards) { mutableIntStateOf(0) }
+    var confusedWith by remember(cards) { mutableStateOf("") }
+    var errNo by remember(cards) { mutableIntStateOf(0) }
+    var errConf by remember(cards) { mutableIntStateOf(0) }
+    var errBad by remember(cards) { mutableIntStateOf(0) }
     val cur = queue.getOrNull(idx)
     val oralLang = cur?.lang?.ifBlank { null } ?: cur?.let { vm.study.langs[it.bookId] }.orEmpty()
     val dictate = rememberDictation(vm, oralLang) { spoken = it; showBack = true }
@@ -949,6 +974,17 @@ private fun ReviewSession(
                         Text(
                             "Ojo: en $overconf ${if (overconf == 1) "tarjeta dijiste" else "tarjetas dijiste"} «Lo sé» y fallaste. Esas vuelven pronto.",
                             color = c.lines[2], textAlign = TextAlign.Center, fontSize = 14.sp,
+                        )
+                    }
+                    if (errNo + errConf + errBad > 0) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            listOfNotNull(
+                                errNo.takeIf { it > 0 }?.let { "$it sin saber" },
+                                errConf.takeIf { it > 0 }?.let { "$it ${if (it == 1) "confusión" else "confusiones"}" },
+                                errBad.takeIf { it > 0 }?.let { "$it ${if (it == 1) "apartada" else "apartadas"} para corregir" },
+                            ).joinToString(" · ").replaceFirstChar { it.uppercase() } + ".",
+                            color = c.muted, textAlign = TextAlign.Center, fontSize = 14.sp,
                         )
                     }
                     Spacer(Modifier.height(12.dp))
@@ -1008,6 +1044,12 @@ private fun ReviewSession(
                     if (card.kind == "cloze" && card.context.isNotBlank()) {
                         Text(card.context, color = c.ink, fontSize = 16.sp, lineHeight = 23.sp)
                     }
+                    if (card.confused.isNotEmpty()) {
+                        Text(
+                            "Ojo: antes la confundiste con " + card.confused.joinToString(" · ") { "«$it»" } + ".",
+                            color = c.lines[2], fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                        )
+                    }
                     if (card.kind == "vocab" && card.context.isNotBlank()) {
                         val ans = core(card.front)
                         Text(
@@ -1035,6 +1077,29 @@ private fun ReviewSession(
                 }
             }
 
+            // Califica y pasa a la siguiente. «Otra vez» pregunta antes qué pasó.
+            fun commit(g: Grade, with: String? = null) {
+                if (vm.settings.value.haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                if (with != null) vm.study.confuse(card, with, conf) else vm.study.grade(card, g, conf)
+                if (conf == 1 && g == Grade.AGAIN) overconf++
+                conf = 0
+                done++
+                // Dificultad deseable: si aciertas 10 seguidas, adelanta las más difíciles
+                streakOk = if (g >= Grade.GOOD) streakOk + 1 else 0
+                if (streakOk == 10 && idx + 1 < queue.size) {
+                    val rest = queue.drop(idx + 1).sortedByDescending { it.diff }
+                    queue = queue.take(idx + 1) + rest
+                    vm.toast = "¡10 seguidas! Ahora vienen las más difíciles."
+                    streakOk = 0
+                }
+                val n = again[card.id] ?: 0
+                if (g == Grade.AGAIN && n < 2) {
+                    again[card.id] = n + 1
+                    queue = queue + (vm.study.cards.firstOrNull { it.id == card.id } ?: Srs.schedule(card, g))
+                }
+                idx++
+                showBack = false
+            }
             if (!showBack) {
                 if (oral) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1057,7 +1122,7 @@ private fun ReviewSession(
                         }
                     }
                 }
-            } else {
+            } else if (failing == 0) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(
                         Triple(Grade.AGAIN, "Otra vez", c.lines[0]),
@@ -1067,28 +1132,7 @@ private fun ReviewSession(
                     ).forEach { (g, label, col) ->
                         Column(
                             Modifier.weight(1f).height(64.dp).clip(RoundedCornerShape(14.dp)).background(col)
-                                .clickable {
-                                    if (vm.settings.value.haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
-                                    vm.study.grade(card, g, conf)
-                                    if (conf == 1 && g == Grade.AGAIN) overconf++
-                                    conf = 0
-                                    done++
-                                    // Dificultad deseable: si aciertas 10 seguidas, adelanta las más difíciles
-                                    streakOk = if (g >= Grade.GOOD) streakOk + 1 else 0
-                                    if (streakOk == 10 && idx + 1 < queue.size) {
-                                        val rest = queue.drop(idx + 1).sortedByDescending { it.diff }
-                                        queue = queue.take(idx + 1) + rest
-                                        vm.toast = "¡10 seguidas! Ahora vienen las más difíciles."
-                                        streakOk = 0
-                                    }
-                                    val n = again[card.id] ?: 0
-                                    if (g == Grade.AGAIN && n < 2) {
-                                        again[card.id] = n + 1
-                                        queue = queue + Srs.schedule(card, g)
-                                    }
-                                    idx++
-                                    showBack = false
-                                },
+                                .clickable { if (g == Grade.AGAIN) { failing = 1; confusedWith = "" } else commit(g) },
                             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
                         ) {
                             Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -1096,9 +1140,127 @@ private fun ReviewSession(
                         }
                     }
                 }
+            } else {
+                FailPanel(
+                    vm, card, step = failing, typed = confusedWith,
+                    onTyped = { confusedWith = it },
+                    onStep = { failing = it },
+                    onNotKnown = { errNo++; failing = 0; commit(Grade.AGAIN) },
+                    onConfused = { w -> errConf++; failing = 0; commit(Grade.AGAIN, w) },
+                    onBad = { why ->
+                        errBad++; failing = 0
+                        vm.study.hold(card, why)
+                        conf = 0; idx++; showBack = false
+                        vm.toast = "Tarjeta apartada para revisar. No cuenta como fallo."
+                    },
+                )
             }
         }
     }
+}
+
+/** Los tres tipos de error al fallar una tarjeta. */
+@Composable
+private fun FailPanel(
+    vm: HiloViewModel,
+    card: StudyCard,
+    step: Int,
+    typed: String,
+    onTyped: (String) -> Unit,
+    onStep: (Int) -> Unit,
+    onNotKnown: () -> Unit,
+    onConfused: (String) -> Unit,
+    onBad: (String) -> Unit,
+) {
+    val c = LocalHilo.current
+    @Composable
+    fun Choice(title: String, sub: String, col: Color, onClick: () -> Unit) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(col.copy(alpha = 0.14f))
+                .border(1.5.dp, col, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 10.dp),
+        ) {
+            Text(title, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text(sub, color = c.muted, fontSize = 12.sp)
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                when (step) { 2 -> "¿Con qué la confundiste?"; 3 -> "¿Qué tenía de malo?"; else -> "¿Qué pasó?" },
+                color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = { onStep(if (step == 1) 0 else 1) }) { Text("Volver") }
+        }
+        when (step) {
+            1 -> {
+                Choice("No lo sabía", "Cuenta como fallo y vuelve pronto.", c.lines[0], onNotKnown)
+                Choice("Lo confundí con otra cosa…", "Fallo, y anoto con qué para avisarte la próxima vez.", c.lines[2]) { onStep(2) }
+                Choice("La pregunta estaba mal", "La aparto para que la corrijas. No cuenta como fallo.", c.muted) { onStep(3) }
+            }
+            2 -> {
+                // Sugerencias: otras respuestas cortas del mismo documento que se parecen a esta
+                val sugg = remember(card.id) {
+                    val mine = KeyWords.of(card.front + " " + card.back, emptyList(), 12).map { it.lowercase() }.toSet()
+                    vm.study.cards.asSequence()
+                        .filter { it.id != card.id && it.bookId == card.bookId && it.back.isNotBlank() && it.back.length <= 40 && !it.back.equals(card.back, true) }
+                        .map { o -> o.back.trim() to (o.front + " " + o.back).lowercase().split(Regex("[^\\p{L}\\p{N}]+")).count { it in mine } }
+                        .sortedByDescending { it.second }.map { it.first }.distinct().take(4).toList()
+                }
+                OutlinedTextField(
+                    value = typed, onValueChange = onTyped, singleLine = true,
+                    placeholder = { Text("Ej.: prescripción / caducidad") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (sugg.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    sugg.forEach { t ->
+                        Box(
+                            Modifier.clip(RoundedCornerShape(50)).background(c.chip).clickable { onTyped(t) }.padding(horizontal = 12.dp, vertical = 7.dp),
+                        ) { Text(t, color = c.ink, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    }
+                }
+                Button(
+                    onClick = { onConfused(typed) }, enabled = typed.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.accentInk),
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                ) { Text("Guardar y seguir") }
+            }
+            else -> FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("La respuesta está mal", "La pregunta es ambigua", "Le falta contexto", "Está repetida", "Está mal recortada").forEach { why ->
+                    Box(
+                        Modifier.clip(RoundedCornerShape(50)).background(c.chip).clickable { onBad(why) }.padding(horizontal = 14.dp, vertical = 10.dp),
+                    ) { Text(why, color = c.ink, fontSize = 14.sp) }
+                }
+            }
+        }
+    }
+}
+
+/** Tarjetas apartadas porque la pregunta estaba mal: corregirlas, volverlas al repaso o borrarlas. */
+@Composable
+private fun HeldDialog(vm: HiloViewModel, list: List<StudyCard>, onEdit: (StudyCard) -> Unit, onDismiss: () -> Unit) {
+    val c = LocalHilo.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("En revisión (${list.size})") },
+        text = {
+            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Las apartaste porque la pregunta estaba mal. No salen en el repaso ni cuentan en tus estadísticas hasta que las corrijas.", color = c.muted, fontSize = 13.sp)
+                list.forEach { card ->
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.bg).padding(10.dp)) {
+                        Text(card.held, color = c.lines[2], fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text(card.front, color = c.ink, fontSize = 14.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        if (card.back.isNotBlank()) Text(card.back, color = c.accent, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Row {
+                            TextButton(onClick = { onEdit(card) }) { Text("Corregir") }
+                            TextButton(onClick = { vm.study.release(card); vm.toast = "Vuelve al repaso hoy." }) { Text("Volver al repaso") }
+                            TextButton(onClick = { vm.study.delete(card.id); vm.undoable("Tarjeta borrada") { vm.study.add(card) } }) { Text("Borrar", color = c.lines[0]) }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Listo") } },
+    )
 }
 
 // =====================================================================

@@ -588,6 +588,18 @@ internal val NEW_TOPICS = listOf(
         listOf("Compara palabras (acepta plural, femenino y conjugaciones), no entiende sinónimos: por eso la última palabra es tuya."),
         key = "simulacro-escrito",
     ),
+    Topic(
+        "Estudiar", Icons.Rounded.Code, "Qué pasó cuando fallas",
+        "Al tocar «Otra vez» en el repaso, Hilo pregunta qué pasó. No todos los fallos son iguales, y tratarlos igual estropea la programación de repasos.",
+        listOf(
+            "«No lo sabía»: cuenta como fallo y la tarjeta vuelve pronto.",
+            "«Lo confundí con otra cosa…»: también es fallo; escribe con qué (o toca una de las sugerencias). La próxima vez, al ver la respuesta, Hilo te avisa: «Ojo: antes la confundiste con…».",
+            "«La pregunta estaba mal»: elige el motivo (respuesta mal, ambigua, sin contexto, repetida, mal recortada). La tarjeta se aparta: no cuenta como fallo, no cambia su memoria y no sale en el repaso, el simulacro ni las estadísticas.",
+            "Las apartadas aparecen en Estudiar → «En revisión». Toca «Corregir», arréglala y guarda: vuelve al repaso ese mismo día. También puedes devolverla tal cual o borrarla.",
+        ),
+        listOf("Al terminar la ronda ves cuántos fallos fueron por no saber, por confusión o por preguntas mal hechas."),
+        key = "tipos-error",
+    ),
 )
 
 /** Claves de los temas que ya estaban en la guía. */

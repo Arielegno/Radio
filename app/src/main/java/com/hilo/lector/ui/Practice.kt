@@ -298,7 +298,7 @@ fun RouteTab(
                 OutlinedButton(onClick = { open("simulacro") }) { Text("Simulacro de examen", color = c.ink) }
                 OutlinedButton(onClick = { open("cierre") }) { Text("Cierre del día", color = c.ink) }
             }
-            predictedGrade(vm.study.cardsOf(book.id))?.let { g ->
+            predictedGrade(vm.study.cardsOf(book.id).filter { it.held.isEmpty() })?.let { g ->
                 Text("Si el examen fuera hoy: nota estimada ${"%.1f".format(g)} / 10", color = c.ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
             val fragile = vm.study.cardsOf(book.id).count { it.fragile }
@@ -760,7 +760,7 @@ private fun Simulacro(vm: HiloViewModel, book: Book?, onReview: (List<StudyCard>
     var left by remember { mutableIntStateOf(0) }
     var written by remember { mutableStateOf(false) }
     var answer by remember { mutableStateOf("") }
-    val pool = if (all || book == null) vm.study.cards.toList() else vm.study.cardsOf(book.id)
+    val pool = (if (all || book == null) vm.study.cards.toList() else vm.study.cardsOf(book.id)).filter { it.held.isEmpty() }
 
     LaunchedEffect(qs, minutes) {
         if (qs == null || minutes == 0) return@LaunchedEffect
@@ -896,7 +896,7 @@ fun StatsView(vm: HiloViewModel, onClose: () -> Unit) {
     val c = LocalHilo.current
     val ctx = LocalContext.current
     val m = vm.motor
-    val cards = vm.study.cards.toList()
+    val cards = vm.study.cards.filter { it.held.isEmpty() }
     val studied = cards.filter { it.reps > 0 || it.stab > 0f }
     val health = if (studied.isEmpty()) null else (studied.map { it.recall() }.average() * 100).roundToInt()
     val hist = remember { Stats.history(ctx, 14) }

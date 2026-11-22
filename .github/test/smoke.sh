@@ -245,6 +245,9 @@ sleep 1
 # Repaso
 tap "Repasar" parcial
 sleep 2
+# Si cayó en la portada de Estudiar, ahí el botón es «Repasar 1»
+tap "Repasar 1"
+sleep 2
 shot 29_repaso_frente 2
 tap "Dudo"
 shot 30_repaso_respuesta 2

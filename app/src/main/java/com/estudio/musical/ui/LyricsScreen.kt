@@ -66,14 +66,15 @@ fun LyricsScreen(modifier: Modifier) {
     Box(modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
             item {
-                SectionTitle("Mis canciones")
+                Encabezado("Letras", "Tus canciones, acordes y rimas", Icons.Filled.EditNote, dentroDeMargen = true)
                 OutlinedTextField(buscar, { buscar = it }, label = { Text("Buscar") }, singleLine = true,
                     leadingIcon = { Icon(Icons.Filled.Search, null) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
             }
             if (songs.isEmpty()) item { Text("Toca + para escribir o dictar tu primera letra.") }
             items(songs.filter { buscar.isBlank() || it.titulo.contains(buscar, true) || it.letra.contains(buscar, true) }, key = { it.id }) { s ->
-                Card(Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { editing = s }) {
+                Card(Modifier.fillMaxWidth().padding(vertical = 5.dp).clickable { editing = s },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
                     Column(Modifier.padding(12.dp)) {
                         Text(s.titulo.ifBlank { "Sin título" }, style = MaterialTheme.typography.titleMedium)
                         if (s.tonalidad.isNotBlank()) Text("Tono: ${s.tonalidad}", style = MaterialTheme.typography.labelMedium)
@@ -84,8 +85,10 @@ fun LyricsScreen(modifier: Modifier) {
             }
             item { Spacer(Modifier.height(80.dp)) }
         }
-        FloatingActionButton(onClick = { editing = Cancion(titulo = "", letra = "") },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) { Icon(Icons.Filled.Add, contentDescription = "Nueva canción") }
+        ExtendedFloatingActionButton(onClick = { editing = Cancion(titulo = "", letra = "") },
+            icon = { Icon(Icons.Filled.Add, null) }, text = { Text("Nueva canción") },
+            containerColor = Marca.Magenta, contentColor = androidx.compose.ui.graphics.Color.White,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp))
     }
 }
 

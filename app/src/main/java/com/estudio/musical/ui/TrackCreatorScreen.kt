@@ -96,7 +96,7 @@ fun TrackCreatorScreen(modifier: Modifier, proyecto: Proyecto, onCerrar: (List<P
             IconButton(onClick = { MotorAudio.detenerTodo(); onCerrar(emptyList()) }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
             }
-            Text("Crear pista instrumental", style = MaterialTheme.typography.titleLarge)
+            Column { Text("Crear pista", style = MaterialTheme.typography.headlineSmall); Ayuda("Batería, bajo, acordes y melodía en tu tono") }
         }
 
         Seccion("1 · Tonalidad y estilo", inicialAbierta = true) {

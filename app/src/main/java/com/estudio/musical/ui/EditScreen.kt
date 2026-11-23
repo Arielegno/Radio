@@ -8,6 +8,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Share
@@ -38,9 +39,10 @@ import java.io.File
 @Composable
 fun Seccion(titulo: String, inicialAbierta: Boolean = false, contenido: @Composable ColumnScope.() -> Unit) {
     var abierta by remember { mutableStateOf(inicialAbierta) }
-    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp).animateContentSize()) {
-        Row(Modifier.fillMaxWidth().clickable { abierta = !abierta }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(titulo, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+    Card(Modifier.fillMaxWidth().padding(vertical = 5.dp).animateContentSize(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+        Row(Modifier.fillMaxWidth().clickable { abierta = !abierta }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(titulo, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             Icon(if (abierta) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, contentDescription = null)
         }
         if (abierta) Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp), content = contenido)
@@ -119,9 +121,9 @@ fun EditScreen(modifier: Modifier) {
     fun fx(nombre: String, f: (FloatArray, Int) -> FloatArray) = aplicar(nombre) { AudioData(f(it.samples, it.sampleRate), it.sampleRate) }
 
     Column(modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        SectionTitle("Editor")
+        Encabezado("Editar", "Recorta, limpia y dale brillo a tu sonido", Icons.Filled.GraphicEq, dentroDeMargen = true)
         Selector("Pista a editar", files, original, { it.nameWithoutExtension }) { abrir(it) }
-        if (actual == null) { Ayuda("Elige una grabación para empezar."); return@Column }
+        if (actual == null) { Spacer(Modifier.height(24.dp)); Aviso("Elige una grabación para empezar a editar.", Icons.Filled.GraphicEq); return@Column }
 
         Spacer(Modifier.height(8.dp))
         FormaDeOnda(picos, recorte, duracion)
@@ -136,7 +138,7 @@ fun EditScreen(modifier: Modifier) {
             }
         }
         if (ocupado) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (mensaje.isNotEmpty()) Text(mensaje, color = MaterialTheme.colorScheme.primary)
+        if (mensaje.isNotEmpty()) Aviso(mensaje)
 
         Seccion("✂ Recortar", inicialAbierta = true) {
             Text("Desde %.2f s hasta %.2f s".format(recorte.start, recorte.endInclusive))

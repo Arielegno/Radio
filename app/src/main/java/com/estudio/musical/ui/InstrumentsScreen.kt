@@ -40,7 +40,8 @@ import java.io.File
 fun InstrumentsScreen(modifier: Modifier) {
     var tab by remember { mutableIntStateOf(0) }
     Column(modifier.fillMaxSize()) {
-        ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
+        Encabezado("Tocar", "Instrumentos, batería y tus propios sonidos", Icons.Filled.Piano)
+        ScrollableTabRow(selectedTabIndex = tab, edgePadding = 16.dp, containerColor = MaterialTheme.colorScheme.background, divider = {}) {
             listOf("Teclado", "Batería", "Sampler", "Crear sonido").forEachIndexed { i, t ->
                 Tab(tab == i, { tab = i; MotorAudio.detenerTodo() }, text = { Text(t) })
             }
@@ -145,20 +146,23 @@ private fun BateriaTab() {
         Spacer(Modifier.height(8.dp))
         piezas.chunked(3).forEach { fila ->
             Row(Modifier.fillMaxWidth()) {
-                fila.forEach { p -> Pad(p.nombre, Modifier.weight(1f)) { MotorAudio.tocar(Bateria.sonido(p, MotorAudio.SR)) } }
+                fila.forEach { p -> Pad(p.nombre, COLORES_PAD[p.ordinal % COLORES_PAD.size], Modifier.weight(1f)) { MotorAudio.tocar(Bateria.sonido(p, MotorAudio.SR)) } }
                 repeat(3 - fila.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
 }
 
+private val COLORES_PAD = listOf(Marca.Coral, Marca.Violeta, Marca.Magenta, Marca.Ambar, Marca.Verde,
+    androidx.compose.ui.graphics.Color(0xFF38BDF8))
+
 @Composable
-private fun Pad(texto: String, modifier: Modifier, onGolpe: () -> Unit) {
+private fun Pad(texto: String, color: androidx.compose.ui.graphics.Color, modifier: Modifier, onGolpe: () -> Unit) {
     var activo by remember { mutableStateOf(false) }
     val golpe by rememberUpdatedState(onGolpe)
     Box(
         modifier.padding(4.dp).aspectRatio(1.2f).clip(RoundedCornerShape(16.dp))
-            .background(if (activo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer)
+            .background(if (activo) color else color.copy(alpha = 0.22f))
             .pointerInput(Unit) {
                 detectTapGestures(onPress = {
                     golpe(); activo = true
@@ -166,7 +170,7 @@ private fun Pad(texto: String, modifier: Modifier, onGolpe: () -> Unit) {
                 })
             },
         contentAlignment = Alignment.Center
-    ) { Text(texto, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center) }
+    ) { Text(texto, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = if (activo) androidx.compose.ui.graphics.Color.White else color) }
 }
 
 // ───────────────────────── Sampler: graba un sonido y tócalo en cualquier nota ─────────────────────────

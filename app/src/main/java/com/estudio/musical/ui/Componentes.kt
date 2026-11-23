@@ -11,8 +11,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,7 +45,8 @@ import kotlin.math.abs
 
 @Composable
 fun SectionTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 8.dp))
+    Text(text, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 12.dp, bottom = 6.dp))
 }
 
 @Composable
@@ -285,6 +292,97 @@ fun Diapason(resaltadas: Set<Int>, raiz: Int?, trastes: Int = 12, modifier: Modi
                 val txt = medidor.measure(Teoria.NOTAS[pc], TextStyle(fontSize = 7.sp, color = Color.White))
                 drawText(txt, topLeft = centro - Offset(txt.size.width / 2f, txt.size.height / 2f))
             }
+        }
+    }
+}
+
+// ───────────────────────── Elementos visuales de marca ─────────────────────────
+
+/** Encabezado de cada pantalla: ícono con degradado + título grande */
+@Composable
+fun Encabezado(
+    titulo: String, subtitulo: String? = null, icono: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    dentroDeMargen: Boolean = false,
+    acciones: @Composable RowScope.() -> Unit = {}
+) {
+    Row(Modifier.fillMaxWidth().padding(start = if (dentroDeMargen) 0.dp else 20.dp, end = if (dentroDeMargen) 0.dp else 12.dp,
+        top = if (dentroDeMargen) 0.dp else 16.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        if (icono != null) {
+            Box(Modifier.size(44.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).background(Marca.degradado),
+                contentAlignment = Alignment.Center) { Icon(icono, null, tint = Color.White) }
+            Spacer(Modifier.width(14.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(titulo, style = MaterialTheme.typography.headlineMedium)
+            if (subtitulo != null) Text(subtitulo, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        acciones()
+    }
+}
+
+/** Tarjeta de aviso/mensaje con ícono */
+@Composable
+fun Aviso(texto: String, icono: androidx.compose.ui.graphics.vector.ImageVector = Icons.Filled.CheckCircle, error: Boolean = false) {
+    Surface(
+        color = if (error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+        shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(if (error) Icons.Filled.Warning else icono, null, tint = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(10.dp))
+            Text(texto, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+/** Botón redondo de grabar con anillo que late mientras graba */
+@Composable
+fun BotonGrabar(grabando: Boolean, preparando: Boolean = false, tam: androidx.compose.ui.unit.Dp = 120.dp, onClick: () -> Unit) {
+    val anim = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulso")
+    val escala by anim.animateFloat(1f, 1.35f, androidx.compose.animation.core.infiniteRepeatable(
+        androidx.compose.animation.core.tween(1000), androidx.compose.animation.core.RepeatMode.Restart), label = "escala")
+    val alfa by anim.animateFloat(0.5f, 0f, androidx.compose.animation.core.infiniteRepeatable(
+        androidx.compose.animation.core.tween(1000), androidx.compose.animation.core.RepeatMode.Restart), label = "alfa")
+    Box(Modifier.size(tam * 1.4f), contentAlignment = Alignment.Center) {
+        if (grabando || preparando) Box(Modifier.size(tam).graphicsLayer { scaleX = escala; scaleY = escala; this.alpha = alfa }
+            .clip(androidx.compose.foundation.shape.CircleShape).background(Marca.Coral))
+        Box(Modifier.size(tam).clip(androidx.compose.foundation.shape.CircleShape)
+            .background(if (grabando || preparando) Marca.degradadoGrabar else Marca.degradado)
+            .clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+            if (grabando || preparando) Box(Modifier.size(tam * 0.3f).clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).background(Color.White))
+            else Icon(Icons.Filled.Mic, contentDescription = "Grabar", tint = Color.White, modifier = Modifier.size(tam * 0.42f))
+        }
+    }
+}
+
+/** Vúmetro de segmentos verde → ámbar → coral */
+@Composable
+fun Vumetro(nivel: Float, modifier: Modifier = Modifier) {
+    val apagado = MaterialTheme.colorScheme.surfaceVariant
+    Canvas(modifier.fillMaxWidth().height(18.dp)) {
+        val n = 28
+        val gap = 3.dp.toPx()
+        val w = (size.width - gap * (n - 1)) / n
+        val encendidos = (nivel.coerceIn(0f, 1f) * n).toInt()
+        for (i in 0 until n) {
+            val f = i / n.toFloat()
+            val color = when { i >= encendidos -> apagado; f < 0.7f -> Marca.Verde; f < 0.88f -> Marca.Ambar; else -> Marca.Coral }
+            drawRoundRect(color, Offset(i * (w + gap), 0f), Size(w, size.height), CornerRadius(4f))
+        }
+    }
+}
+
+/** Tarjeta grande con ícono de color para menús */
+@Composable
+fun TarjetaOpcion(titulo: String, desc: String, icono: androidx.compose.ui.graphics.vector.ImageVector, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Card(modifier.padding(6.dp).clickable(onClick = onClick), shape = MaterialTheme.shapes.large) {
+        Column(Modifier.padding(16.dp).fillMaxWidth()) {
+            Box(Modifier.size(46.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).background(color.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center) { Icon(icono, null, tint = color) }
+            Spacer(Modifier.height(12.dp))
+            Text(titulo, style = MaterialTheme.typography.titleMedium)
+            Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, minLines = 2)
         }
     }
 }

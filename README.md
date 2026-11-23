@@ -1,6 +1,6 @@
-# Estudio Musical · Android (Kotlin + Jetpack Compose)
+# Tonalia · Android (Kotlin + Jetpack Compose)
 
-Estudio de grabación, instrumentos digitales y cuaderno de canciones. **Todo funciona en el teléfono, sin nube ni cuentas.**
+Tonalia es un estudio de grabación, instrumentos digitales y cuaderno de canciones. **Todo funciona en el teléfono, sin nube ni cuentas.**
 
 ## Pestañas
 | | Qué hace |

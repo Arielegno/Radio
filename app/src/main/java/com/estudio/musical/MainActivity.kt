@@ -4,15 +4,18 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import com.estudio.musical.audio.MotorAudio
+import com.estudio.musical.data.Ajustes
 import com.estudio.musical.data.Carpetas
 import com.estudio.musical.ui.*
 import java.io.File
@@ -41,20 +44,29 @@ fun listaGrabaciones(ctx: Context): List<File> = Carpetas.listaGrabaciones(ctx)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        val ajustes = Ajustes(this)
         setContent {
-            val colores = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
-            MaterialTheme(colorScheme = colores) {
-                Scaffold(
+            TemaTonalia {
+                var bienvenida by remember { mutableStateOf(!ajustes.bienvenidaVista) }
+                if (bienvenida) {
+                    Bienvenida { ajustes.bienvenidaVista = true; bienvenida = false }
+                } else Scaffold(
+                    containerColor = MaterialTheme.colorScheme.background,
                     bottomBar = {
-                        NavigationBar {
+                        NavigationBar(containerColor = Marca.Superficie, tonalElevation = 0.dp) {
                             Pantalla.entries.forEach { p ->
                                 NavigationBarItem(
                                     selected = AppState.pantalla == p,
                                     onClick = { AppState.pantalla = p },
                                     icon = { Icon(p.icono, contentDescription = p.titulo) },
-                                    label = { Text(p.titulo, maxLines = 1) },
-                                    alwaysShowLabel = false
+                                    label = { Text(p.titulo, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedIconColor = Color.White,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary
+                                    )
                                 )
                             }
                         }

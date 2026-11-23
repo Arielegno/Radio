@@ -65,7 +65,7 @@ fun StudioScreen(modifier: Modifier) {
     }
 
     Column(modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        SectionTitle("Estudio multipista")
+        Encabezado("Estudio", "Proyectos multipista y mezcla", Icons.Filled.LibraryMusic, dentroDeMargen = true)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Selector("Proyecto", proyectos, p, { it.nombre }, Modifier.weight(1f)) {
                 proyecto = it; ajustes.proyectoActual = it.id; mezclaArchivo = null
@@ -79,10 +79,10 @@ fun StudioScreen(modifier: Modifier) {
         } else {
             Ayuda(listOfNotNull(p.tonalidad.takeIf { it.isNotBlank() }, "${p.bpm} BPM", "${p.pistas.size} pistas").joinToString(" · "))
             if (ocupado) LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 4.dp))
-            if (mensaje.isNotEmpty()) Text(mensaje, color = MaterialTheme.colorScheme.primary)
+            if (mensaje.isNotEmpty()) Aviso(mensaje)
 
             Row(Modifier.padding(vertical = 8.dp)) {
-                Button(onClick = { creando = true }) { Icon(Icons.Filled.AutoAwesome, null); Spacer(Modifier.width(4.dp)); Text("Crear pista") }
+                Button(onClick = { creando = true }, colors = ButtonDefaults.buttonColors(containerColor = Marca.Magenta, contentColor = androidx.compose.ui.graphics.Color.White)) { Icon(Icons.Filled.AutoAwesome, null); Spacer(Modifier.width(4.dp)); Text("Crear pista") }
                 Spacer(Modifier.width(8.dp))
                 OutlinedButton(onClick = { dialogoAgregar = true }) { Icon(Icons.Filled.PlaylistAdd, null); Spacer(Modifier.width(4.dp)); Text("Agregar toma") }
             }
@@ -172,7 +172,8 @@ private fun PistaCard(t: PistaProyecto, onCambio: (PistaProyecto) -> Unit, onBor
     var ini by remember(t) { mutableFloatStateOf(t.inicioMs / 1000f) }
     var abierta by remember { mutableStateOf(false) }
     val existe = File(t.archivo).exists()
-    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+    Card(Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
         Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 PlayButton(File(t.archivo).takeIf { existe })

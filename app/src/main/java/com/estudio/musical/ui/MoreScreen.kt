@@ -76,17 +76,20 @@ fun MoreScreen(modifier: Modifier) {
         }
         return
     }
-    Column(modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        SectionTitle("Herramientas")
-        Herramienta.entries.forEach { t ->
-            Card(Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { abierta = t }) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(t.icono, null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(16.dp))
-                    Column { Text(t.titulo, fontWeight = FontWeight.Bold); Ayuda(t.desc) }
+    val colores = listOf(Marca.Verde, Marca.Ambar, Marca.Violeta, Marca.Coral, androidx.compose.ui.graphics.Color(0xFF38BDF8), Marca.Magenta)
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Encabezado("Más", "Herramientas para músicos", Icons.Filled.Apps)
+        Herramienta.entries.chunked(2).forEachIndexed { f, fila ->
+            Row(Modifier.padding(horizontal = 10.dp)) {
+                fila.forEachIndexed { c, t ->
+                    TarjetaOpcion(t.titulo, t.desc, t.icono, colores[(f * 2 + c) % colores.size], Modifier.weight(1f)) { abierta = t }
                 }
+                if (fila.size == 1) Spacer(Modifier.weight(1f))
             }
         }
+        Spacer(Modifier.height(16.dp))
+        Text("Tonalia · hecho para crear música sin internet", style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline, modifier = Modifier.align(Alignment.CenterHorizontally).padding(16.dp))
     }
 }
 

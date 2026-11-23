@@ -47,6 +47,9 @@ class Ajustes(ctx: Context) {
     var bpm: Int
         get() = p.getInt("bpm", 100)
         set(v) = p.edit().putInt("bpm", v).apply()
+    var bienvenidaVista: Boolean
+        get() = p.getBoolean("bienvenida", false)
+        set(v) = p.edit().putBoolean("bienvenida", v).apply()
     var proyectoActual: String?
         get() = p.getString("proyecto", null)
         set(v) = p.edit().putString("proyecto", v).apply()

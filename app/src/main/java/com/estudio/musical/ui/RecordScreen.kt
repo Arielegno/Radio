@@ -3,17 +3,23 @@ package com.estudio.musical.ui
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.estudio.musical.AppState
 import com.estudio.musical.Pantalla
@@ -34,6 +40,15 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private fun iconoEntrada(d: AudioDeviceInfo?): ImageVector = when (d?.type) {
+    null -> Icons.Filled.AutoMode
+    AudioDeviceInfo.TYPE_BUILTIN_MIC -> Icons.Filled.Smartphone
+    AudioDeviceInfo.TYPE_USB_DEVICE, AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_ACCESSORY -> Icons.Filled.Usb
+    AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> Icons.Filled.Bluetooth
+    AudioDeviceInfo.TYPE_WIRED_HEADSET -> Icons.Filled.Headset
+    else -> Icons.Filled.Mic
+}
+
 @Composable
 fun RecordScreen(modifier: Modifier) {
     val ctx = LocalContext.current
@@ -53,7 +68,6 @@ fun RecordScreen(modifier: Modifier) {
     var ultima by remember { mutableStateOf<File?>(null) }
     var mensaje by remember { mutableStateOf("") }
 
-    // opciones
     var click by remember { mutableStateOf(false) }
     var cuenta by remember { mutableStateOf(false) }
     var bpm by remember { mutableFloatStateOf(ajustes.bpm.toFloat()) }
@@ -69,7 +83,9 @@ fun RecordScreen(modifier: Modifier) {
         val cb = object : AudioDeviceCallback() {
             override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) {
                 devices = recorder.inputDevices()
-                added.firstOrNull { it.isSource && it.type != AudioDeviceInfo.TYPE_BUILTIN_MIC }?.let { device = it }
+                added.firstOrNull { it.isSource && it.type != AudioDeviceInfo.TYPE_BUILTIN_MIC }?.let {
+                    device = it; mensaje = "Micrófono conectado: ${AudioRecorder.describe(it)}"
+                }
             }
             override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) {
                 devices = recorder.inputDevices()
@@ -91,6 +107,7 @@ fun RecordScreen(modifier: Modifier) {
 
     fun comenzar() = scope.launch {
         MotorAudio.detenerTodo()
+        mensaje = ""
         val nombreBase = name.ifBlank { "Toma " + SimpleDateFormat("dd-MM HH.mm.ss", Locale.getDefault()).format(Date()) }
         val out = Carpetas.nombreLibre(Carpetas.grabaciones(ctx), nombreBase)
         val datosBase = base?.let { f -> withContext(Dispatchers.IO) { Wav.readAt(f, MotorAudio.SR).samples } }
@@ -113,116 +130,133 @@ fun RecordScreen(modifier: Modifier) {
         recorder.stop(); metro.detener()
         estado = "listo"; level = 0f; tiempoActual = -1
         files = Carpetas.listaGrabaciones(ctx)
+        name = ""
         mensaje = "Guardada: ${ultima?.nameWithoutExtension}"
     }
 
     fun agregarAlProyecto(f: File) {
         val repo = ProyectosRepo(ctx)
         val p = repo.obtener(ajustes.proyectoActual)
-        if (p == null) { mensaje = "Primero crea un proyecto en la pestaña Estudio."; return }
+        if (p == null) { mensaje = "Primero crea un proyecto en Estudio."; return }
         repo.guardar(p.copy(pistas = p.pistas + PistaProyecto(f.absolutePath, f.nameWithoutExtension)))
-        mensaje = "“${f.nameWithoutExtension}” agregada al proyecto ${p.nombre}"
+        mensaje = "Agregada al proyecto “${p.nombre}”"
     }
 
     val ocupado = estado != "listo"
+    val resumenOpciones = listOfNotNull(
+        if (click) "Metrónomo ${bpm.toInt()}" else null, if (cuenta) "Cuenta" else null,
+        base?.let { "Sobre: ${it.nameWithoutExtension}" }, if (monitoreo) "Monitoreo" else null
+    ).joinToString(" · ").ifBlank { "Metrónomo, grabar encima de una base, monitoreo" }
 
-    Column(modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        SectionTitle("Entrada de audio")
-        Ayuda("Conecta tu micrófono por USB tipo C o empareja uno Bluetooth; aparecerá aquí solo.")
-        Row(Modifier.fillMaxWidth().clickable(enabled = !ocupado) { device = null }, verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected = device == null, onClick = { device = null }, enabled = !ocupado)
-            Text("Automático")
-        }
-        devices.forEach { d ->
-            Row(Modifier.fillMaxWidth().clickable(enabled = !ocupado) { device = d }, verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(selected = device?.id == d.id, onClick = { device = d }, enabled = !ocupado)
-                Text(AudioRecorder.describe(d))
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Encabezado("Grabar", "Calidad de estudio · WAV 48 kHz", Icons.Filled.Mic)
+
+        // ── Entrada: chips con íconos ──
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+            FilterChip(device == null, { if (!ocupado) device = null }, label = { Text("Automático") },
+                leadingIcon = { Icon(iconoEntrada(null), null, Modifier.size(18.dp)) }, modifier = Modifier.padding(end = 8.dp))
+            devices.forEach { d ->
+                FilterChip(device?.id == d.id, { if (!ocupado) device = d }, label = { Text(AudioRecorder.describe(d)) },
+                    leadingIcon = { Icon(iconoEntrada(d), null, Modifier.size(18.dp)) }, modifier = Modifier.padding(end = 8.dp))
             }
         }
-        if (device?.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
-            Text("⚠ Bluetooth graba a 16 kHz como máximo (calidad de llamada). Para calidad de estudio usa USB tipo C.",
-                color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        if (device?.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) Box(Modifier.padding(horizontal = 16.dp)) {
+            Aviso("Bluetooth graba con calidad de llamada. Para calidad de estudio usa USB tipo C.", error = true)
         }
 
-        HorizontalDivider(Modifier.padding(vertical = 12.dp))
-        SectionTitle("Metrónomo")
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Switch(click, { click = it }, enabled = !ocupado); Spacer(Modifier.width(8.dp)); Text("Click mientras grabo")
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Switch(cuenta, { cuenta = it }, enabled = !ocupado); Spacer(Modifier.width(8.dp)); Text("Cuenta de 1 compás antes de grabar")
-        }
-        if (click || cuenta) {
-            Deslizador("Tempo", bpm, 40f..220f, { "${it.toInt()} BPM" }) { bpm = it.toInt().toFloat() }
-            Ayuda("Usa audífonos para que el click no quede en la grabación.")
-        }
-
-        HorizontalDivider(Modifier.padding(vertical = 12.dp))
-        SectionTitle("Grabar encima de una pista")
-        Selector("Pista base", listOf<File?>(null) + files.filter { it != ultima || !ocupado }, base,
-            { it?.nameWithoutExtension ?: "Ninguna (grabar solo)" }) { base = it; AppState.baseOverdub = it }
-        if (base != null) {
-            Deslizador("Volumen de la base", volBase, 0f..1f, { "${(it * 100).toInt()} %" }) { volBase = it }
-            Ayuda("Escucha la base con audífonos. Compensación de latencia: ${ajustes.latenciaMs} ms (ajústala en Más → Ajustes).")
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Switch(monitoreo, { monitoreo = it }, enabled = !ocupado); Spacer(Modifier.width(8.dp))
-            Text("Escucharme en los audífonos (monitoreo)")
-        }
-        if (monitoreo) Ayuda("Solo con audífonos, o habrá acople (pitido). Algunos teléfonos tienen algo de retraso.")
-
-        HorizontalDivider(Modifier.padding(vertical = 12.dp))
-        OutlinedTextField(name, { name = it }, enabled = !ocupado, label = { Text("Nombre de la toma (opcional)") },
-            modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(12.dp))
-        Text("Nivel", style = MaterialTheme.typography.labelLarge)
-        LinearProgressIndicator(progress = { level }, modifier = Modifier.fillMaxWidth().height(12.dp),
-            color = if (level > 0.9f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-        if (level > 0.9f) Text("¡Saturando! Aléjate del micro o baja la ganancia.", color = MaterialTheme.colorScheme.error)
-
-        Spacer(Modifier.height(12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            LargeFloatingActionButton(
-                onClick = { if (ocupado) detener() else pedirPermiso { comenzar() } },
-                containerColor = MaterialTheme.colorScheme.errorContainer
-            ) {
-                Icon(if (ocupado) Icons.Filled.Stop else Icons.Filled.FiberManualRecord,
-                    contentDescription = if (ocupado) "Detener" else "Grabar")
-            }
-            Spacer(Modifier.width(16.dp))
-            Column {
-                Text(when (estado) {
-                    "cuenta" -> "Prepárate…"
-                    "grabando" -> "Grabando  %02d:%02d".format(seconds / 60, seconds % 60)
-                    else -> "WAV 48 kHz · 16 bits"
-                }, style = MaterialTheme.typography.titleMedium)
-                if (tiempoActual >= 0) Row {
+        // ── Zona central de grabación ──
+        Card(Modifier.fillMaxWidth().padding(16.dp), shape = MaterialTheme.shapes.extraLarge,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+            Column(Modifier.fillMaxWidth().background(Marca.degradadoSuave).padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    when (estado) { "cuenta" -> "Prepárate…"; "grabando" -> "%02d:%02d".format(seconds / 60, seconds % 60); else -> "00:00" },
+                    style = EstiloNumeroGrande,
+                    color = if (estado == "grabando") Marca.Coral else MaterialTheme.colorScheme.onSurface
+                )
+                Text(when (estado) { "grabando" -> "● Grabando"; "cuenta" -> "Cuenta regresiva"; else -> "Toca el botón para grabar" },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (tiempoActual >= 0) Row(Modifier.padding(top = 8.dp)) {
                     repeat(metro.tiempos) { i ->
-                        Text(if (i == tiempoActual) "●" else "○", style = MaterialTheme.typography.titleLarge,
-                            color = if (i == 0 && i == tiempoActual) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                        Box(Modifier.padding(4.dp).size(12.dp).clip(CircleShape).background(
+                            when { i == tiempoActual && i == 0 -> Marca.Coral; i == tiempoActual -> Marca.Violeta; else -> Marca.Superficie3 }))
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                BotonGrabar(grabando = estado == "grabando", preparando = estado == "cuenta") {
+                    if (ocupado) detener() else pedirPermiso { comenzar() }
+                }
+                Vumetro(level, Modifier.padding(top = 8.dp))
+                if (level > 0.9f) Text("Muy fuerte: aléjate un poco del micrófono", color = Marca.Coral,
+                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+                if (!ocupado) OutlinedTextField(name, { name = it }, label = { Text("Nombre (opcional)") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+            }
+        }
+        if (mensaje.isNotEmpty()) Box(Modifier.padding(horizontal = 16.dp)) { Aviso(mensaje) }
+
+        // ── Opciones plegadas ──
+        Column(Modifier.padding(horizontal = 16.dp)) {
+            Seccion("Opciones de grabación") {
+                Ayuda(resumenOpciones)
+                Spacer(Modifier.height(8.dp))
+                FilaInterruptor(Icons.Filled.Timer, "Metrónomo mientras grabo", click, !ocupado) { click = it }
+                FilaInterruptor(Icons.Filled.HourglassTop, "Cuenta de 1 compás antes", cuenta, !ocupado) { cuenta = it }
+                if (click || cuenta) Deslizador("Tempo", bpm, 40f..220f, { "${it.toInt()} BPM" }) { bpm = it.toInt().toFloat() }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Selector("Grabar encima de", listOf<File?>(null) + files, base,
+                    { it?.nameWithoutExtension ?: "Nada (grabar solo)" }) { base = it; AppState.baseOverdub = it }
+                if (base != null) {
+                    Deslizador("Volumen de la base", volBase, 0f..1f, { "${(it * 100).toInt()} %" }) { volBase = it }
+                    Ayuda("Escucha la base con audífonos. Latencia compensada: ${ajustes.latenciaMs} ms (Más → Ajustes).")
+                }
+                FilaInterruptor(Icons.Filled.Headphones, "Escucharme en los audífonos", monitoreo, !ocupado) { monitoreo = it }
+                if (click || monitoreo || base != null) Ayuda("Usa audífonos para que el sonido no se cuele en la grabación.")
+            }
+        }
+
+        // ── Tomas ──
+        Row(Modifier.padding(start = 20.dp, end = 16.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Mis tomas", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text("${files.size}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (files.isEmpty()) Box(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) { Ayuda("Tus grabaciones aparecerán aquí.") }
+        files.forEach { f ->
+            Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                Row(Modifier.padding(start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    PlayButton(f)
+                    Column(Modifier.weight(1f)) {
+                        Text(f.nameWithoutExtension, fontWeight = FontWeight.Medium, maxLines = 1)
+                        Ayuda("%.1f MB · %s".format(f.length() / 1_048_576f,
+                            SimpleDateFormat("d MMM, HH:mm", Locale("es")).format(Date(f.lastModified()))))
+                    }
+                    var menu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Más opciones") }
+                        DropdownMenu(menu, { menu = false }) {
+                            DropdownMenuItem(text = { Text("Editar") }, leadingIcon = { Icon(Icons.Filled.ContentCut, null) },
+                                onClick = { menu = false; AppState.archivoAEditar = f; AppState.pantalla = Pantalla.EDITAR })
+                            DropdownMenuItem(text = { Text("Agregar al proyecto") }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) },
+                                onClick = { menu = false; agregarAlProyecto(f) })
+                            DropdownMenuItem(text = { Text("Compartir") }, leadingIcon = { Icon(Icons.Filled.Share, null) },
+                                onClick = { menu = false; com.estudio.musical.audio.Exportar.compartir(ctx, f) })
+                            DropdownMenuItem(text = { Text("Borrar", color = Marca.Coral) }, leadingIcon = { Icon(Icons.Filled.Delete, null, tint = Marca.Coral) },
+                                onClick = { menu = false; f.delete(); files = Carpetas.listaGrabaciones(ctx) })
+                        }
                     }
                 }
             }
         }
-        if (mensaje.isNotEmpty()) Text(mensaje, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+        Spacer(Modifier.height(16.dp))
+    }
+}
 
-        HorizontalDivider(Modifier.padding(vertical = 12.dp))
-        SectionTitle("Mis tomas")
-        files.forEach { f ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(f.nameWithoutExtension)
-                    Ayuda("%.1f MB".format(f.length() / 1_048_576f))
-                }
-                PlayButton(f)
-                IconButton(onClick = { AppState.archivoAEditar = f; AppState.pantalla = Pantalla.EDITAR }) {
-                    Icon(Icons.Filled.ContentCut, contentDescription = "Editar")
-                }
-                IconButton(onClick = { agregarAlProyecto(f) }) { Icon(Icons.Filled.PlaylistAdd, contentDescription = "Agregar al proyecto") }
-                IconButton(onClick = { f.delete(); files = Carpetas.listaGrabaciones(ctx) }) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Borrar")
-                }
-            }
-        }
+@Composable
+fun FilaInterruptor(icono: ImageVector, texto: String, valor: Boolean, habilitado: Boolean = true, onCambio: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icono, null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(12.dp))
+        Text(texto, Modifier.weight(1f))
+        Switch(valor, onCambio, enabled = habilitado)
     }
 }

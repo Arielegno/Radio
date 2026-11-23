@@ -251,8 +251,10 @@ private fun ColumnScope.AyudasLetra(cancionId: String, texto: String, tono: Pair
                 if (grabando) { recorder.stop(); grabando = false; notas = Carpetas.notasVoz(ctx, cancionId).listFiles()?.sortedBy { it.name } ?: emptyList() }
                 else pedirPermiso {
                     val f = File(Carpetas.notasVoz(ctx, cancionId), "Idea " + SimpleDateFormat("dd-MM HH.mm", Locale.getDefault()).format(Date()) + ".wav")
-                    recorder.start(f, null); grabando = true; segundos = 0
-                    scope.launch { while (grabando) { delay(1000); segundos++ } }
+                    if (recorder.start(f, null) == null) {
+                        grabando = true; segundos = 0
+                        scope.launch { while (grabando) { delay(1000); segundos++ } }
+                    }
                 }
             }) {
                 Icon(if (grabando) Icons.Filled.Stop else Icons.Filled.Mic, null); Spacer(Modifier.width(4.dp))

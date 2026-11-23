@@ -214,7 +214,9 @@ private fun SamplerTab() {
                     recorder.stop(); grabando = false; crearDesde(temp, nombre)
                 } else pedirPermiso {
                     MotorAudio.detenerTodo()
-                    recorder.start(temp, null); grabando = true; mensaje = "Grabando… haz el sonido y luego detén"
+                    val problema = recorder.start(temp, null)
+                    if (problema != null) mensaje = problema
+                    else { grabando = true; mensaje = "Grabando… haz el sonido y luego detén" }
                     scope.launch { delay(6000); if (recorder.isRecording) { recorder.stop(); grabando = false; crearDesde(temp, nombre) } }
                 }
             }) {

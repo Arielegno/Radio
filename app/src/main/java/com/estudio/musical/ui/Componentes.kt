@@ -238,18 +238,20 @@ fun PianoTeclado(
         val w = size.width / blancas.size
         val activas = presionadas.values.toSet()
         blancas.forEachIndexed { i, n ->
-            val color = when { n in activas -> cPrim; n % 12 in resaltadas -> cEsc; else -> Color.White }
+            val color = when { n in activas -> Marca.Magenta; n % 12 == raiz && raiz != null -> Color(0xFFF9A8D4)
+                n % 12 in resaltadas -> Color(0xFFDCCBFF); else -> Color.White }
             drawRect(color, Offset(i * w, 0f), Size(w - 2, size.height))
             drawRect(Color.Gray, Offset(i * w, 0f), Size(w - 2, size.height), style = Stroke(1f))
             if (n % 12 == 0 || n % 12 == raiz) {
                 val t = medidor.measure(Teoria.NOTAS[n % 12] + if (n % 12 == 0) "${n / 12 - 1}" else "",
-                    TextStyle(fontSize = 9.sp, color = cTexto))
+                    TextStyle(fontSize = 9.sp, color = Color(0xFF4B4566)))
                 drawText(t, topLeft = Offset(i * w + (w - t.size.width) / 2, size.height - t.size.height - 6))
             }
         }
         negras.forEach { n ->
             val x = xDeNegra(n, w)
-            val color = when { n in activas -> cPrim; n % 12 in resaltadas -> cPrim.copy(alpha = 0.7f); else -> Color(0xFF222222) }
+            val color = when { n in activas -> Marca.Magenta; n % 12 == raiz && raiz != null -> Color(0xFFDB2777)
+                n % 12 in resaltadas -> Marca.VioletaOscuro; else -> Color(0xFF1C1A24) }
             drawRoundRect(color, Offset(x - w * 0.3f, 0f), Size(w * 0.6f, size.height * 0.62f), CornerRadius(4f))
         }
     }

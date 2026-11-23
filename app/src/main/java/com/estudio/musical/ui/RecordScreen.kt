@@ -67,6 +67,9 @@ fun RecordScreen(modifier: Modifier) {
     var files by remember { mutableStateOf(Carpetas.listaGrabaciones(ctx)) }
     var ultima by remember { mutableStateOf<File?>(null) }
     var mensaje by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf(false) }
+    var prueba by remember { mutableStateOf("") }
+    var probando by remember { mutableStateOf(false) }
 
     var click by remember { mutableStateOf(false) }
     var cuenta by remember { mutableStateOf(false) }
@@ -77,6 +80,13 @@ fun RecordScreen(modifier: Modifier) {
     var monitoreo by remember { mutableStateOf(false) }
 
     metro.onTiempo = { tiempoActual = it }
+    recorder.onError = { msg ->
+        if (recorder.isRecording) recorder.stop()
+        metro.detener(); estado = "listo"; level = 0f; tiempoActual = -1
+        files = Carpetas.listaGrabaciones(ctx)
+        mensaje = msg; error = true
+    }
+    recorder.onAviso = { msg -> mensaje = msg; error = true }
 
     DisposableEffect(Unit) {
         val am = ctx.getSystemService(AudioManager::class.java)
@@ -107,7 +117,7 @@ fun RecordScreen(modifier: Modifier) {
 
     fun comenzar() = scope.launch {
         MotorAudio.detenerTodo()
-        mensaje = ""
+        mensaje = ""; error = false
         val nombreBase = name.ifBlank { "Toma " + SimpleDateFormat("dd-MM HH.mm.ss", Locale.getDefault()).format(Date()) }
         val out = Carpetas.nombreLibre(Carpetas.grabaciones(ctx), nombreBase)
         val datosBase = base?.let { f -> withContext(Dispatchers.IO) { Wav.readAt(f, MotorAudio.SR).samples } }
@@ -120,8 +130,15 @@ fun RecordScreen(modifier: Modifier) {
             if (!click) metro.detener()
         } else if (click) metro.iniciar()
         recorder.onLevel = { level = it }
-        recorder.start(out, device, AudioRecorder.Opciones(
-            base = datosBase, volumenBase = volBase, latenciaMs = ajustes.latenciaMs, monitoreo = monitoreo))
+        val problema = withContext(Dispatchers.IO) {
+            recorder.start(out, device, AudioRecorder.Opciones(
+                base = datosBase, volumenBase = volBase, latenciaMs = ajustes.latenciaMs, monitoreo = monitoreo))
+        }
+        if (problema != null) {
+            metro.detener(); estado = "listo"; tiempoActual = -1
+            out.delete(); mensaje = problema; error = true
+            return@launch
+        }
         ultima = out
         estado = "grabando"
     }
@@ -131,7 +148,10 @@ fun RecordScreen(modifier: Modifier) {
         estado = "listo"; level = 0f; tiempoActual = -1
         files = Carpetas.listaGrabaciones(ctx)
         name = ""
-        mensaje = "Guardada: ${ultima?.nameWithoutExtension}"
+        val f = ultima
+        if (f != null && f.exists() && !error) {
+            mensaje = "Guardada: ${f.nameWithoutExtension} (%.1f s)".format(AudioRecorder.duracion(f)); error = false
+        }
     }
 
     fun agregarAlProyecto(f: File) {
@@ -173,7 +193,7 @@ fun RecordScreen(modifier: Modifier) {
                     style = EstiloNumeroGrande,
                     color = if (estado == "grabando") Marca.Coral else MaterialTheme.colorScheme.onSurface
                 )
-                Text(when (estado) { "grabando" -> "● Grabando"; "cuenta" -> "Cuenta regresiva"; else -> "Toca el botón para grabar" },
+                Text(when (estado) { "grabando" -> "● Grabando · ${recorder.fuenteActual}"; "cuenta" -> "Cuenta regresiva"; else -> "Toca el botón para grabar" },
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (tiempoActual >= 0) Row(Modifier.padding(top = 8.dp)) {
                     repeat(metro.tiempos) { i ->
@@ -192,12 +212,24 @@ fun RecordScreen(modifier: Modifier) {
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
             }
         }
-        if (mensaje.isNotEmpty()) Box(Modifier.padding(horizontal = 16.dp)) { Aviso(mensaje) }
+        if (mensaje.isNotEmpty()) Box(Modifier.padding(horizontal = 16.dp)) { Aviso(mensaje, error = error) }
 
         // ── Opciones plegadas ──
         Column(Modifier.padding(horizontal = 16.dp)) {
             Seccion("Opciones de grabación") {
                 Ayuda(resumenOpciones)
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(enabled = !ocupado && !probando, onClick = {
+                    pedirPermiso {
+                        probando = true; prueba = "Habla o canta durante 3 segundos…"
+                        scope.launch {
+                            prueba = withContext(Dispatchers.IO) { recorder.probar(device) { level = it } }
+                            level = 0f; probando = false
+                        }
+                    }
+                }) { Icon(Icons.Filled.GraphicEq, null); Spacer(Modifier.width(6.dp)); Text(if (probando) "Escuchando…" else "Probar micrófono") }
+                if (prueba.isNotEmpty()) Text(prueba, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 6.dp))
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Spacer(Modifier.height(8.dp))
                 FilaInterruptor(Icons.Filled.Timer, "Metrónomo mientras grabo", click, !ocupado) { click = it }
                 FilaInterruptor(Icons.Filled.HourglassTop, "Cuenta de 1 compás antes", cuenta, !ocupado) { cuenta = it }
@@ -227,8 +259,10 @@ fun RecordScreen(modifier: Modifier) {
                     PlayButton(f)
                     Column(Modifier.weight(1f)) {
                         Text(f.nameWithoutExtension, fontWeight = FontWeight.Medium, maxLines = 1)
-                        Ayuda("%.1f MB · %s".format(f.length() / 1_048_576f,
-                            SimpleDateFormat("d MMM, HH:mm", Locale("es")).format(Date(f.lastModified()))))
+                        val seg = remember(f, f.length()) { AudioRecorder.duracion(f) }
+                        val fecha = SimpleDateFormat("d MMM, HH:mm", Locale("es")).format(Date(f.lastModified()))
+                        if (seg < 0.05f) Text("Vacía (sin audio) · $fecha", style = MaterialTheme.typography.bodySmall, color = Marca.Coral)
+                        else Ayuda("%d:%02d · %.1f MB · %s".format(seg.toInt() / 60, seg.toInt() % 60, f.length() / 1_048_576f, fecha))
                     }
                     var menu by remember { mutableStateOf(false) }
                     Box {

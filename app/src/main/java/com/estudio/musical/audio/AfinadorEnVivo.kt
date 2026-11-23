@@ -9,8 +9,7 @@ import android.os.Looper
 import com.estudio.musical.audio.dsp.Pitch
 
 /** Escucha el micrófono y entrega la frecuencia detectada ~20 veces por segundo. */
-class AfinadorEnVivo {
-    private val sr = MotorAudio.SR
+class AfinadorEnVivo(private val context: android.content.Context) {
     @Volatile private var activo = false
     private var hilo: Thread? = null
     private val main = Handler(Looper.getMainLooper())
@@ -21,12 +20,12 @@ class AfinadorEnVivo {
         activo = true
         hilo = Thread {
             val frame = 4096
-            val min = AudioRecord.getMinBufferSize(sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
-            val rec = AudioRecord(MediaRecorder.AudioSource.MIC, sr, AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_16BIT, maxOf(min, frame * 2))
+            val entrada = AudioRecorder(context).abrirEntrada(null)
+            if (entrada == null) { activo = false; main.post { onFrecuencia(-2f) }; return@Thread }
+            val rec = entrada.rec
+            val sr = entrada.sampleRate
             val sh = ShortArray(frame / 2)
             val ventana = FloatArray(frame)
-            rec.startRecording()
             var suavizada = -1f
             while (activo) {
                 val n = rec.read(sh, 0, sh.size)
@@ -42,7 +41,7 @@ class AfinadorEnVivo {
                 val v = suavizada
                 main.post { onFrecuencia(v) }
             }
-            rec.stop(); rec.release()
+            runCatching { rec.stop() }; rec.release()
         }.apply { start() }
     }
 

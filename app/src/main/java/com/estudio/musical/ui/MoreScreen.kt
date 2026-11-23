@@ -97,7 +97,8 @@ fun MoreScreen(modifier: Modifier) {
 
 @Composable
 private fun AfinadorScreen(modifier: Modifier) {
-    val afinador = remember { AfinadorEnVivo() }
+    val ctx = LocalContext.current
+    val afinador = remember { AfinadorEnVivo(ctx) }
     val pedirPermiso = rememberPermisoMicrofono()
     var freq by remember { mutableFloatStateOf(-1f) }
     var activo by remember { mutableStateOf(false) }
@@ -114,7 +115,8 @@ private fun AfinadorScreen(modifier: Modifier) {
         if (!activo) Button(onClick = { pedirPermiso { afinador.iniciar { freq = it }; activo = true } }) { Text("Activar micrófono") }
         Text(if (nota >= 0) Pitch.nombre(nota) else "—", fontSize = 72.sp, fontWeight = FontWeight.Bold,
             color = if (afinado) verde else MaterialTheme.colorScheme.onSurface)
-        Text(if (freq > 0) "%.1f Hz".format(freq) else "Toca o canta una nota", style = MaterialTheme.typography.titleMedium)
+        Text(when { freq > 0 -> "%.1f Hz".format(freq); freq < -1.5f -> "No se pudo abrir el micrófono"; else -> "Toca o canta una nota" },
+            style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(16.dp))
         val cAguja = if (afinado) verde else MaterialTheme.colorScheme.error
         val cEscala = MaterialTheme.colorScheme.outline

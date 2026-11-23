@@ -24,10 +24,19 @@ jobs:
           gradle-version: "8.9"
 
       - name: Pruebas del motor de audio
-        run: gradle testDebugUnitTest --stacktrace
+        run: |
+          set -o pipefail
+          gradle testDebugUnitTest --stacktrace 2>&1 | tee gradle-pruebas.log
 
       - name: Compilar APK
-        run: gradle assembleDebug --stacktrace
+        run: |
+          set -o pipefail
+          gradle assembleDebug --stacktrace 2>&1 | tee gradle-apk.log
+
+      - name: Mostrar errores
+        if: failure()
+        run: |
+          grep -hE "^e: |error:|What went wrong|AssertionError|FAILED" gradle-*.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
 
       - name: Revisión (lint)
         run: gradle lintDebug

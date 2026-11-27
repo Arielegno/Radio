@@ -181,7 +181,7 @@ object CrashLog {
             p.inputStream.bufferedReader().readText().takeLast(15000)
         }.getOrDefault("(sin registro)")
         return buildString {
-            append("Hilo ${info?.versionName} (${info?.longVersionCode})\n")
+            append("Hilo ${info?.versionName} (${info?.let { androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(it) }})\n")
             append("Android ${Build.VERSION.RELEASE} (${Build.VERSION.SDK_INT}) · ${Build.MANUFACTURER} ${Build.MODEL}\n")
             append("Memoria: ${(rt.totalMemory() - rt.freeMemory()) / 1_048_576} MB usados de ${rt.maxMemory() / 1_048_576} MB\n")
             append("Libros: ${vm.repo.books.value.size} · Tarjetas: ${vm.study.cards.size} · Repasos: ${vm.motor.reviews.size}\n")

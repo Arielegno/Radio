@@ -164,7 +164,7 @@ class HiloViewModel(app: Application) : AndroidViewModel(app) {
     private fun analysisStamp(book: Book, key: String): String {
         val flow = File(getApplication<Application>().filesDir, "flow/${book.id}.txt")
         val src = if (flow.exists()) flow else repo.fileOf(book)
-        val ver = runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).longVersionCode }.getOrDefault(0L)
+        val ver = runCatching { androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(ctx.packageManager.getPackageInfo(ctx.packageName, 0)) }.getOrDefault(0L)
         return "$key|${src.length()}|${src.lastModified()}|$ver"
     }
 

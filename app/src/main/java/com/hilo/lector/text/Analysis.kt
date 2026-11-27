@@ -208,10 +208,12 @@ object Analyzer {
         // Encabezados que se repiten en cada página de un PDF («6 TEORÍA SOCIOLÓGICA CONTEMPORÁNEA»): no cuentan como texto
         fun headKey(p: String) = p.trim().lowercase().filter { !it.isDigit() }.trim()
         val shortSeen = HashMap<String, Int>()
-        for (p in paras) if (p.length < 90) { val k = headKey(p); if (k.length >= 4) shortSeen[k] = (shortSeen[k] ?: 0) + 1 }
+        // Un encabezado no termina en punto: «Derogado.» o una oración repetida siguen contando
+        fun headLike(p: String) = p.length < 90 && p.trimEnd().lastOrNull()?.let { it != '.' && it != '?' && it != '!' && it != ':' } == true
+        for (p in paras) if (headLike(p)) { val k = headKey(p); if (k.length >= 4) shortSeen[k] = (shortSeen[k] ?: 0) + 1 }
         val headers = shortSeen.filterValues { it >= maxOf(8, paras.size / 60) }.keys
         paras.forEachIndexed { pi, raw ->
-            if (headers.isNotEmpty() && raw.length < 90 && headKey(raw) in headers) return@forEachIndexed
+            if (headers.isNotEmpty() && headLike(raw) && headKey(raw) in headers) return@forEachIndexed
             val p = raw.removePrefix("# ")
             for (s in splitSentences(p)) {
                 sentRaw.add(s to pi)

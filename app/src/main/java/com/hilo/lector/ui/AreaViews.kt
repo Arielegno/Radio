@@ -1,5 +1,6 @@
 package com.hilo.lector.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -369,6 +370,7 @@ fun DeadlinesTab(vm: HiloViewModel, cl: Clase, books: List<Book>, docs: List<Pai
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TemplatesTab(vm: HiloViewModel, cl: Clase, books: List<Book>) {
+    val allBooks by vm.repo.books.collectAsStateWithLifecycle()
     val c = LocalHilo.current
     val ctx = LocalContext.current
     val key = "modelos:${cl.id}"
@@ -416,7 +418,7 @@ fun TemplatesTab(vm: HiloViewModel, cl: Clase, books: List<Book>) {
         if (parts.isNotEmpty()) item {
             Card("Revisar un borrador", "Elige uno de tus documentos y Hilo te dice qué partes de la plantilla le faltan.") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    vm.repo.books.value.filter { !it.trashed && it.id !in models }.sortedByDescending { it.updated }.take(12).forEach { b ->
+                    allBooks.filter { !it.trashed && it.id !in models }.sortedByDescending { it.updated }.take(12).forEach { b ->
                         Text(b.title.take(30), color = c.ink, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(if (check == b.id) Color(cl.color).copy(alpha = 0.3f) else c.chip).clickable { check = b.id }.padding(horizontal = 10.dp, vertical = 6.dp))
                     }
                 }
@@ -448,7 +450,8 @@ fun RefSheet(vm: HiloViewModel, text: String, onDismiss: () -> Unit) {
     val c = LocalHilo.current
     val areas = vm.classes.areas
     val ids = areas.flatMap { it.books }.toSet()
-    val titles = vm.repo.books.value.associate { it.id to it.title }
+    val allBooks by vm.repo.books.collectAsStateWithLifecycle()
+    val titles = allBooks.associate { it.id to it.title }
     val res by produceState<Pair<List<Pair<String, com.hilo.lector.text.LawArticle>>, List<SearchIndex.Passage>>?>(null, text) {
         // 1) Si el texto nombra «artículo N de la Ley X», ir directo a ese artículo
         val direct = ArrayList<Pair<String, com.hilo.lector.text.LawArticle>>()

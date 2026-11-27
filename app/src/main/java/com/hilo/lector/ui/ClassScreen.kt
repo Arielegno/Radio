@@ -1,5 +1,6 @@
 package com.hilo.lector.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.Manifest
 import android.app.DatePickerDialog
 import android.content.pm.PackageManager
@@ -493,7 +494,8 @@ private fun LibraryPicker(vm: HiloViewModel, cl: Clase, onDone: () -> Unit) {
     val c = LocalHilo.current
     var q by remember { mutableStateOf("") }
     var chosen by remember { mutableStateOf(cl.books.toSet()) }
-    val all = vm.repo.books.value.filter { !it.trashed && it.type != "comic" }
+    val books by vm.repo.books.collectAsStateWithLifecycle()
+    val all = books.filter { !it.trashed && it.type != "comic" }
     val shown = all.filter { q.isBlank() || Smart.fold(it.title + " " + it.author).contains(Smart.fold(q.trim())) }.sortedByDescending { it.updated }
     AlertDialog(
         onDismissRequest = onDone,

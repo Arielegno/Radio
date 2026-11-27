@@ -849,12 +849,12 @@ internal fun foldSearch(t: String): String =
 
 private fun searchMine(vm: HiloViewModel, fq: String): List<Triple<String, String, String>> {
     val out = ArrayList<Triple<String, String, String>>()   // tipo, texto, libro
-        vm.study.cards.filter { foldSearch(it.front + " " + it.back).contains(fq) }.take(8).forEach { out.add(Triple("Tarjeta", it.front, it.bookId)) }
-        vm.study.notes.filter { foldSearch(it.value).contains(fq) }.forEach { (b, t) -> out.add(Triple("Apuntes", t.lines().firstOrNull { l -> foldSearch(l).contains(fq) } ?: t.take(80), b)) }
-        vm.study.marks.filter { foldSearch(it.text).contains(fq) }.take(6).forEach { out.add(Triple("Resaltado", it.text, it.bookId)) }
-        vm.study.fichas.filter { f -> foldSearch(f.title + f.fields.joinToString { it.second }).contains(fq) }.take(5).forEach { out.add(Triple("Ficha", it.title, it.bookId)) }
-        vm.motor.entries.filter { foldSearch(it.title + " " + it.text).contains(fq) }.take(6).forEach { out.add(Triple("Escrito", it.title.ifBlank { it.text.take(60) }, it.book)) }
-        vm.study.quotes.filter { foldSearch(it.text).contains(fq) }.take(5).forEach { out.add(Triple("Cita", it.text, it.bookId)) }
+    vm.study.cards.filter { foldSearch(it.front + " " + it.back).contains(fq) }.take(8).forEach { out.add(Triple("Tarjeta", it.front, it.bookId)) }
+    vm.study.notes.filter { foldSearch(it.value).contains(fq) }.forEach { (b, t) -> out.add(Triple("Apuntes", t.lines().firstOrNull { l -> foldSearch(l).contains(fq) } ?: t.take(80), b)) }
+    vm.study.marks.filter { foldSearch(it.text).contains(fq) }.take(6).forEach { out.add(Triple("Resaltado", it.text, it.bookId)) }
+    vm.study.fichas.filter { f -> foldSearch(f.title + f.fields.joinToString { it.second }).contains(fq) }.take(5).forEach { out.add(Triple("Ficha", it.title, it.bookId)) }
+    vm.motor.entries.filter { foldSearch(it.title + " " + it.text).contains(fq) }.take(6).forEach { out.add(Triple("Escrito", it.title.ifBlank { it.text.take(60) }, it.book)) }
+    vm.study.quotes.filter { foldSearch(it.text).contains(fq) }.take(5).forEach { out.add(Triple("Cita", it.text, it.bookId)) }
     return out
 }
 

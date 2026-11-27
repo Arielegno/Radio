@@ -97,6 +97,7 @@ put $F/muestra_ley.txt files/books/t6.txt
 put $F/muestra_teoria.txt files/books/t7.txt
 put $F/muestra.mobi files/books/t8.mobi
 put $F/muestra.cbz files/books/t9.cbz
+put $F/muestra_ley_v2.txt files/books/t10.txt
 # La guía de gestos ya vista (se prueba aparte al final)
 cat > /tmp/guias.xml <<'X'
 <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
@@ -113,7 +114,8 @@ cat > /tmp/lib.json <<'J'
  {"id":"t6","title":"Código Procesal de prueba","type":"txt","file":"t6.txt","added":0},
  {"id":"t7","title":"Teoría sociológica de prueba","author":"Varios","type":"txt","file":"t7.txt","added":0},
  {"id":"t8","title":"Libro MOBI de prueba","author":"Émile Durkheim","type":"mobi","file":"t8.mobi","added":0},
- {"id":"t9","title":"Cómic de prueba","type":"comic","file":"t9.cbz","added":0}]
+ {"id":"t9","title":"Cómic de prueba","type":"comic","file":"t9.cbz","added":0},
+ {"id":"t10","title":"Código Procesal reformado","type":"txt","file":"t10.txt","added":0}]
 J
 put /tmp/lib.json files/library.json
 
@@ -776,6 +778,57 @@ adb shell am force-stop $PKG
 adb shell am start -W -n $PKG/.MainActivity
 sleep 3
 # (la búsqueda con teclado abierto ya queda en 82_busqueda_global)
+
+# ---------- 2.7: herramientas desde la búsqueda, reforma de una ley, autores, modo simple ----------
+open_book "Complejos y fasores" fasores
+sleep 2
+shot 140_fasores 2
+back 1
+open_book "Foto a texto" foto
+sleep 2
+shot 141_foto_texto 2
+back 1
+# Comparar el código con su reforma (el art. 3 cambia, el 6 se quita, se agrega el 9)
+open_book "Comparar versiones de una ley" versiones
+sleep 2
+shot 142_comparar_ley 2
+tap "Versión vieja"
+sleep 1
+tap "Código Procesal de prueba" parcial
+sleep 1
+tap "Versión nueva"
+sleep 1
+tap "Código Procesal reformado" parcial
+sleep 8
+shot 143_reforma 2
+adb shell input swipe 540 1700 540 800 400
+shot 144_reforma_detalle 2
+back 1
+# Autores y paradigmas: cuatro autores (el cuadro se desliza) y el glosario por autor
+room "Teoría sociológica de prueba" 8 Varios
+tap "Autores"
+sleep 1
+stap "Métodos para Sociología" parcial
+sleep 1
+tap "Autores y paradigmas" parcial
+sleep 2
+stap "Bourdieu ●"
+sleep 1
+shot 145_paradigmas 2
+stap "Cuadro comparativo"
+shot 146_cuadro_cuatro 2
+for i in 1 2 3 4 5 6; do adb shell input swipe 540 1800 540 700 400; sleep 0.4; done
+shot 147_glosario_autor 2
+back 3
+# Modo simple (el perfil de letra grande lo trae prendido): portada de Estudiar y su «Más»
+restart
+tap "Estudiar"
+sleep 2
+shot 148_estudiar_simple 2
+stap "Más: herramientas" parcial
+sleep 1
+shot 149_estudiar_mas 2
+back 1
 
 timeout 60 adb logcat -d > $OUT/logcat.txt
 grep -n -A 40 "FATAL EXCEPTION" $OUT/logcat.txt > $OUT/crashes.txt || echo "Sin cierres inesperados" > $OUT/crashes.txt

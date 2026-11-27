@@ -57,6 +57,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Crear el modelo ANTES de dibujar: si se creaba dentro del primer dibujo, a veces la biblioteca y las
+        // tarjetas (leídas en segundo plano) quedaban «más nuevas» que ese dibujo y Hilo se cerraba al abrir.
+        vm.repo
         if (savedInstanceState == null) handleIntent(intent)
         // Programar recordatorios lee ajustes del disco: no hace falta esperarlo para mostrar la pantalla
         val app = applicationContext

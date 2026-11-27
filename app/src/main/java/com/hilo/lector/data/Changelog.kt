@@ -9,6 +9,7 @@ object Changelog {
             38, "2.7.4", "26 nov 2026", "Errores corregidos",
             added = listOf(),
             fixed = listOf(
+                "Hilo a veces se cerraba solo al abrirlo (desde la 2.7.2): la biblioteca y las tarjetas se leían en segundo plano y podían llegar justo mientras se dibujaba la primera pantalla.",
                 "Una oración corta que se repite muchas veces en un documento ya no se confunde con un encabezado de página: sus palabras vuelven a contar.",
                 "«Enviar informe» ya no se cierra en Android 8.",
                 "Al elegir documentos para una clase o una plantilla, la lista muestra también los libros recién agregados.",

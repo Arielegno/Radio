@@ -301,7 +301,7 @@ class HiloWidget : android.appwidget.AppWidgetProvider() {
         fun lastBook(ctx: Context): Triple<String, String, Int>? = runCatching {
             val a = org.json.JSONArray(File(ctx.filesDir, "library.json").readText())
             (0 until a.length()).map { a.getJSONObject(it) }
-                .filter { it.optLong("updated") > 0 && !it.optBoolean("done") }
+                .filter { it.optLong("updated") > 0 && !it.optBoolean("done") && !it.optBoolean("trashed") }
                 .maxByOrNull { it.optLong("updated") }
                 ?.let { Triple(it.getString("id"), it.optString("title"), (it.optDouble("progress") * 100).toInt().coerceIn(0, 100)) }
         }.getOrNull()

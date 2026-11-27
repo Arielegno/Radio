@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hilo.lector.LogicTest" tests="11" skipped="0" failures="0" errors="0" timestamp="2026-11-27T05:38:36" hostname="ip-10-0-138-89" time="1.812">
+  <properties/>
+  <testcase name="citasApa" classname="com.hilo.lector.LogicTest" time="0.035"/>
+  <testcase name="libroGrandeEnTiempoRazonable" classname="com.hilo.lector.LogicTest" time="1.455"/>
+  <testcase name="remisionesLargasNoRompen" classname="com.hilo.lector.LogicTest" time="0.014"/>
+  <testcase name="tildesYEncabezadosDePagina" classname="com.hilo.lector.LogicTest" time="0.021"/>
+  <testcase name="reconoceArticulosYEstructura" classname="com.hilo.lector.LogicTest" time="0.002"/>
+  <testcase name="encuentraPlazos" classname="com.hilo.lector.LogicTest" time="0.001"/>
+  <testcase name="ceroIzquierdaYBis" classname="com.hilo.lector.LogicTest" time="0.005"/>
+  <testcase name="repasoEspaciadoFsrs" classname="com.hilo.lector.LogicTest" time="0.005"/>
+  <testcase name="autoresYLineaDeTiempo" classname="com.hilo.lector.LogicTest" time="0.007"/>
+  <testcase name="palabrasClave" classname="com.hilo.lector.LogicTest" time="0.001"/>
+  <testcase name="textosRarosNoRompen" classname="com.hilo.lector.LogicTest" time="0.264"/>
+  <system-out><![CDATA[Libro de 366000 palabras analizado en 1412 ms
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

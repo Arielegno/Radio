@@ -32,7 +32,7 @@ hold() {  # mantener el dedo sobre un elemento
 }
 tapat() { if [ -n "$1" ]; then adb shell input tap $1; echo "TAP AT: $1" >> $OUT/steps.txt; else echo "SIN COORDENADAS" >> $OUT/steps.txt; fi; sleep 1; }
 room() {  # abre la sala de estudio de un libro: room "Título" segundos palabra-para-buscar
-  adb shell am force-stop $PKG; adb shell am start -W -n $PKG/.MainActivity; sleep 3
+  adb shell am force-stop $PKG; start_app; sleep 3
   seek "$3"
   tap "Opciones de $1"; sleep 1; tap "Estudiar: tarjetas y resaltados"; sleep "${2:-6}"
 }
@@ -42,6 +42,17 @@ tap() {   # tap "texto o descripción" [parcial]
   local xy; xy=$(python3 $F/find.py /tmp/ui.xml "$1" $2)
   if [ -n "$xy" ]; then adb shell input tap $xy; echo "TAP OK: $1" >> $OUT/steps.txt
   else echo "NO ENCONTRADO: $1" >> $OUT/steps.txt; cp /tmp/ui.xml "$OUT/ui-$(echo $1 | tr ' /' '__').xml" 2>/dev/null; fi
+}
+start_app() {  # abre Hilo; si en 60 s no dibuja su primera pantalla, guarda qué estaba haciendo
+  timeout 60 adb shell am start -W -n $PKG/.MainActivity && return 0
+  echo "ARRANQUE TRABADO" >> $OUT/steps.txt
+  local pid; pid=$(adb shell pidof $PKG | tr -d '\r')
+  { echo "pid $pid"; adb shell dumpsys activity top | head -60
+    adb root >/dev/null 2>&1; sleep 2
+    [ -n "$pid" ] && timeout 60 adb shell debuggerd -j $pid
+    timeout 30 adb logcat -d -t 400; } > $OUT/arranque_trabado_$(date +%s).txt 2>&1
+  adb shell am force-stop $PKG; sleep 1
+  timeout 60 adb shell am start -W -n $PKG/.MainActivity || true
 }
 stap() {  # como tap, pero si no está a la vista desplaza la pantalla (abajo y luego arriba) hasta encontrarlo
   local xy i
@@ -59,7 +70,7 @@ hscroll() {  # desplaza a la izquierda la fila donde está un elemento (pestaña
   rm -f /tmp/ui.xml; ui; local p; p=$(python3 $F/find.py /tmp/ui.xml "$1" $2)
   [ -n "$p" ] && adb shell input swipe 950 ${p#* } 150 ${p#* } 300; sleep 1
 }
-restart() { adb shell am force-stop $PKG; adb shell am start -W -n $PKG/.MainActivity; sleep 3; }
+restart() { adb shell am force-stop $PKG; start_app; sleep 3; }
 put() {   # put archivo-local destino-en-la-app
   adb push "$1" /data/local/tmp/x.bin >/dev/null
   adb shell "cat /data/local/tmp/x.bin | run-as $PKG sh -c 'cat > $2'"
@@ -70,7 +81,7 @@ seek() {  # busca en la biblioteca para que el libro quede a la vista (en la lis
   [ -z "$1" ] && return 0
   tap "Buscar"; sleep 1; adb shell input text "$1"; sleep 1; adb shell input keyevent 4; sleep 1
 }
-open_book() { adb shell am force-stop $PKG; adb shell am start -W -n $PKG/.MainActivity; sleep 3; seek "$2"; tap "$1"; }
+open_book() { adb shell am force-stop $PKG; start_app; sleep 3; seek "$2"; tap "$1"; }
 
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell wm size >> $OUT/steps.txt
@@ -78,7 +89,7 @@ adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 0
 adb logcat -c
 
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 shot 00_bienvenida 4
 tap "Necesito letra grande"
 shot 00b_perfil 2
@@ -119,7 +130,7 @@ cat > /tmp/lib.json <<'J'
 J
 put /tmp/lib.json files/library.json
 
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 shot 01_biblioteca 4
 tap "Menú"
 shot 02_menu_lateral 2
@@ -249,7 +260,7 @@ back 2
 # Sala de estudio del documento
 
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 3
 seek EPUB
 tap "Opciones de Libro EPUB de prueba"
@@ -290,7 +301,7 @@ back
 
 # ---------- Guía, palabras, glosario y mapa ----------
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 3
 seek EPUB
 tap "Opciones de Libro EPUB de prueba"
@@ -351,7 +362,7 @@ adb shell input swipe 540 1900 540 700 400
 shot 73_ajustes_mas 2
 back 2
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 3
 shot 74_lista 2
 seek Word
@@ -438,7 +449,7 @@ shot 63_fecha_examen 3
 back 2
 # ---------- Estudio general: herramientas y mapa entre documentos ----------
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 3
 tap "Menú"
 sleep 2
@@ -458,13 +469,13 @@ adb shell content call --method scan_volume --uri content://media --arg external
 adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file:///sdcard/Download/Codigo_Civil_prueba.pdf" >/dev/null 2>&1
 sleep 4
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 shot 32_documentos_nuevos 8
 tap "VER"
 shot 33_nuevos 3
 
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 3
 tap "Menú"
 sleep 2
@@ -484,14 +495,14 @@ shot 80_comic 6
 swipe_left
 shot 81_comic_pag2 3
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 8
 tap "Buscar"; sleep 1; adb shell input text "sociedad"; sleep 3
 shot 82_busqueda_global 2
 back 1
 # Búsqueda universal: herramientas y guía (sin saber dónde están)
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 6
 tap "Buscar"; sleep 1; adb shell input text "calculadora"; sleep 3
 adb shell input keyevent 111
@@ -499,7 +510,7 @@ sleep 1
 shot 82b_busqueda_herramientas 2
 back 1
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 3
 tap "Filtros"
 shot 83_filtros 2
@@ -525,7 +536,7 @@ tap "Subrayar"
 tap "Tesis"
 shot 88_pdf_subrayado 3
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 3
 tap "Menú"
 sleep 1
@@ -538,7 +549,7 @@ shot 90_guia_tema 3
 
 # ---------- 2.3: ayudas TDAH y botones de ayuda ----------
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 3
 shot 94_biblioteca_racha 2
 tap "Ayuda: cómo se usa"
@@ -581,7 +592,7 @@ adb shell input tap 540 1300
 sleep 1
 shot 101_foco_parrafo 2
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 3
 tap "Estudiar"
 sleep 2
@@ -593,7 +604,7 @@ back 1
 
 # ---------- 2.4: Clases ----------
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 3
 tap "Clases"
 sleep 1
@@ -645,7 +656,7 @@ back 1
 
 # ---------- 2.5: áreas, herramientas, fórmulas y diccionario ----------
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 3
 tap "Clases"
 sleep 1
@@ -708,7 +719,7 @@ back 1
 
 # ---------- 2.1.1: ocultar formatos ----------
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 3
 tap "Ajustes"
 sleep 1
@@ -764,7 +775,7 @@ back 1
 # Letra grande del sistema: la barra de abajo y «Agregar» no deben taparse
 adb shell settings put system font_scale 1.3
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 4
 shot 125_letra_grande 2
 tap "Estudiar"
@@ -781,7 +792,7 @@ shot 130_letra_grande_clases 2
 back 1
 adb shell settings put system font_scale 1.0
 adb shell am force-stop $PKG
-adb shell am start -W -n $PKG/.MainActivity
+start_app
 sleep 3
 # (la búsqueda con teclado abierto ya queda en 82_busqueda_global)
 

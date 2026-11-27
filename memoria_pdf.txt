@@ -1,0 +1,54 @@
+Applications Memory Usage (in Kilobytes):
+Uptime: 322161 Realtime: 322161
+
+** MEMINFO in pid 7738 [com.hilo.lector] **
+                   Pss  Private  Private     Swap      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap   128871   128800        0        0   131276   141564    94361    43318
+  Dalvik Heap    26014    25872        0        0    30292    43268    21634    21634
+ Dalvik Other     7860     4228        0        0    12092                           
+        Stack     1272     1272        0        0     1284                           
+       Ashmem        2        0        0        0        8                           
+    Other dev      156        0      156        0      364                           
+     .so mmap     5297      220     2092        0    46288                           
+    .jar mmap     1885        0        8        0    28868                           
+    .apk mmap      962        0       88        0    24256                           
+    .ttf mmap      129        0        0        0      332                           
+    .dex mmap    32056        4    32040        0    32156                           
+    .oat mmap       87        0        0        0     2444                           
+    .art mmap     7878     7452        4        0    20032                           
+   Other mmap      180       36       20        0     1812                           
+      Unknown     2406     2392        0        0     2892                           
+        TOTAL   215055   170276    34408        0   215055   184832   115995    64952
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:    33328                          50324
+         Native Heap:   128800                         131276
+                Code:    34452                         141656
+               Stack:     1272                           1284
+            Graphics:        0                              0
+       Private Other:     6832
+              System:    10371
+             Unknown:                                    9856
+ 
+           TOTAL PSS:   215055            TOTAL RSS:   334396      TOTAL SWAP (KB):        0
+ 
+ Objects
+               Views:       11         ViewRootImpl:        1
+         AppContexts:        5           Activities:        1
+              Assets:       12        AssetManagers:        0
+       Local Binders:       20        Proxy Binders:       32
+       Parcel memory:        7         Parcel count:       30
+    Death Recipients:        1      OpenSSL Sockets:        0
+            WebViews:        0
+ 
+ SQL
+         MEMORY_USED:      273
+  PAGECACHE_OVERFLOW:      136          MALLOC_SIZE:      117
+ 
+ DATABASES
+      pgsz     dbsz   Lookaside(b)          cache  Dbname
+         4     8184             37         4/20/3  /data/user/0/com.hilo.lector/databases/busqueda.db

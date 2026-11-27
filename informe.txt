@@ -1,0 +1,136 @@
+PRUEBA DE ESTRÉS Y DEPURACIÓN DE HILO — 2026-11-27 05:40 UTC
+Dispositivo: sdk_gphone_x86_64 · Android 11 · Physical size: 1080x2400
+total 6680
+drwxr-xr-x  2 runner runner    4096 Nov 27 05:40 .
+drwxrwxrwt 14 root   root      4096 Nov 27 05:40 ..
+-rw-r--r--  1 runner runner 3045379 Nov 27 05:40 estudio.json
+-rw-r--r--  1 runner runner  649118 Nov 27 05:40 ley_grande.txt
+-rw-r--r--  1 runner runner 2379688 Nov 27 05:40 libro_grande.txt
+-rw-r--r--  1 runner runner  749856 Nov 27 05:40 pdf_grande.pdf
+
+1. ARRANQUE
+  Arranque en frío 1: TotalTime: 3535
+  Arranque en frío 2: TotalTime: 3288
+  Arranque en frío 3: TotalTime: 2634
+  Memoria (biblioteca):  TOTAL PSS: 170384 TOTAL RSS: 284420 TOTAL SWAP (KB): 0
+
+2. LIBRO DE 300.000 PALABRAS
+  Abierto: vivo
+  Fluidez (40 deslizadas rápidas en el libro): Total frames rendered: 346 Janky frames: 337 (97.40%) 
+  Memoria (libro abierto):  TOTAL PSS: 145898 TOTAL RSS: 262796 TOTAL SWAP (KB): 0
+  Análisis completo de la sala de estudio: 9 s
+  Cuadros dibujados en 4 s sin tocar nada (debería ser casi 0): Total frames rendered: 0
+  Lectura de pantalla: UI hierchary dumped to: /sdcard/ui.xml 
+  Memoria (análisis del libro):  TOTAL PSS: 199878 TOTAL RSS: 319380 TOTAL SWAP (KB): 0
+  Estado: vivo
+
+3. CÓDIGO DE 3000 ARTÍCULOS
+  Índice de la ley listo: 5 s
+  Memoria (código):  TOTAL PSS: 183024 TOTAL RSS: 300668 TOTAL SWAP (KB): 0
+  Estado: vivo
+
+4. PDF DE 400 PÁGINAS
+  Fluidez (60 deslizadas en el PDF): Total frames rendered: 567 Janky frames: 567 (100.00%) 
+  Memoria (PDF):  TOTAL PSS: 271992 TOTAL RSS: 391296 TOTAL SWAP (KB): 0
+  Detalle de memoria del PDF:  Java Heap: 33328 50324; Native Heap: 128800 131276; Code: 34452 141656; Stack: 1272 1284; Graphics: 0 0; Private Other: 6832;
+  Texto de las 400 páginas analizado: 43 s
+  Estado: vivo
+
+5. 5000 TARJETAS
+  Abrir Estudio con 5000 tarjetas: ~3 s
+  Repasar 15 tarjetas (con lectura de pantalla entre toques): 63 s
+  Memoria (repaso):  TOTAL PSS: 109394 TOTAL RSS: 226312 TOTAL SWAP (KB): 0
+  Estado: vivo
+
+6. GIROS DE PANTALLA
+  10 giros en el lector: vivo
+  6 giros en la sala de estudio: vivo
+
+7. TOQUES AL AZAR (monkey, 8000 eventos)
+  Events injected: 8000
+  Cierres detectados por monkey: 0
+  Bloqueos (ANR) detectados por monkey: 1
+  Memoria (tras monkey):  TOTAL PSS: 119635 TOTAL RSS: 244908 TOTAL SWAP (KB): 0
+
+8. REGISTRO DEL SISTEMA
+  Traza de bloqueo anr_2026-11-27-05-50-26-819:  at com.hilo.lector.HiloViewModelKt.indexThread$lambda$3$lambda$2(HiloViewModel.kt:71)  at com.hilo.lector.HiloViewModelKt.$r8$lambda$Jyn5wrElLpZtpGo-GI_q3swvO5U(HiloViewModel.kt:-1)  at com.hilo.lector.HiloViewModelKt$$ExternalSyntheticLambda3.run(D8$$SyntheticClass:0) 
+  Cierres inesperados (FATAL): 0
+  Bloqueos (ANR): 0
+  Falta de memoria (OutOfMemory): 0
+  Avisos del modo estricto: 131
+      36 × DiskReadViolation en com.hilo.lector.MainActivityKt.HiloRoot
+      36 × DiskReadViolation en com.hilo.lector.MainActivityKt$HiloRoot$4$1.invokeSuspend
+      24 × DiskReadViolation en com.hilo.lector.HiloViewModel.onStart
+      11 × LeakedClosableViolation en ?
+       9 × DiskReadViolation en com.hilo.lector.ui.ReaderScreenKt.ReaderScreen
+       5 × DiskReadViolation en com.hilo.lector.HiloViewModel.studyText
+       3 × DiskReadViolation en com.hilo.lector.Stats.today
+       2 × DiskReadViolation en ?
+       1 × DiskReadViolation en com.hilo.lector.ui.Speaker.onInit
+       1 × DiskReadViolation en com.hilo.lector.ui.ReaderScreenKt$rememberEngine$st$2$1.invokeSuspend
+       1 × DiskReadViolation en com.hilo.lector.Stats.add
+       1 × DiskReadViolation en com.hilo.lector.data.AutoBackup.sp
+       1 × DiskReadViolation en com.hilo.lector.data.Reminders.schedule
+
+9. TIEMPOS MEDIDOS POR HILO
+    carga biblioteca: 79 ms
+    carga ajustes: 9 ms
+    carga motor: 103 ms
+    carga clases: 5 ms
+    carga tarjetas: 598 ms
+    pantalla esperó la carga: 583 ms
+    carga biblioteca: 81 ms
+    carga ajustes: 44 ms
+    carga clases: 16 ms
+    carga motor: 126 ms
+    carga tarjetas: 702 ms
+    pantalla esperó la carga: 668 ms
+    carga motor: 46 ms
+    carga ajustes: 4 ms
+    carga biblioteca: 73 ms
+    carga clases: 14 ms
+    carga tarjetas: 260 ms
+    pantalla esperó la carga: 236 ms
+    carga biblioteca: 20 ms
+    carga motor: 29 ms
+    carga ajustes: 17 ms
+    carga clases: 17 ms
+    carga tarjetas: 208 ms
+    pantalla esperó la carga: 171 ms
+    carga motor: 41 ms
+    carga biblioteca: 43 ms
+    carga clases: 1 ms
+    carga ajustes: 45 ms
+    carga tarjetas: 243 ms
+    pantalla esperó la carga: 167 ms
+    análisis palabras: 1798 ms
+    análisis oraciones: 1924 ms
+    análisis mapa: 145 ms
+    análisis glosario: 192 ms
+    análisis guias: 905 ms
+    análisis ley: 131 ms
+    análisis autores: 421 ms
+    análisis resto: 422 ms
+    análisis total: texto 115 ms + análisis 5966 ms (383383 palabras)
+    carga motor: 42 ms
+    carga biblioteca: 73 ms
+    carga clases: 2 ms
+    carga ajustes: 72 ms
+    carga tarjetas: 310 ms
+    pantalla esperó la carga: 271 ms
+    análisis palabras: 600 ms
+    análisis oraciones: 572 ms
+    análisis mapa: 45 ms
+    análisis glosario: 92 ms
+    análisis guias: 191 ms
+    análisis ley: 295 ms
+    análisis autores: 136 ms
+    análisis resto: 160 ms
+    análisis total: texto 274 ms + análisis 2128 ms (90533 palabras)
+    carga motor: 19 ms
+    carga biblioteca: 14 ms
+    carga clases: 19 ms
+    carga ajustes: 33 ms
+    carga tarjetas: 212 ms
+    pantalla esperó la carga: 163 ms
+  Errores de Hilo en el registro: 1

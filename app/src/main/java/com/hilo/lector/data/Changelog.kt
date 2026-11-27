@@ -6,6 +6,19 @@ object Changelog {
 
     val versions = listOf(
         Version(
+            38, "2.7.4", "26 nov 2026", "Errores corregidos",
+            added = listOf(),
+            fixed = listOf(
+                "Una oración corta que se repite muchas veces en un documento ya no se confunde con un encabezado de página: sus palabras vuelven a contar.",
+                "«Enviar informe» ya no se cierra en Android 8.",
+                "Al elegir documentos para una clase o una plantilla, la lista muestra también los libros recién agregados.",
+                "El widget «Continuar leyendo» ya no muestra un libro que está en la papelera.",
+                "Glosario por autor: los conceptos largos («racionalización») ya no se cortan a la mitad.",
+                "Complejos y fasores: la fórmula de arriba ya no se corta, y los botones ∠ j - ° escriben en la casilla que estás usando (antes siempre en B).",
+                "Comparar versiones de una ley: los botones muestran el título completo; antes dos versiones del mismo código se veían iguales.",
+            ),
+        ),
+        Version(
             37, "2.7.3", "22 nov 2026", "Pasar páginas sin saltos",
             added = listOf(),
             fixed = listOf(

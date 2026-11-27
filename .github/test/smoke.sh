@@ -719,6 +719,12 @@ tap "✓ Texto"
 shot 92_formatos_ocultos 2
 back 2
 shot 93_biblioteca_sin_formatos 3
+# Volver a mostrar Markdown y Texto (si no, los pasos siguientes no encuentran esos documentos)
+tap "Ajustes"
+sleep 1
+stap "Markdown"
+stap "Texto"
+back 2
 
 # 2.6: herramientas nuevas
 tap "Estudiar"
@@ -792,11 +798,11 @@ back 1
 restart; seek versiones; tap "Comparar versiones de una ley — Qué" parcial
 sleep 2
 shot 142_comparar_ley 2
-tap "Versión vieja" parcial
+tap "Vieja"
 sleep 1
 tap "Código Procesal de prueba" parcial
 sleep 1
-tap "Versión nueva" parcial
+tap "Nueva"
 sleep 1
 tap "Código Procesal reformado" parcial
 sleep 8

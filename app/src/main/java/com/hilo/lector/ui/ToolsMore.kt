@@ -39,6 +39,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -311,11 +312,14 @@ fun PhasorTool() {
     val c = LocalHilo.current
     var a by remember { mutableStateOf("3+4j") }
     var b by remember { mutableStateOf("10∠-30") }
-    Eq("Z = a + jb = |Z|\\angle\\theta \\qquad Z_1\\parallel Z_2 = \\frac{Z_1 Z_2}{Z_1+Z_2}")
+    // En dos renglones: en uno solo no entraba y se cortaba a la derecha
+    Eq("Z = a + jb = |Z|\\angle\\theta")
+    Eq("Z_1\\parallel Z_2 = \\frac{Z_1 Z_2}{Z_1+Z_2}")
+    var target by remember { mutableStateOf(1) }   // a qué casilla van los botones ∠ j - ° (la última que tocaste)
     Note("Escribe en rectangular (3+4j) o polar (5∠53.13 o 5<53.13). Acepta prefijos: 4.7k, 10m.")
-    OutlinedTextField(a, { a = it }, label = { Text("A") }, singleLine = true, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace))
-    OutlinedTextField(b, { b = it }, label = { Text("B") }, singleLine = true, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace))
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { listOf("∠", "j", "-", "°").forEach { k -> Pill(k) { b += k } } }
+    OutlinedTextField(a, { a = it }, label = { Text("A") }, singleLine = true, modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) target = 0 }, textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace))
+    OutlinedTextField(b, { b = it }, label = { Text("B") }, singleLine = true, modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) target = 1 }, textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace))
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { listOf("∠", "j", "-", "°").forEach { k -> Pill(k) { if (target == 0) a += k else b += k } } }
     val A = Cx.parse(a); val B = Cx.parse(b)
     if (A == null) { Text("No entiendo A.", color = c.lines[0]); return }
     Out("A", A.rect(), "", A.polar())
@@ -487,8 +491,13 @@ fun LawDiffTool(vm: HiloViewModel) {
     var tick by remember { mutableIntStateOf(0) }
     Note("Elige la versión vieja y la nueva de una ley o código (por ejemplo una reforma). Hilo compara artículo por artículo.")
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = { picking = 1 }, modifier = Modifier.weight(1f)) { Text(a?.title?.take(22) ?: "Versión vieja", color = c.ink, maxLines = 1) }
-        OutlinedButton(onClick = { picking = 2 }, modifier = Modifier.weight(1f)) { Text(b?.title?.take(22) ?: "Versión nueva", color = c.ink, maxLines = 1) }
+        // Título completo en dos renglones: cortado a 22 letras, «Código Procesal de prueba» y «Código Procesal reformado» se veían iguales
+        OutlinedButton(onClick = { picking = 1 }, modifier = Modifier.weight(1f)) {
+            Column { Text("Vieja", color = c.muted, fontSize = 11.sp); Text(a?.title ?: "Elegir…", color = c.ink, maxLines = 2, fontSize = 13.sp, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+        }
+        OutlinedButton(onClick = { picking = 2 }, modifier = Modifier.weight(1f)) {
+            Column { Text("Nueva", color = c.muted, fontSize = 11.sp); Text(b?.title ?: "Elegir…", color = c.ink, maxLines = 2, fontSize = 13.sp, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+        }
     }
     if (picking != 0) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).padding(8.dp)) {

@@ -57,8 +57,11 @@ object Preload {
         classes = timed("clases") { com.hilo.lector.data.ClassStore(app) }
     }
 
+    // Nunca esperar para siempre: si la carga en segundo plano se demora más de 10 s (algo raro pasó),
+    // se lee de nuevo aquí y la carga de fondo se descarta.
     private fun <T> take(f: java.util.concurrent.Future<T>?, make: () -> T): T =
-        f?.let { runCatching { it.get() }.getOrNull() } ?: make()
+        f?.let { runCatching { it.get(10, java.util.concurrent.TimeUnit.SECONDS) }.getOrNull() }
+            ?: make().also { if (f != null) android.util.Log.w("HiloPerf", "la carga anticipada no llegó a tiempo") }
 
     fun repo(app: Application) = take(repo) { com.hilo.lector.data.LibraryRepo(app) }
     fun settings(app: Application) = take(settings) { com.hilo.lector.data.SettingsStore(app) }

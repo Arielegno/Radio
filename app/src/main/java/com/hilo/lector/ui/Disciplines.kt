@@ -631,18 +631,19 @@ private fun AuthorGlossary(vm: HiloViewModel, a: Analysis?, chosen: List<com.hil
     Text("Glosario por autor", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 17.sp)
     Text("El mismo concepto cambia según el autor. «Del texto»: oración de tu documento donde aparece. Toca una fila para escribir tu definición.", color = c.muted, fontSize = 13.sp)
     Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Concepto", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(0.28f))
-        Text("Autor", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(0.2f))
-        Text("Qué significa para el autor", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(0.52f))
+        Text("Concepto", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(0.33f))
+        Text("Autor", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(0.17f))
+        Text("Qué significa para el autor", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(0.5f))
     }
     rows.forEach { r ->
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.surface).clickable { edit = r }.padding(8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(r.concept, color = c.accent, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(0.28f))
-            Text(r.authorName.substringAfterLast(' '), color = c.ink, fontSize = 13.sp, modifier = Modifier.weight(0.2f))
-            Column(Modifier.weight(0.52f)) {
+            // Palabras largas («racionalización») en letra algo menor, para que no se corten a la mitad
+            Text(r.concept, color = c.accent, fontSize = if (r.concept.split(' ').maxOf { it.length } > 11) 11.sp else 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(0.33f))
+            Text(r.authorName.substringAfterLast(' '), color = c.ink, fontSize = 13.sp, modifier = Modifier.weight(0.17f))
+            Column(Modifier.weight(0.5f)) {
                 if (r.meaning.isBlank()) Text("Tocar para escribir", color = c.muted, fontSize = 13.sp)
                 else Text(r.meaning, color = c.ink, fontSize = 13.sp, maxLines = 5, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 if (r.fromText >= 0) Text("del texto · párr. ${r.fromText + 1}", color = c.muted, fontSize = 11.sp)

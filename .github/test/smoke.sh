@@ -780,23 +780,23 @@ sleep 3
 # (la búsqueda con teclado abierto ya queda en 82_busqueda_global)
 
 # ---------- 2.7: herramientas desde la búsqueda, reforma de una ley, autores, modo simple ----------
-open_book "Complejos y fasores" fasores
+restart; seek fasores; tap "Complejos y fasores" parcial
 sleep 2
 shot 140_fasores 2
 back 1
-open_book "Foto a texto" foto
+restart; seek foto; tap "Foto a texto —" parcial
 sleep 2
 shot 141_foto_texto 2
 back 1
 # Comparar el código con su reforma (el art. 3 cambia, el 6 se quita, se agrega el 9)
-open_book "Comparar versiones de una ley" versiones
+restart; seek versiones; tap "Comparar versiones de una ley — Qué" parcial
 sleep 2
 shot 142_comparar_ley 2
-tap "Versión vieja"
+tap "Versión vieja" parcial
 sleep 1
 tap "Código Procesal de prueba" parcial
 sleep 1
-tap "Versión nueva"
+tap "Versión nueva" parcial
 sleep 1
 tap "Código Procesal reformado" parcial
 sleep 8
@@ -820,7 +820,12 @@ shot 146_cuadro_cuatro 2
 for i in 1 2 3 4 5 6; do adb shell input swipe 540 1800 540 700 400; sleep 0.4; done
 shot 147_glosario_autor 2
 back 3
-# Modo simple (el perfil de letra grande lo trae prendido): portada de Estudiar y su «Más»
+# Modo simple: se prende en Ajustes; portada de Estudiar y su «Más»
+restart
+tap "Ajustes"
+sleep 1
+stap "Modo simple"
+sleep 1
 restart
 tap "Estudiar"
 sleep 2
